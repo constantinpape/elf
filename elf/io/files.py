@@ -3,7 +3,7 @@ from .extensions import FILE_CONSTRUCTORS
 
 
 def open_file(path, mode='a'):
-    ext = os.path.split(path)[1]
+    ext = os.path.splitext(path)[1]
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
     except KeyError:
