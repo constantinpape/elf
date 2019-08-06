@@ -2,7 +2,7 @@ import runpy
 import itertools
 from setuptools import setup, find_packages
 
-__version__ = runpy.run_path('elf/version.py')['__version__']
+__version__ = runpy.run_path('elf/__version__.py')['__version__']
 
 # TODO specify all mandatory dependencies
 requires = [
