@@ -1,6 +1,6 @@
 from .knossos_wrapper import KnossosFile
 
-# cudos to @clbarnes for the extension design
+# Kudos to @clbarnes for the extension design
 FILE_CONSTRUCTORS = {}
 
 
