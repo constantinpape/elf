@@ -1,0 +1,27 @@
+os: linux
+dist: trusty
+sudo: required
+language: python
+env:
+  - CONDA_PYTHON_VERSION="36"
+  - CONDA_PYTHON_VERSION="37"
+addons:
+  apt:
+    update: true
+
+before_script:
+  # install conda
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  # update conda
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
+  # create the test environment
+  - conda create -n elf-env -c conda-forge imageio h5py z5py
+  - source activate elf-env
+
+script:
+  - python setup.py install
+  - python -m unittest discover -v test
