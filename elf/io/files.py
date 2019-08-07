@@ -38,6 +38,8 @@ def is_group(node):
         return True
     if z5py and isinstance(node, z5py.Group):
         return True
+    if isinstance(node, KnossosFile):
+        return True
     return False
 
 
@@ -47,6 +49,8 @@ def is_dataset(node):
     if h5py and isinstance(node, h5py.Dataset):
         return True
     if z5py and isinstance(node, z5py.Dataset):
+        return True
+    if isinstance(node, KnossosDataset):
         return True
     return False
 
