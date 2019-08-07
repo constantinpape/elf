@@ -7,6 +7,31 @@ import nifty.ufd as nufd
 import nifty.graph.opt.multicut as nmc
 from vigra.analysis import relabelConsecutive
 
+
+def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
+                                     weighting_exponent=1.):
+    """ Transform probabilities to costs via negative log likelihood.
+
+    Arguments:
+        probs [np.ndarray] - Input probabilities.
+        beta [float] - boundary bias (default: .5)
+        edge_sizes [np.ndarray] - sizes of edges for weighting (default: None)
+        weighting_exponent [float] - exponent used for weighting (default: 1.)
+    """
+    p_min = 0.001
+    p_max = 1. - p_min
+    costs = (p_max - p_min) * probs + p_min
+    # probabilities to costs, second term is boundary bias
+    costs = np.log((1. - costs) / costs) + np.log((1. - beta) / beta)
+    # weight the costs with edge sizes, if they are given
+    if edge_sizes is not None:
+        assert len(edge_sizes) == len(costs)
+        w = edge_sizes / edge_sizes.max()
+        if weighting_exponent != 1.:
+            w = w**weighting_exponent
+        costs *= w
+    return costs
+
 #
 # TODO
 # - support setting logging visitors
