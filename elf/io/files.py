@@ -1,6 +1,7 @@
 import os
 from .extensions import FILE_CONSTRUCTORS
 from .extensions import h5py, z5py
+from .knossos_wrapper import KnossosFile, KnossosDataset
 
 
 def supported_extensions():
@@ -60,3 +61,9 @@ def is_h5py(node):
     """ Check if this is a h5py object
     """
     return h5py and isinstance(node, (h5py.Dataset, h5py.Group))
+
+
+def is_knossos(node):
+    """ Check if this is a KnossosWrapper object
+    """
+    return isinstance(node, (KnossosFile, KnossosDataset))

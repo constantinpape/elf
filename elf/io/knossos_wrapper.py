@@ -4,8 +4,7 @@ from itertools import product
 
 import numpy as np
 import imageio
-# TODO use something else here, we don't want to depend on z5py here
-from z5py.shape_utils import normalize_slices
+from ..util import normalize_index
 
 
 class KnossosDataset(object):
@@ -140,7 +139,7 @@ class KnossosDataset(object):
         return data
 
     def __getitem__(self, index):
-        roi = normalize_slices(index, self.shape)
+        roi = normalize_index(index, self.shape)
         return self._load_roi(roi)
 
 
