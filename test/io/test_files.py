@@ -52,6 +52,25 @@ class TestFiles(unittest.TestCase):
     def test_open_zarr(self):
         self._test_open(z5py.ZarrFile, '.zr')
 
+    def _test_is_group(self, f):
+        from elf.io import is_group
+        g = f.create_group('group')
+        ds = f.create_dataset('dataset', data=np.ones((100, 100)),
+                              chunks=(10, 10))
+        self.assertTrue(is_group(f))
+        self.assertTrue(is_group(g))
+        self.assertFalse(is_group(ds))
+
+    @unittest.skipIf(h5py is None, "Need h5py")
+    def test_is_group_h5py(self):
+        f = h5py.File(os.path.join(self.tmp_dir, 'data.h5'))
+        self._test_is_group(f)
+
+    @unittest.skipIf(z5py is None, "Need z5py")
+    def test_is_group_z5py(self):
+        f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'))
+        self._test_is_group(f)
+
 
 if __name__ == '__main__':
     unittest.main()
