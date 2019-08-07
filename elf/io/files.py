@@ -48,3 +48,15 @@ def is_dataset(node):
     if z5py and isinstance(node, z5py.Dataset):
         return True
     return False
+
+
+def is_z5py(node):
+    """ Check if this is a z5py object
+    """
+    return z5py and isinstance(node, (z5py.Dataset, z5py.Group))
+
+
+def is_h5py(node):
+    """ Check if this is a h5py object
+    """
+    return h5py and isinstance(node, (h5py.Dataset, h5py.Group))
