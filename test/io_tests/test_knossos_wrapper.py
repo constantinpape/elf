@@ -18,7 +18,7 @@ class TestKnossosWrapper(unittest.TestCase):
 
     def test_import(self):
         from elf.io.knossos_wrapper import KnossosFile
-        from elf.io.knossos_wrapper import KnossosDatset
+        from elf.io.knossos_wrapper import KnossosDataset
 
 
 if __name__ == '__main__':

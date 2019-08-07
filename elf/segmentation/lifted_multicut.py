@@ -1,17 +1,39 @@
 import time
+import partial
 import nifty.graph.opt.lifted_multicut as nlmc
 
 
-def key_to_lifted_agglomerator(key):
-    agglo_dict = {'kernighan-lin': lifted_multicut_kernighan_lin,
-                  'greedy-additive': lifted_multicut_gaec,
-                  'fusion-moves': lifted_multicut_fusion_moves}
-    assert key in agglo_dict, key
-    return agglo_dict[key]
+def get_lifted_multicut_solver(name, **kwargs):
+    """ Get lifted multicut solver by name.
+    """
+    solvers = {'kernighan-lin': partial(lifted_multicut_kernighan_lin, **kwargs),
+               'greedy-additive': partial(lifted_multicut_gaec, **kwargs),
+               'fusion-moves': partial(lifted_multicut_fusion_moves, **kwargs)}
+    try:
+        solver = solvers[name]
+    except KeyError:
+        raise KeyError("Solver %s is not supported" % name)
+    return solver
+
+
+# TODO
+# - suppoer logging
+# - add citations to doc-strings
 
 
 def lifted_multicut_kernighan_lin(graph, costs, lifted_uv_ids, lifted_costs,
-                                  warmstart=True, time_limit=None, n_threads=1):
+                                  time_limit=None, warmstart=True,
+                                  **kwargs):
+    """ Solve lifted multicut problem with kernighan lin solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of lifted multicut problem
+        costs [np.ndarray] - edge costs of lifted multicut problem
+        lifted_uv_ids [np.ndarray] - lifted edges
+        lifted_costs [np.ndarray] - lifted edge costs
+        time_limit [float] - time limit for inference (default: None)
+        warmstart [bool] - whether to warmstart with gaec solution (default: True)
+    """
     objective = nlmc.liftedMulticutObjective(graph)
     objective.setGraphEdgesCosts(costs)
     objective.setCosts(lifted_uv_ids, lifted_costs)
@@ -47,7 +69,16 @@ def lifted_multicut_kernighan_lin(graph, costs, lifted_uv_ids, lifted_costs,
 
 
 def lifted_multicut_gaec(graph, costs, lifted_uv_ids, lifted_costs,
-                         time_limit=None, n_threads=1):
+                         time_limit=None, **kwargs):
+    """ Solve lifted multicut problem with greedy additive edge contraction solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of lifted multicut problem
+        costs [np.ndarray] - edge costs of lifted multicut problem
+        lifted_uv_ids [np.ndarray] - lifted edges
+        lifted_costs [np.ndarray] - lifted edge costs
+        time_limit [float] - time limit for inference (default: None)
+    """
     objective = nlmc.liftedMulticutObjective(graph)
     objective.setGraphEdgesCosts(costs)
     objective.setCosts(lifted_uv_ids, lifted_costs)
@@ -60,10 +91,20 @@ def lifted_multicut_gaec(graph, costs, lifted_uv_ids, lifted_costs,
         return solver.optimize(visitor=visitor)
 
 
-# TODO why doesn't nifty expose the internal solver here ?
 def lifted_multicut_fusion_moves(graph, costs, lifted_uv_ids, lifted_costs,
-                                 warmstart_gaec=True, warmstart_kl=True,
-                                 time_limit=None, n_threads=1):
+                                 time_limit=None, warmstart_gaec=True, warmstart_kl=True,
+                                 **kwargs):
+    """ Solve lifted multicut problem with greedy additive edge contraction solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of lifted multicut problem
+        costs [np.ndarray] - edge costs of lifted multicut problem
+        lifted_uv_ids [np.ndarray] - lifted edges
+        lifted_costs [np.ndarray] - lifted edge costs
+        time_limit [float] - time limit for inference (default: None)
+        warmstart_gaec [bool] - whether to warmstart with gaec solution (default: True)
+        warmstart_kl [bool] - whether to warmstart with kl solution (default: True)
+    """
     objective = nlmc.liftedMulticutObjective(graph)
     objective.setGraphEdgesCosts(costs)
     objective.setCosts(lifted_uv_ids, lifted_costs)
@@ -79,10 +120,12 @@ def lifted_multicut_fusion_moves(graph, costs, lifted_uv_ids, lifted_costs,
         node_labels = solver_kl.optimize(node_labels)
 
     # nifty only supports numberOfThreads=1
+    # why doesn't nifty expose the internal solver here ?
     solver = objective.fusionMoveBasedFactory(numberOfThreads=1).create(objective)
     if time_limit is None:
-        return solver.optimize(node_labels)
+        return solver.optimize() if node_labels is None else solver.optimize(node_labels)
     else:
         visitor = objective.verboseVisitor(visitNth=1000000,
                                            timeLimitTotal=time_limit)
-        return solver.optimize(nodeLabels=node_labels, visitor=visitor)
+        return solver.optimize(visitor=visitor) if node_labels is None else\
+            solver.optimize(nodeLabels=node_labels, visitor=visitor)

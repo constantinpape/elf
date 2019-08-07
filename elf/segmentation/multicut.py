@@ -36,21 +36,35 @@ def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
 # TODO
 # - support setting logging visitors
 # - expose more parameters
+# - add citiations to doc strings
 #
 
 
-def key_to_agglomerator(key):
-    agglo_dict = {'kernighan-lin': multicut_kernighan_lin,
-                  'greedy-additive': multicut_gaec,
-                  'decomposition': multicut_decomposition,
-                  'decomposition-gaec': partial(multicut_decomposition,
-                                                solver='greedy-additive'),
-                  'fusion-moves': multicut_fusion_moves}
-    assert key in agglo_dict, key
-    return agglo_dict[key]
+def get_multicut_solver(name, **kwargs):
+    """ Get multicut solver by name.
+    """
+    solvers = {'kernighan-lin': partial(multicut_kernighan_lin, **kwargs),
+               'greedy-additive': partial(multicut_gaec, **kwargs),
+               'decomposition': partial(multicut_decomposition, **kwargs),
+               'decomposition-gaec': partial(multicut_decomposition,
+                                             internal_solver='greedy-additive', **kwargs),
+               'fusion-moves': partial(multicut_fusion_moves, **kwargs)}
+    try:
+        solver = solvers[name]
+    except KeyError:
+        raise KeyError("Solver %s is not supported" % name)
+    return solver
 
 
-def multicut_kernighan_lin(graph, costs, warmstart=True, time_limit=None, n_threads=1):
+def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwargs):
+    """ Solve multicut problem with kernighan lin solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference (default: None)
+        warmstart [bool] - whether to warmstart with gaec solution (default: True)
+    """
     objective = nmc.multicutObjective(graph, costs)
     solver = objective.kernighanLinFactory(warmStartGreedy=warmstart).create(objective)
     if time_limit is None:
@@ -61,7 +75,14 @@ def multicut_kernighan_lin(graph, costs, warmstart=True, time_limit=None, n_thre
         return solver.optimize(visitor=visitor)
 
 
-def multicut_gaec(graph, costs, time_limit=None, n_threads=1):
+def multicut_gaec(graph, costs, time_limit=None, **kwargs):
+    """ Solve multicut problem with greedy-addtive edge contraction solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference (default: None)
+    """
     objective = nmc.multicutObjective(graph, costs)
     solver = objective.greedyAdditiveFactory().create(objective)
     if time_limit is None:
@@ -72,11 +93,23 @@ def multicut_gaec(graph, costs, time_limit=None, n_threads=1):
         return solver.optimize(visitor=visitor)
 
 
-def multicut_decomposition(graph, costs, time_limit=None, n_threads=1,
-                           solver='kernighan-lin'):
+# TODO move impl to nifty (Thorsten already has impl ?!)
+def multicut_decomposition(graph, costs, time_limit=None,
+                           n_threads=1, internal_solver='kernighan-lin',
+                           **kwargs):
+    """ Solve multicut problem with decomposition solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference (default: None)
+        n_threads [int] - number of threads (default: 1)
+        internal_solver [str] - name of solver used for connected components
+            (default: 'kernighan-lin')
+    """
 
     # get the agglomerator
-    agglomerator = key_to_agglomerator(solver)
+    solver = get_multicut_solver(internal_solver)
 
     # merge attractive edges with ufd to
     # obtain natural connected components
@@ -90,8 +123,6 @@ def multicut_decomposition(graph, costs, time_limit=None, n_threads=1,
     cc_labels, max_id, _ = relabelConsecutive(cc_labels, start_label=0,
                                               keep_zeros=False)
 
-    # TODO use c++ (Thorsten already has impl ?!)
-    # TODO check that relabelConsecutive lifts gil ....
     # solve a component sub-problem
     def solve_component(component_id):
 
@@ -120,7 +151,7 @@ def multicut_decomposition(graph, costs, time_limit=None, n_threads=1,
         sub_costs = costs[inner_edges]
         assert len(sub_costs) == sub_graph.numberOfEdges, "%i, %i" % (len(sub_costs),
                                                                       sub_graph.numberOfEdges)
-        sub_labels = agglomerator(sub_graph, sub_costs, time_limit=time_limit)
+        sub_labels = solver(sub_graph, sub_costs, time_limit=time_limit)
         # relabel the solution
         sub_labels, max_seg_local, _ = relabelConsecutive(sub_labels, start_label=0,
                                                           keep_zeros=False)
@@ -157,27 +188,37 @@ def multicut_decomposition(graph, costs, time_limit=None, n_threads=1,
     return node_labels
 
 
-# TODO warmstart with gaec / kl
+# TODO enable warmstart with gaec / kl
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
-                          internal_solver_name='kernighan-lin'):
-    assert internal_solver_name in ('kernighan-lin', 'greedy-additive')
+                          internal_solver='kernighan-lin', seed_fraction=.05,
+                          num_it=1000, num_it_stop=10):
+    """ Solve multicut problem with fusion moves solver.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference (default: None)
+        n_threasd [int] - number of threads (default: 1)
+        internal_solver [str] - name of solver used for connected components
+            (default: 'kernighan-lin')
+        seed_fraction [float] - fraction of nodes used as seeds for proposal generation
+            (default: .05)
+        num_it [int] - maximal number of iterations (default: 1000)
+        num_it_stop [int] - stop if no improvement after num_it_stop (default: 1000)
+    """
+    assert internal_solver in ('kernighan-lin', 'greedy-additive')
     objective = nmc.multicutObjective(graph, costs)
 
-    if internal_solver_name == 'kernighan-lin':
-        internal_solver = objective.greedyAdditiveFactory()
+    if internal_solver == 'kernighan-lin':
+        sub_solver = objective.greedyAdditiveFactory()
     else:
-        internal_solver = objective.kernighanLinFactory(warmStartGreedy=True)
+        sub_solver = objective.kernighanLinFactory(warmStartGreedy=True)
 
-    # TODO expose
-    seed_fraction = .05
-    num_it_stop = 10
-    num_it = 1000
-
-    internal_solver = objective.fusionMoveSettings(mcFactory=internal_solver)
+    sub_solver = objective.fusionMoveSettings(mcFactory=sub_solver)
     proposal_gen = objective.watershedProposals(sigma=10,
                                                 seedFraction=seed_fraction)
 
-    solver = objective.fusionMoveBasedFactory(fusionMove=internal_solver,
+    solver = objective.fusionMoveBasedFactory(fusionMove=sub_solver,
                                               verbose=1, fuseN=2,
                                               proposalGen=proposal_gen,
                                               numberOfIterations=num_it,

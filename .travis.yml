@@ -19,7 +19,7 @@ before_script:
   - conda update -q conda
   - conda info -a
   # create the test environment
-  - conda create -n elf-env -c conda-forge imageio h5py z5py
+  - conda create -n elf-env -c conda-forge imageio h5py z5py vigra
   - source activate elf-env
 
 script:

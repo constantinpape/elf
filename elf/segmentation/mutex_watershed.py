@@ -3,11 +3,22 @@ from vigra.analysis import relabelConsecutive
 from affogato.segmentation import compute_mws_segmentation
 from affogato.segmentation import MWSGridGraph, compute_mws_clustering
 
+# TODO add citations to doc strings.
+
 
 def mutex_watershed(affs, offsets, strides,
                     randomize_strides=False, mask=None,
                     noise_level=0):
-    assert compute_mws_segmentation is not None, "Need affogato for mutex watershed"
+    """ Compute mutex watershed segmentation.
+
+    Arguments:
+        affs [np.ndarray] - input affinity map
+        offsets [list[list[int]]] - pixel offsets corresponding to affinity channels
+        strides [list[int]] - strides used to sub-sample long range edges
+        randomize_strides [bool] - randomize the strides? (default: False)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
+        noise_level [float] - sigma of noise added to affinities (default: 0)
+    """
     ndim = len(offsets[0])
     if noise_level > 0:
         affs += noise_level * np.random.rand(*affs.shape)
@@ -22,6 +33,8 @@ def mutex_watershed(affs, offsets, strides,
 
 
 def compute_grid_graph(shape, mask=None, seeds=None):
+    """ Compute MWS grid graph.
+    """
     grid_graph = MWSGridGraph(shape)
     if mask is not None:
         grid_graph.set_mask(mask)
@@ -34,7 +47,18 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
                                randomize_strides=False, mask=None,
                                noise_level=0, return_graph=False,
                                seed_state=None):
-    assert compute_mws_segmentation is not None, "Need affogato for mutex watershed"
+    """ Compute mutex watershed segmentation with seeds.
+
+    Arguments:
+        affs [np.ndarray] - input affinity map
+        offsets [list[list[int]]] - pixel offsets corresponding to affinity channels
+        seeds [np.ndarray] - array with seed points
+        strides [list[int]] - strides used to sub-sample long range edges
+        randomize_strides [bool] - randomize the strides? (default: False)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
+        noise_level [float] - sigma of noise added to affinities (default: 0)
+        seed_state [dict] - seed state (default: None)
+    """
     ndim = len(offsets[0])
     if noise_level > 0:
         affs += noise_level * np.random.rand(*affs.shape)
@@ -60,7 +84,8 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
         grid_graph.set_seed_state(repulsive_edges, repulsive_weights)
     mutex_uvs, mutex_weights = grid_graph.compute_nh_and_weights(np.require(affs[ndim:],
                                                                             requirements='C'),
-                                                                 offsets[ndim:], strides, randomize_strides)
+                                                                 offsets[ndim:], strides,
+                                                                 randomize_strides)
 
     # compute the segmentation
     n_nodes = grid_graph.n_nodes
