@@ -1,4 +1,5 @@
 import os
+from collections.abc import Mapping
 from concurrent import futures
 from itertools import product
 
@@ -7,7 +8,7 @@ import imageio
 from ..util import normalize_index
 
 
-class KnossosDataset(object):
+class KnossosDataset:
     block_size = 128
 
     @staticmethod
@@ -143,7 +144,7 @@ class KnossosDataset(object):
         return self._load_roi(roi)
 
 
-class KnossosFile(object):
+class KnossosFile(Mapping):
     """ Wrapper for knossos file structure
     """
     # NOTE: the file mode is a dummy parameter to be consistent with other file impls
@@ -154,9 +155,23 @@ class KnossosFile(object):
         self.load_png = load_png
         self.file_name = os.path.split(self.path)[1]
 
-    def __getitem__(self, key):
-        ds_path = os.path.join(self.path, key)
-        if not os.path.exists(ds_path):
-            raise ValueError("Invalid key %s" % key)
-        file_prefix = '%s_%s' % (self.file_name, key)
-        return KnossosDataset(ds_path, file_prefix, self.load_png)
+    def __getitem__(self, name):
+        if name not in self:
+            raise ValueError("Invalid name %s" % name)
+        file_prefix = '%s_%s' % (self.file_name, name)
+        return KnossosDataset(os.path.join(self.path, name),
+                              file_prefix, self.load_png)
+
+    def __iter__(self):
+        for name in os.listdir(self.path):
+            if os.path.isdir(os.path.join(self.path, name)) and name.startswith('mag'):
+                yield name
+
+    def __len__(self):
+        counter = 0
+        for _ in self:
+            counter += 1
+        return counter
+
+    def __contains__(self, name):
+        return super().__contains__(name.lstrip('/'))
