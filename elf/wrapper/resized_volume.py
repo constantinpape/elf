@@ -2,24 +2,28 @@ from functools import partial
 from math import floor, ceil
 
 import numpy as np
-import vigra  # TODO check if we can use scipy.ndimage.resize instead
-from ..util import normalize_index
+import vigra
+from ..util import normalize_index, squeeze_singletons
 
 
+# TODO
+# - check if we can use skimage.transform.resize instead of vigra
+# - smooth after resize (for order > 0) to avoid aliasing (skimage has this built-in)
+# - implement loading with halo for sub-slices to avoid boundary artifacts
 class ResizedVolume:
     """ Resized volume to a different shape.
 
     Arguments:
         volume [np.ndarray]: input volume
-        output_shape [tuple]: target shape for interpolation
-        spline_order [int]: order used for interpolation
+        shape [tuple]: target shape for interpolation
+        order [int]: order used for interpolation
     """
-    def __init__(self, volume, output_shape, spline_order=0):
-        assert len(output_shape) == volume.ndim == 3, "Only 3d supported"
-        self.volume = volume
-        self.shape = output_shape
-        self.dtype = volume.dtype
-        self.scale = [sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)]
+    def __init__(self, volume, shape, order=0):
+        assert len(shape) == volume.ndim == 3, "Only 3d supported"
+        self._volume = volume
+        self._shape = shape
+        self._dtype = volume.dtype
+        self._scale = [sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)]
 
         if np.dtype(self.dtype) == np.bool:
             self.min, self.max = 0, 1
@@ -31,7 +35,23 @@ class ResizedVolume:
                 self.min = np.finfo(np.dtype(self.dtype)).min
                 self.max = np.finfo(np.dtype(self.dtype)).max
 
-        self.interpol_function = partial(vigra.sampling.resize, order=spline_order)
+        self.interpol_function = partial(vigra.sampling.resize, order=order)
+
+    @property
+    def volume(self):
+        return self._volume
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def scale(self):
+        return self._scale
 
     def _interpolate(self, data, shape):
         # vigra can't deal with singleton dimensions, so we need to handle this seperately
@@ -52,10 +72,8 @@ class ResizedVolume:
             data = data[inflate]
         return data.astype(self.dtype)
 
-    # TODO make use of `to_squeeze` (ret val of `normalize_index`)
-    # and `squeeze_singletons` here
-    def __getitem__(self, index):
-        index = normalize_index(index, self.shape)[0]
+    def __getitem__(self, key):
+        index, to_squeeze = normalize_index(key, self.shape)
         # get the return shape and singletons
         ret_shape = tuple(ind.stop - ind.start for ind in index)
         singletons = tuple(sh == 1 for sh in ret_shape)
@@ -68,7 +86,6 @@ class ResizedVolume:
         index_ = tuple(slice(sta, sto) for sta, sto in zip(starts, stops))
 
         # check if we have a singleton in the return shape
-
         data_shape = tuple(idx.stop - idx.start for idx in index_)
         # remove singletons from data iff axis is not singleton in return data
         index_ = tuple(slice(idx.start, idx.stop) if sh > 1 or is_single else
@@ -79,10 +96,12 @@ class ResizedVolume:
         # speed ups for empty blocks and masks
         dsum = data.sum()
         if dsum == 0:
-            return np.zeros(ret_shape, dtype=self.dtype)
+            out = np.zeros(ret_shape, dtype=self.dtype)
         elif dsum == data.size:
-            return np.ones(ret_shape, dtype=self.dtype)
-        return self._interpolate(data, ret_shape)
+            out = np.ones(ret_shape, dtype=self.dtype)
+        else:
+            out = self._interpolate(data, ret_shape)
+        return squeeze_singletons(out, to_squeeze)
 
-    def __setitem__(self, index, item):
+    def __setitem__(self, key, item):
         raise NotImplementedError("Setitem not implemented")
