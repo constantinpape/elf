@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 
-class TestAffine(unittest.TestCase):
+class TestAffineVolume(unittest.TestCase):
     pass
 
 

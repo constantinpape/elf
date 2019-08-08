@@ -1,13 +1,14 @@
 import numpy as np
 from scipy.ndimage import affine_transform
 
+from .wrapper_base import WrapperBase
 from ..transformation import compute_affine_matrix, transform_roi
-from ..util import normalize_index
+from ..util import normalize_index, squeeze_singletons
 
 
 # we need to support origin shifts,
 # but it's probably better to do this with the affine matrix already
-class AffineVolume:
+class AffineVolume(WrapperBase):
     """ Apply affine transformation to the volume.
 
     Arguments:
@@ -28,9 +29,7 @@ class AffineVolume:
 
         # TODO support 2d + channels and 3d + channels
         assert volume.ndim in (2, 3), "Only 2d or 3d supported"
-        self._volume = volume
-        self._dtype = volume.dtype
-        self._ndim = volume.ndim
+        super().__init__(volume)
 
         # scipy transformation options
         self.order = order
@@ -72,18 +71,6 @@ class AffineVolume:
     def shape(self):
         return self._shape
 
-    @property
-    def volume(self):
-        return self._volume
-
-    @property
-    def dtype(self):
-        return self._dtype
-
-    @property
-    def ndim(self):
-        return self._ndim
-
     def compute_extent_and_origin(self):
         roi_start, roi_stop = transform_roi([0] * self.ndim, self.volume.shape, self.matrix)
         extent = tuple(int(sto - sta) for sta, sto in zip(roi_start, roi_stop))
@@ -99,7 +86,7 @@ class AffineVolume:
 
     def __getitem__(self, index):
         # 1.) normalize the index to have a proper bounding box
-        index = normalize_index(index, self.shape)
+        index, to_squeeze = normalize_index(index, self.shape)
 
         # 2.) transform the bounding box back to the input shape
         # (= coordinate system of self.volume) and make out shape
@@ -125,7 +112,7 @@ class AffineVolume:
         out = affine_transform(input_, tmp_mat, output_shape=out_shape,
                                order=self.order, mode='constant', cval=self.fill_value)
 
-        return out
+        return squeeze_singletons(out, to_squeeze)
 
     def __setitem__(self, index, item):
         raise NotImplementedError("Setitem not implemented")

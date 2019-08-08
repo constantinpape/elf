@@ -3,6 +3,8 @@ from math import floor, ceil
 
 import numpy as np
 import vigra
+
+from .wrapper_base import WrapperBase
 from ..util import normalize_index, squeeze_singletons
 
 
@@ -10,7 +12,8 @@ from ..util import normalize_index, squeeze_singletons
 # - check if we can use skimage.transform.resize instead of vigra
 # - smooth after resize (for order > 0) to avoid aliasing (skimage has this built-in)
 # - implement loading with halo for sub-slices to avoid boundary artifacts
-class ResizedVolume:
+# - support more dimensions and multichannel
+class ResizedVolume(WrapperBase):
     """ Resized volume to a different shape.
 
     Arguments:
@@ -20,9 +23,9 @@ class ResizedVolume:
     """
     def __init__(self, volume, shape, order=0):
         assert len(shape) == volume.ndim == 3, "Only 3d supported"
-        self._volume = volume
+        super().__init__(volume)
         self._shape = shape
-        self._dtype = volume.dtype
+
         self._scale = [sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)]
 
         if np.dtype(self.dtype) == np.bool:
@@ -38,16 +41,8 @@ class ResizedVolume:
         self.interpol_function = partial(vigra.sampling.resize, order=order)
 
     @property
-    def volume(self):
-        return self._volume
-
-    @property
     def shape(self):
         return self._shape
-
-    @property
-    def dtype(self):
-        return self._dtype
 
     @property
     def scale(self):
