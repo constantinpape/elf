@@ -5,7 +5,7 @@ from itertools import product
 
 import numpy as np
 import imageio
-from ..util import normalize_index
+from ..util import normalize_index, squeeze_singletons
 
 
 class KnossosDataset:
@@ -140,8 +140,8 @@ class KnossosDataset:
         return data
 
     def __getitem__(self, index):
-        roi = normalize_index(index, self.shape)
-        return self._load_roi(roi)
+        roi, to_squeeze = normalize_index(index, self.shape)
+        return squeeze_singletons(self._load_roi(roi), to_squeeze)
 
 
 class KnossosFile(Mapping):
