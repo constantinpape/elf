@@ -155,12 +155,14 @@ class KnossosFile(Mapping):
         self.load_png = load_png
         self.file_name = os.path.split(self.path)[1]
 
-    def __getitem__(self, name):
-        if name not in self:
-            raise ValueError("Invalid name %s" % name)
-        file_prefix = '%s_%s' % (self.file_name, name)
-        return KnossosDataset(os.path.join(self.path, name),
-                              file_prefix, self.load_png)
+    def __getitem__(self, key):
+        sub_path = os.path.join(self.path, key)
+        if not os.path.exists(sub_path):
+            raise ValueError("Key %s does not exist" % key)
+        if not os.path.isdir(sub_path) and key.startswith('mag'):
+            raise ValueError("Key %s is not a valid knossos dataset" % key)
+        file_prefix = '%s_%s' % (self.file_name, key)
+        return KnossosDataset(sub_path, file_prefix, self.load_png)
 
     def __iter__(self):
         for name in os.listdir(self.path):
