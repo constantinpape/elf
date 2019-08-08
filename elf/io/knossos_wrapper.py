@@ -177,3 +177,9 @@ class KnossosFile(Mapping):
 
     def __contains__(self, name):
         return super().__contains__(name.lstrip('/'))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
