@@ -52,8 +52,10 @@ class ResizedVolume:
             data = data[inflate]
         return data.astype(self.dtype)
 
+    # TODO make use of `to_squeeze` (ret val of `normalize_index`)
+    # and `squeeze_singletons` here
     def __getitem__(self, index):
-        index = normalize_index(index, self.shape)
+        index = normalize_index(index, self.shape)[0]
         # get the return shape and singletons
         ret_shape = tuple(ind.stop - ind.start for ind in index)
         singletons = tuple(sh == 1 for sh in ret_shape)
