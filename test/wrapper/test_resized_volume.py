@@ -18,6 +18,21 @@ class TestResizedVolume(unittest.TestCase):
             bb = tuple(slice(halo, sh - halo) for sh in o1.shape)
             self.assertTrue(np.allclose(o1[bb], o2[bb]))
 
+    @unittest.skipUnless(vigra, "resize functionality needs vigra")
+    def test_downscale_full_volume(self):
+        from elf.wrapper.resized_volume import ResizedVolume
+        shape = 3 * (256,)
+        x = np.random.rand(*shape).astype('float32')
+
+        out_shape = 3 * (128,)
+        orders = (0, 3)
+        for order in orders:
+            out1 = vigra.sampling.resize(x, shape=out_shape,
+                                         order=order)
+            out2 = ResizedVolume(x, shape=out_shape, order=order)
+            self.assertEqual(out1.shape, out2.shape)
+            self._check_index(out1, out2, np.s_[:])
+
     @unittest.expectedFailure
     @unittest.skipUnless(vigra, "resize functionality needs vigra")
     def test_downscale(self):
@@ -27,7 +42,7 @@ class TestResizedVolume(unittest.TestCase):
 
         out_shape = 3 * (128,)
         orders = (0, 3)
-        indices = (np.s_[:], np.s_[:64, :, 64:], np.s_[:64, :48, 40:95])
+        indices = (np.s_[1:-1, 2:-2, 3:-3], np.s_[:64, :, 64:], np.s_[:64, :48, 40:95])
         halo = 8
         for order in orders:
             out1 = vigra.sampling.resize(x, shape=out_shape,
@@ -40,6 +55,21 @@ class TestResizedVolume(unittest.TestCase):
             index = np.s_[32:96, 33:55, 70]
             self._check_index(out1, out2, index, check_close=False)
 
+    @unittest.skipUnless(vigra, "resize functionality needs vigra")
+    def test_upscale_full_volume(self):
+        from elf.wrapper.resized_volume import ResizedVolume
+        shape = 3 * (128,)
+        x = np.random.rand(*shape).astype('float32')
+
+        out_shape = 3 * (256,)
+        orders = (0, 3)
+        for order in orders:
+            out1 = vigra.sampling.resize(x, shape=out_shape,
+                                         order=order)
+            out2 = ResizedVolume(x, shape=out_shape, order=order)
+            self.assertEqual(out1.shape, out2.shape)
+            self._check_index(out1, out2, np.s_[:])
+
     @unittest.expectedFailure
     @unittest.skipUnless(vigra, "resize functionality needs vigra")
     def test_upscale(self):
@@ -49,7 +79,7 @@ class TestResizedVolume(unittest.TestCase):
 
         out_shape = 3 * (256,)
         orders = (0, 3)
-        indices = (np.s_[:], np.s_[:128, :, 128:], np.s_[:128, :97, 123:250])
+        indices = (np.s_[1:-1, 2:-2, 3:-3], np.s_[:128, :, 128:], np.s_[:128, :97, 123:250])
         halo = 8
         for order in orders:
             out1 = vigra.sampling.resize(x, shape=out_shape,
