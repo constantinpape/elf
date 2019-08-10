@@ -11,7 +11,7 @@ def supported_extensions():
 
 
 # TODO support pathlib path
-def open_file(path, mode='a'):
+def open_file(path, mode='a', ext=None):
     """ Open a hdf5, zarr, n5 or knossos file on the filesystem.
 
     The formats and extensions supported depend on the available libraries.
@@ -20,13 +20,17 @@ def open_file(path, mode='a'):
     Arguments:
         path [str] - path to the file to be opened
         mode [str] - mode in which to open the file (default: 'a')
+        ext [str] - file extension. This can be used to force an extension
+            if it cannot be inferred from the filename. (default: None)
     """
-    ext = os.path.splitext(path)[1]
+    ext = os.path.splitext(path)[1] if ext is None else ext
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
     except KeyError:
-        raise ValueError("""Could not infer file type from extension %s.
-                          You may need to install additional dependencies (h5py, z5py, zarr)""" % ext)
+        raise ValueError("""Could not infer file type from extension %s,
+                          because it is not in the supported extensions: %s.
+                          You may need to install additional dependencies (h5py, z5py, zarr)."""
+                         % (ext, ' '.join(supported_extensions())))
     return constructor(path, mode=mode)
 
 
