@@ -1,3 +1,5 @@
+from collections.abc import MutableMapping
+
 import numpy as np
 import nifty.tools as nt
 # import blosc for chunk compression
@@ -8,6 +10,21 @@ except ImportError:
 
 from .wrapper_base import WrapperBase
 from ..util import normalize_index, squeeze_singletons
+
+
+# TODO specify cache size in MB instead of num elements
+class Cache(MutableMapping):
+    """
+    """
+    def __init__(self, max_cache_size, compression=None):
+        self._max_cache_size = max_cache_size
+        if compression is not None:
+            raise NotImplementedError
+
+
+class FIFOCache(Cache):
+    """
+    """
 
 
 # some cache implementations out there:
@@ -29,17 +46,12 @@ from ..util import normalize_index, squeeze_singletons
 # -- OR use daemon process to compres chunks
 # -- mover impl to c++
 class CachedVolume(WrapperBase):
-    replacement_strategies = ('fifo', 'lifo')
+    """
+    """
+    preload_internal_chunks = False  # TODO implement this and make param
 
-    """
-    """
-    def __init__(self, volume, chunks=None,
-                 replacement_strategy='fifo', compression=None):
+    def __init__(self, volume, cache, chunks=None):
         super().__init__(volume)
-
-        if replacement_strategy.lower() not in self.replacement_strategies:
-            raise ValueError("Replacement strategy %s not supported" % replacement_strategy)
-        self._replacement_strategy = replacement_strategy.lower()
 
         try:
             self._internal_chunks = volume.chunks
@@ -48,9 +60,10 @@ class CachedVolume(WrapperBase):
                              like h5py.Dataset or z5py.Dataset.""")
         self._chunks = self.internal_chunks if chunks is None else chunks
 
-        # TODO is there something better then a dict?
         # initialize the actual chunk cache
-        self._cache = {}
+        if not isinstance(cache, Cache):
+            raise ValueError("Expect cache to be of type elf.wrapper.Cache, not %s" % type(cache))
+        self._cache = cache
 
         # TODO we use nifty blocking for now, but it would be
         # nice to have this functionality independent of nifty
@@ -90,19 +103,30 @@ class CachedVolume(WrapperBase):
             if chunk_data is None:
                 not_cached.append(chunk_id)
             else:
-                # TODO get corresponding bounding boxes in out and chunk
+                # TODO get corresponding bounding boxes for out and chunk
                 out[''] = chunk_data['']
 
-        # find all the internal chunks we need to load
-        internal_chunks = []
-        for chunk_id in not_cached:
-            chunk_block = self._blocking.getBlock(chunk_id)
-            chunk_start, chunk_stop = [start for start in chunk_block.begin], [stop for stop in chunk_block.end]
-            internal_chunks.extend(self._internal_blocking.getBlockIdsOverlappingBoundingBox(chunk_start,
-                                                                                             chunk_stop))
+        # check if we preload internal chunks
+        if self.preload_internal_chunks:
+            # find all the internal chunks we need to load
+            internal_chunks = []
+            for chunk_id in not_cached:
+                chunk_block = self._blocking.getBlock(chunk_id)
+                chunk_start, chunk_stop = [start for start in chunk_block.begin], [stop for stop in chunk_block.end]
+                internal_chunks.extend(self._internal_blocking.getBlockIdsOverlappingBoundingBox(chunk_start,
+                                                                                                 chunk_stop))
+                # TODO
+                # read all internal chunks, map them to chunks, write to data and put chunks on the cache
 
-        # TODO read_chunk only works for z5py
-        # TODO
-        # read all internal chunks, map them to chunks, write to data and put chunks on the cache
+        # otherwise, we just load the missing chunks
+        else:
+            for chunk_id in not_cached:
+                chunk_block = self._blocking.getBlock(chunk_id)
+                chunk_index = tuple(slice(beg, end) for beg, end
+                                    in zip(chunk_block.begin, chunk_block.end))
+                chunk_data = self.volume[chunk_index]
+                self.cache[chunk_id] = chunk_data
+                # TODO get corresponding bounding boxes for out and chunk
+                out[''] = chunk_data['']
 
         return squeeze_singletons(out, to_squeeze)
