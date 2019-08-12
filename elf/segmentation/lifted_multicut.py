@@ -1,5 +1,5 @@
 import time
-import partial
+from functools import partial
 import nifty.graph.opt.lifted_multicut as nlmc
 
 
