@@ -1,9 +1,10 @@
 import unittest
 import numpy as np
 try:
+    import nifty
     import nifty.graph.opt.multicut as nmc
 except ImportError:
-    nifty = None
+    nmc = None
 
 
 class TestMulticut(unittest.TestCase):
