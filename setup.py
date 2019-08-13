@@ -20,7 +20,7 @@ extras["all"] = list(itertools.chain.from_iterable(extras.values()))
 
 setup(
     name='elf',
-    packages=find_packages(include='elf'),
+    packages=find_packages(exclude=['test']),
     version=__version__,
     author='Constantin Pape',
     install_requires=requires,
