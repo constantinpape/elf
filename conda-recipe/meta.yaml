@@ -23,12 +23,13 @@ build:
 requirements:
   host:
     - python {{PY_VER}}*
-    - scikit-image
-    - z5py
-    - h5py
 
   run:
     - python {{PY_VER}}*
+    - scikit-image
+    - z5py
+    - h5py
+    - imageio
 
 test:
   imports:
