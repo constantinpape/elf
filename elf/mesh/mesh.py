@@ -16,22 +16,31 @@ except ImportError:
     march = None
 
 
-def marching_cubes(obj, smoothing_iterations=0, use_ilastik=False):
+def marching_cubes(obj, smoothing_iterations=0,
+                   resolution=None, use_ilastik=False):
     """ Compute mesh via marching cubes.
 
     Arguments:
         obj [np.ndarray] - volume containing the object to be meshed
         smoothing_iterations [int] - number of mesh smoothing iterations (default: 0)
+        resolution[listlike[int]] - resolution of the data (default: None)
         use_ilastik [bool] - whether to use the ilastk marching cubes implementation.
             Default is skimage (default: False)
     """
+    if resolution is not None:
+        if len(resolution) != 3:
+            raise ValueError("Invalid resolution argument")
+        resolution = tuple(resolution)
+
     if use_ilastik:
         if march is None:
             raise RuntimeError("Ilastik marching cubes implementation not found")
+        if resolution is not None:
+            raise RuntimeError("Ilastik marching cubes does not support resolution.")
         verts, normals, faces = march(obj.T, smoothing_iterations)
         verts = verts[:, ::-1]
     else:
-        verts, faces, normals, _ = marching_cubes_lewiner(obj)
+        verts, faces, normals, _ = marching_cubes_lewiner(obj, spacing=resolution)
         if smoothing_iterations > 0:
             if nifty is None:
                 raise RuntimeError("Need nifty to perform mesh smoothing")
