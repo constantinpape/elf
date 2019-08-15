@@ -4,6 +4,10 @@ try:
     from nifty.filters import nonMaximumDistanceSuppression
 except ImportError:
     nonMaximumDistanceSuppression = None
+try:
+    import fastfilters as ff
+except ImportError:
+    import vigra.filters as ff
 
 
 def watershed(input_, seeds, size_filter=0, exclude=None):
@@ -41,11 +45,21 @@ def apply_size_filter(segmentation, input_, size_filter, exclude=None):
     return segmentation, max_id
 
 
-# TODO implement
+def non_maximum_suppression(dt, seeds):
+    """ Apply non maximum distance suppression to seeds.
+    """
+    seeds = np.array(np.where(seeds)).transpose()
+    seeds = nonMaximumDistanceSuppression(dt, seeds)
+    vol = np.zeros(dt.shape, dtype='bool')
+    coords = tuple(seeds[:, i] for i in range(seeds.shape[1]))
+    vol[coords] = 1
+    return vol
+
+
 def distance_transform_watershed(input_, threshold, sigma_seeds,
                                  sigma_weights=2., min_size=100,
                                  alpha=.9, pixel_pitch=None,
-                                 apply_non_max_suppression=False):
+                                 apply_nonmax_suppression=False):
     """ Compute watershed segmentation based on distance transform seeds.
 
     Parameter:
@@ -57,7 +71,35 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
         alpha [float] - alpha used to blend input_ and distance_transform in order to obtain the
             watershed weight map (default: .9)
         pixel_pitch [listlike[int]] - anisotropy factor used to compute the distance transform (default: None)
-        apply_non_max_suppression [bool] - whetther to apply non-maxmimum suppression to filter out seeds.
+        apply_nonmax_suppression [bool] - whetther to apply non-maxmimum suppression to filter out seeds.
             Needs nifty. (default: False)
     """
-    pass
+    if apply_nonmax_suppression and nonMaximumDistanceSuppression is None:
+        raise ValueError("Non-maximum suppression is only available with nifty.")
+
+    # threshold the input and compute distance transform
+    thresholded = (input_ > threshold).astype('uint32')
+    dt = vigra.filters.distanceTransform(thresholded, pixel_pitch=pixel_pitch)
+
+    # compute seeds from maxima of the (smoothed) distance transform
+    if sigma_seeds > 0:
+        dt = ff.gaussianSmoothing(dt, sigma_seeds)
+    compute_maxima = vigra.analysis.localMaxima if dt.ndim == 2 else vigra.analysis.localMaxima3D
+    seeds = compute_maxima(dt, marker=np.nan, allowAtBorder=True, allowPlateaus=True)
+    seeds = np.isnan(seeds)
+    if apply_nonmax_suppression:
+        seeds = non_maximum_suppression(dt, seeds)
+    seeds = vigra.analysis.labelMultiArrayWithBackground(seeds.view('uint8'))
+
+    # normalize and invert distance transform
+    dt = 1. - (dt - dt.min()) / dt.max()
+
+    # compute weights from input and distance transform
+    if sigma_weights > 0.:
+        hmap = alpha * ff.gaussianSmoothing(input_, sigma_weights) + (1. - alpha) * dt
+    else:
+        hmap = alpha * input_ + (1. - alpha) * dt
+
+    # compute watershed
+    ws, max_id = watershed(hmap, seeds, size_filter=min_size)
+    return ws, max_id
