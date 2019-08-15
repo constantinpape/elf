@@ -13,7 +13,7 @@ except ImportError:
 def watershed(input_, seeds, size_filter=0, exclude=None):
     """ Compute seeded watershed.
 
-    Parameter:
+    Arguments:
         input_ [np.ndarray] - input height map.
         seeds [np.ndarray] - seed map.
         size_filter [int] - minimal segment size (default: 0).
@@ -29,7 +29,7 @@ def watershed(input_, seeds, size_filter=0, exclude=None):
 def apply_size_filter(segmentation, input_, size_filter, exclude=None):
     """ Apply size filter to segmentation.
 
-    Parameter:
+    Arguments:
         segmentation [np.ndarray] - input segmentation.
         input_ [np.ndarray] - input height map.
         size_filter [int] - minimal segment size.
@@ -62,7 +62,10 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
                                  apply_nonmax_suppression=False):
     """ Compute watershed segmentation based on distance transform seeds.
 
-    Parameter:
+    Following the procedure outlined in "Multicut brings automated neurite segmentation closer to human performance":
+    https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/217205318/beier_17_multicut.pdf
+
+    Arguments:
         input_ [np.ndarray] - input height map.
         threshold [float] - value for the threshold applied before distance tranform.
         sigma_seeds [float] - smoothing factor for the watershed seed map.

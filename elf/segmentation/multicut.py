@@ -7,6 +7,8 @@ import nifty.ufd as nufd
 import nifty.graph.opt.multicut as nmc
 from vigra.analysis import relabelConsecutive
 
+from .blockwise_mc_impl import blockwise_mc_impl
+
 
 def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
                                      weighting_exponent=1.):
@@ -36,7 +38,6 @@ def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
 # TODO
 # - support setting logging visitors
 # - expose more parameters
-# - add citiations to doc strings
 #
 
 
@@ -48,7 +49,8 @@ def get_multicut_solver(name, **kwargs):
                'decomposition': partial(multicut_decomposition, **kwargs),
                'decomposition-gaec': partial(multicut_decomposition,
                                              internal_solver='greedy-additive', **kwargs),
-               'fusion-moves': partial(multicut_fusion_moves, **kwargs)}
+               'fusion-moves': partial(multicut_fusion_moves, **kwargs),
+               'blockwise-multicut': partial(blockwise_multicut, **kwargs)}
     try:
         solver = solvers[name]
     except KeyError:
@@ -56,8 +58,37 @@ def get_multicut_solver(name, **kwargs):
     return solver
 
 
+def blockwise_multicut(graph, costs, segmentation,
+                       internal_solver, block_shape,
+                       n_threads, n_levels=1, halo=None, **kwargs):
+    """ Solve multicut with block-wise hierarchical solver.
+
+    This algorithm was introduced in "Solving large Multicut problems for connectomics via domain decomposition":
+    http://openaccess.thecvf.com/content_ICCV_2017_workshops/papers/w1/Pape_Solving_Large_Multicut_ICCV_2017_paper.pdf
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        segmentation [np.ndarray] - segmentation underlying multicut problem
+        internal_solver [str or callable] - internal solver
+        block_shape [listlike] - shape of blocks used to extract sub-problems
+        n_threads [int] - number of threads used to solve sub-problems in parallel
+        n_levels [int] - number of hierarchy levels (default: 1)
+        halo [listlike] - halo used to enlarge block shape (default: None)
+    """
+    solver = get_multicut_solver(internal_solver) if isinstance(internal_solver, str)\
+        else internal_solver
+    if not callable(solver):
+        raise ValueError("Invalid argument for internal_solver.")
+    return blockwise_mc_impl(graph, costs, segmentation, solver,
+                             block_shape, halo)
+
+
 def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwargs):
     """ Solve multicut problem with kernighan lin solver.
+
+    This algorithm was introduced in "An efficient heuristic procedure for partitioning graphs":
+    http://xilinx.asia/_hdl/4/eda.ee.ucla.edu/EE201A-04Spring/kl.pdf
 
     Arguments:
         graph [nifty.graph] - graph of multicut problem
@@ -77,6 +108,9 @@ def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwar
 
 def multicut_gaec(graph, costs, time_limit=None, **kwargs):
     """ Solve multicut problem with greedy-addtive edge contraction solver.
+
+    This algorithm was introduced in "Fusion moves for correlation clustering":
+    http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
     Arguments:
         graph [nifty.graph] - graph of multicut problem
@@ -193,6 +227,9 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                           internal_solver='kernighan-lin', seed_fraction=.05,
                           num_it=1000, num_it_stop=10):
     """ Solve multicut problem with fusion moves solver.
+
+    This algorithm was introduced in "Fusion moves for correlation clustering":
+    http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
     Arguments:
         graph [nifty.graph] - graph of multicut problem
