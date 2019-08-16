@@ -11,6 +11,9 @@ def mutex_watershed(affs, offsets, strides,
                     noise_level=0):
     """ Compute mutex watershed segmentation.
 
+    Introduced in "The Mutex Watershed and its Objective: Efficient, Parameter-Free Image Partitioning":
+    https://arxiv.org/pdf/1904.12654.pdf
+
     Arguments:
         affs [np.ndarray] - input affinity map
         offsets [list[list[int]]] - pixel offsets corresponding to affinity channels
@@ -48,6 +51,9 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
                                noise_level=0, return_graph=False,
                                seed_state=None):
     """ Compute mutex watershed segmentation with seeds.
+
+    Introduced in "The Mutex Watershed and its Objective: Efficient, Parameter-Free Image Partitioning":
+    https://arxiv.org/pdf/1904.12654.pdf
 
     Arguments:
         affs [np.ndarray] - input affinity map

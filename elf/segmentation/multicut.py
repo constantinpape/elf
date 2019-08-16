@@ -63,7 +63,7 @@ def blockwise_multicut(graph, costs, segmentation,
                        n_threads, n_levels=1, halo=None, **kwargs):
     """ Solve multicut with block-wise hierarchical solver.
 
-    This algorithm was introduced in "Solving large Multicut problems for connectomics via domain decomposition":
+    Introduced in "Solving large Multicut problems for connectomics via domain decomposition":
     http://openaccess.thecvf.com/content_ICCV_2017_workshops/papers/w1/Pape_Solving_Large_Multicut_ICCV_2017_paper.pdf
 
     Arguments:
@@ -81,13 +81,13 @@ def blockwise_multicut(graph, costs, segmentation,
     if not callable(solver):
         raise ValueError("Invalid argument for internal_solver.")
     return blockwise_mc_impl(graph, costs, segmentation, solver,
-                             block_shape, halo)
+                             block_shape, n_threads, n_levels, halo)
 
 
 def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwargs):
     """ Solve multicut problem with kernighan lin solver.
 
-    This algorithm was introduced in "An efficient heuristic procedure for partitioning graphs":
+    Introduced in "An efficient heuristic procedure for partitioning graphs":
     http://xilinx.asia/_hdl/4/eda.ee.ucla.edu/EE201A-04Spring/kl.pdf
 
     Arguments:
@@ -109,7 +109,7 @@ def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwar
 def multicut_gaec(graph, costs, time_limit=None, **kwargs):
     """ Solve multicut problem with greedy-addtive edge contraction solver.
 
-    This algorithm was introduced in "Fusion moves for correlation clustering":
+    Introduced in "Fusion moves for correlation clustering":
     http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
     Arguments:
@@ -228,7 +228,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                           num_it=1000, num_it_stop=10):
     """ Solve multicut problem with fusion moves solver.
 
-    This algorithm was introduced in "Fusion moves for correlation clustering":
+    Introduced in "Fusion moves for correlation clustering":
     http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
     Arguments:
