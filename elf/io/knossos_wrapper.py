@@ -1,11 +1,11 @@
 import os
 from collections.abc import Mapping
 from concurrent import futures
-from itertools import product
 
 import numpy as np
 import imageio
-from ..util import normalize_index, squeeze_singletons, map_chunk_to_roi
+from ..util import (normalize_index, squeeze_singletons,
+                    map_chunk_to_roi, chunks_overlapping_roi)
 
 
 class KnossosDataset:
@@ -67,11 +67,7 @@ class KnossosDataset:
 
     def _load_roi(self, roi):
         # snap roi to grid
-        ranges = [range(rr.start // self.block_size,
-                        rr.stop // self.block_size if
-                        rr.stop % self.block_size == 0 else rr.stop // self.block_size + 1)
-                  for rr in roi]
-        grid_points = product(*ranges)
+        grid_points = chunks_overlapping_roi(roi, self.chunks)
 
         # init data (dtype is hard-coded to uint8)
         roi_shape = tuple(rr.stop - rr.start for rr in roi)
@@ -91,8 +87,8 @@ class KnossosDataset:
         #
         return data
 
-    def __getitem__(self, index):
-        roi, to_squeeze = normalize_index(index, self.shape)
+    def __getitem__(self, key):
+        roi, to_squeeze = normalize_index(key, self.shape)
         return squeeze_singletons(self._load_roi(roi), to_squeeze)
 
 

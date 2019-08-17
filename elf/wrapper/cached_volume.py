@@ -2,7 +2,7 @@ from collections import OrderedDict
 from collections.abc import MutableMapping
 
 import numpy as np
-import nifty.tools as nt
+
 # import blosc for chunk compression
 try:
     import blosc
@@ -10,7 +10,8 @@ except ImportError:
     blosc = None
 
 from .wrapper_base import WrapperBase
-from ..util import normalize_index, squeeze_singletons, map_chunk_to_roi
+from ..util import (normalize_index, squeeze_singletons,
+                    map_chunk_to_roi, chunks_overlapping_roi)
 
 
 # TODO implement compression
@@ -99,13 +100,6 @@ class CachedVolume(WrapperBase):
             raise ValueError("Expect cache to be of type elf.wrapper.Cache, not %s" % type(cache))
         self._cache = cache
 
-        # TODO we use nifty blocking for now, but it would be
-        # nice to have this functionality independent of nifty
-        # and use a blocking implemented in elf.util (check with @k-dominik)
-        # blockings for chunks and internal chunks
-        self._blocking = nt.blocking([0] * self.ndim, self.shape, self.chunks)
-        self._internal_blocking = nt.blocking([0] * self.ndim, self.shape, self.internal_chunks)
-
     @property
     def chunks(self):
         return self._chunks
@@ -127,8 +121,7 @@ class CachedVolume(WrapperBase):
         out = np.empty(out_shape, dtype=self.dtype)
 
         # determine all chunks overlapping with `index`
-        overlapping_chunks = self._blocking.getBlockIdsOverlappingBoundingBox(roi_start,
-                                                                              roi_stop)
+        overlapping_chunks = chunks_overlapping_roi(index, self.chunks)
 
         # get all chunks that are in the cache and collect chunks not in the cache
         not_cached = []
@@ -138,8 +131,8 @@ class CachedVolume(WrapperBase):
                 not_cached.append(chunk_id)
             else:
                 # get corresponding bounding boxes for out and chunk
-                chunk_index = self._blocking.blockGridPosition(chunk_id)
-                chunk_bb, out_bb = map_chunk_to_roi(chunk_index, index, self.chunks)
+                # chunk_index = self._blocking.blockGridPosition(chunk_id)
+                chunk_bb, out_bb = map_chunk_to_roi(chunk_id, index, self.chunks)
                 out[out_bb] = chunk_data[chunk_bb]
 
         # check if we preload internal chunks
@@ -147,24 +140,22 @@ class CachedVolume(WrapperBase):
             # find all the internal chunks we need to load
             internal_chunks = []
             for chunk_id in not_cached:
-                chunk_block = self._blocking.getBlock(chunk_id)
-                chunk_start, chunk_stop = [start for start in chunk_block.begin], [stop for stop in chunk_block.end]
-                internal_chunks.extend(self._internal_blocking.getBlockIdsOverlappingBoundingBox(chunk_start,
-                                                                                                 chunk_stop))
-                # TODO
-                # read all internal chunks, map them to chunks, write to data and put chunks on the cache
+                chunk_roi = tuple(slice(cid * ch, min((cid + 1) * ch, sh))
+                                  for cid, ch, sh in zip(chunk_id, self.chunks, self.shape))
+                internal_chunks.extend(list(chunks_overlapping_roi(chunk_roi, self.internal_chunks)))
+            # TODO
+            # read all internal chunks, map them to chunks, write to data and put chunks on the cache
 
         # otherwise, we just load the missing chunks
         else:
             for chunk_id in not_cached:
-                chunk_block = self._blocking.getBlock(chunk_id)
-                chunk_index = tuple(slice(beg, end) for beg, end
-                                    in zip(chunk_block.begin, chunk_block.end))
-                chunk_data = self.volume[chunk_index]
+                chunk_roi = tuple(slice(cid * ch, min((cid + 1) * ch, sh))
+                                  for cid, ch, sh in zip(chunk_id, self.chunks, self.shape))
+                chunk_data = self.volume[chunk_roi]
                 self.cache[chunk_id] = chunk_data
+
                 # get corresponding bounding boxes for out and chunk
-                chunk_index = self._blocking.blockGridPosition(chunk_id)
-                chunk_bb, out_bb = map_chunk_to_roi(chunk_index, index, self.chunks)
+                chunk_bb, out_bb = map_chunk_to_roi(chunk_id, index, self.chunks)
                 out[out_bb] = chunk_data[chunk_bb]
 
         return squeeze_singletons(out, to_squeeze)

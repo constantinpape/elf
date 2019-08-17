@@ -1,4 +1,5 @@
 import numbers
+from itertools import product
 
 
 def slice_to_start_stop(s, size):
@@ -172,3 +173,9 @@ def map_chunk_to_roi(chunk_id, roi, chunks):
         roi_bb.append(slice(begin_in_roi, begin_in_roi + shape_in_roi))
 
     return tuple(chunk_bb), tuple(roi_bb)
+
+
+def chunks_overlapping_roi(roi, chunks):
+    ranges = [range(rr.start // ch, rr.stop // ch if rr.stop % ch == 0 else rr.stop // ch + 1)
+              for rr, ch in zip(roi, chunks)]
+    return product(*ranges)
