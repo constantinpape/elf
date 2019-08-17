@@ -5,7 +5,7 @@ from itertools import product
 
 import numpy as np
 import imageio
-from ..util import normalize_index, squeeze_singletons
+from ..util import normalize_index, squeeze_singletons, map_chunk_to_roi
 
 
 class KnossosDataset:
@@ -65,54 +65,6 @@ class KnossosDataset:
         data = np.array(imageio.imread(path)).reshape(self._chunks)
         return data
 
-    def coords_in_roi(self, grid_id, roi):
-        # block begins and ends
-        block_begin = [gid * self.block_size for gid in grid_id]
-        block_end = [beg + ch for beg, ch in zip(block_begin, self.chunks)]
-
-        # get roi begins and ends
-        roi_begin = [rr.start for rr in roi]
-        roi_end = [rr.stop for rr in roi]
-
-        tile_bb, out_bb = [], []
-        # iterate over dimensions and find the bb coordinates
-        for dim in range(3):
-            # calculate the difference between the block begin / end
-            # and the roi begin / end
-            off_diff = block_begin[dim] - roi_begin[dim]
-            end_diff = roi_end[dim] - block_end[dim]
-
-            # if the offset difference is negative, we are at a starting block
-            # that is not completely overlapping
-            # -> set all values accordingly
-            if off_diff < 0:
-                begin_in_roi = 0  # start block -> no local offset
-                begin_in_block = -off_diff
-                # if this block is the beginning block as well as the end block,
-                # we need to adjust the local shape accordingly
-                shape_in_roi = block_end[dim] - roi_begin[dim]\
-                    if block_end[dim] <= roi_end[dim] else roi_end[dim] - roi_begin[dim]
-
-            # if the end difference is negative, we are at a last block
-            # that is not completely overlapping
-            # -> set all values accordingly
-            elif end_diff < 0:
-                begin_in_roi = block_begin[dim] - roi_begin[dim]
-                begin_in_block = 0
-                shape_in_roi = roi_end[dim] - block_begin[dim]
-
-            # otherwise we are at a completely overlapping block
-            else:
-                begin_in_roi = block_begin[dim] - roi_begin[dim]
-                begin_in_block = 0
-                shape_in_roi = self.chunks[dim]
-
-            # append to bbs
-            tile_bb.append(slice(begin_in_block, begin_in_block + shape_in_roi))
-            out_bb.append(slice(begin_in_roi, begin_in_roi + shape_in_roi))
-
-        return tuple(tile_bb), tuple(out_bb)
-
     def _load_roi(self, roi):
         # snap roi to grid
         ranges = [range(rr.start // self.block_size,
@@ -127,7 +79,7 @@ class KnossosDataset:
 
         def load_tile(grid_id):
             tile_data = self.load_block(grid_id)
-            tile_bb, out_bb = self.coords_in_roi(grid_id, roi)
+            tile_bb, out_bb = map_chunk_to_roi(grid_id, roi, self.chunks)
             data[out_bb] = tile_data[tile_bb]
 
         if self.n_threads > 1:

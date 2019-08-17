@@ -51,8 +51,8 @@ def normalize_index(index, shape):
     Normalize input, which can be a slice or a tuple of slices / ellipsis to
     be of same length as shape and be in bounds of shape.
 
-    Args:
-        index (int or slice or ellipsis or tuple[int or slice or ellipsis]): slices to be normalized
+    Argumentss:
+        index [int or slice or ellipsis or tuple[int or slice or ellipsis]]: slices to be normalized
 
     Returns:
         tuple[slice]: normalized slices (start and stop are both non-None)
@@ -111,3 +111,64 @@ def squeeze_singletons(item, to_squeeze):
         return item.squeeze(to_squeeze)
     else:
         return item
+
+
+def map_chunk_to_roi(chunk_id, roi, chunks):
+    """ Given a chunk id, roi and the chunk shape, determine the coordinate
+    overlap, both in the roi's and the chunk's coordinate sytem.
+
+    Arguments:
+        chunk_id [listlike[int]] - the nd chunk index.
+        roi [tuple[slices]] - the region of interest
+        chunks [tuple] - the chunk shape
+    Returns:
+        tuple[slice] - overlap of the chuk and roi in chunk coordinates
+        tuple[slice] - overlap of the chuk and roi in roi coordinates
+    """
+    # block begins and ends
+    block_begin = [cid * ch for cid, ch in zip(chunk_id, chunks)]
+    block_end = [beg + ch for beg, ch in zip(block_begin, chunks)]
+
+    # get roi begins and ends
+    roi_begin = [rr.start for rr in roi]
+    roi_end = [rr.stop for rr in roi]
+
+    chunk_bb, roi_bb = [], []
+    # iterate over dimensions and find the bb coordinates
+    ndim = len(chunk_id)
+    for dim in range(ndim):
+        # calculate the difference between the block begin / end
+        # and the roi begin / end
+        off_diff = block_begin[dim] - roi_begin[dim]
+        end_diff = roi_end[dim] - block_end[dim]
+
+        # if the offset difference is negative, we are at a starting block
+        # that is not completely overlapping
+        # -> set all values accordingly
+        if off_diff < 0:
+            begin_in_roi = 0  # start block -> no local offset
+            begin_in_block = -off_diff
+            # if this block is the beginning block as well as the end block,
+            # we need to adjust the local shape accordingly
+            shape_in_roi = block_end[dim] - roi_begin[dim]\
+                if block_end[dim] <= roi_end[dim] else roi_end[dim] - roi_begin[dim]
+
+        # if the end difference is negative, we are at a last block
+        # that is not completely overlapping
+        # -> set all values accordingly
+        elif end_diff < 0:
+            begin_in_roi = block_begin[dim] - roi_begin[dim]
+            begin_in_block = 0
+            shape_in_roi = roi_end[dim] - block_begin[dim]
+
+        # otherwise we are at a completely overlapping block
+        else:
+            begin_in_roi = block_begin[dim] - roi_begin[dim]
+            begin_in_block = 0
+            shape_in_roi = chunks[dim]
+
+        # append to bbs
+        chunk_bb.append(slice(begin_in_block, begin_in_block + shape_in_roi))
+        roi_bb.append(slice(begin_in_roi, begin_in_roi + shape_in_roi))
+
+    return tuple(chunk_bb), tuple(roi_bb)

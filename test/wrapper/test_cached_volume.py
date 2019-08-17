@@ -20,16 +20,17 @@ class TestCachedVolume(unittest.TestCase):
         except OSError:
             pass
 
-    # @unittest.skipUnless(z5py, "Need z5py")
-    @unittest.skip
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_cached_volume(self):
-        from elf.wrapper.cached_volume import CachedVolume
+        from elf.wrapper.cached_volume import CachedVolume, FIFOCache
         shape = (256,) * 3
         data = np.random.rand(*shape)
         f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'))
         ds = f.create_dataset('data', data=data,
                               compression='gzip', chunks=(16, 128, 128))
-        cached = CachedVolume(ds, chunks=(4, 256, 256))
+
+        cached = CachedVolume(ds, cache=FIFOCache(max_cache_size=25),
+                              chunks=(4, 256, 256))
 
         n_reps = 5
         indices = [np.s_[:], np.s_[:128, 128:, :64], np.s_[:200],

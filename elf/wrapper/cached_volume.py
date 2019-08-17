@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from collections.abc import MutableMapping
 
 import numpy as np
@@ -9,22 +10,55 @@ except ImportError:
     blosc = None
 
 from .wrapper_base import WrapperBase
-from ..util import normalize_index, squeeze_singletons
+from ..util import normalize_index, squeeze_singletons, map_chunk_to_roi
 
 
-# TODO specify cache size in MB instead of num elements
+# TODO implement compression
+# TODO specify cache size in MB instead of num elements?
 class Cache(MutableMapping):
-    """
+    """ Base class for chunk cache.
+
+    Derving class must define `_store` (dict-like) and
+    implement `delete_item_from_cache`.
     """
     def __init__(self, max_cache_size, compression=None):
         self._max_cache_size = max_cache_size
         if compression is not None:
             raise NotImplementedError
 
+    @property
+    def max_cache_size(self):
+        return self._max_cache_size
+
+    def __delitem__(self, key):
+        del self._store[key]
+
+    def __getitem__(self, key):
+        return self._store[key]
+
+    def __iter__(self):
+        for k in self._store:
+            yield k
+
+    def __len__(self):
+        return len(self._store)
+
+    def __setitem__(self, key, item):
+        if len(self._store) == self.max_cache_size:
+            self.delete_item_from_cache()
+        self._store[key] = item
+
 
 class FIFOCache(Cache):
+    """ FIFO cache implementation, using an OrderedDict internally.
     """
-    """
+    def __init__(self, max_cache_size, compression=None):
+        super().__init__(max_cache_size, compression)
+        self._store = OrderedDict()
+
+    def delete_item_from_cache(self):
+        last_key = next(reversed(self._store))
+        del self._store[last_key]
 
 
 # some cache implementations out there:
@@ -103,8 +137,10 @@ class CachedVolume(WrapperBase):
             if chunk_data is None:
                 not_cached.append(chunk_id)
             else:
-                # TODO get corresponding bounding boxes for out and chunk
-                out[''] = chunk_data['']
+                # get corresponding bounding boxes for out and chunk
+                chunk_index = self._blocking.blockGridPosition(chunk_id)
+                chunk_bb, out_bb = map_chunk_to_roi(chunk_index, index, self.chunks)
+                out[out_bb] = chunk_data[chunk_bb]
 
         # check if we preload internal chunks
         if self.preload_internal_chunks:
@@ -126,7 +162,9 @@ class CachedVolume(WrapperBase):
                                     in zip(chunk_block.begin, chunk_block.end))
                 chunk_data = self.volume[chunk_index]
                 self.cache[chunk_id] = chunk_data
-                # TODO get corresponding bounding boxes for out and chunk
-                out[''] = chunk_data['']
+                # get corresponding bounding boxes for out and chunk
+                chunk_index = self._blocking.blockGridPosition(chunk_id)
+                chunk_bb, out_bb = map_chunk_to_roi(chunk_index, index, self.chunks)
+                out[out_bb] = chunk_data[chunk_bb]
 
         return squeeze_singletons(out, to_squeeze)
