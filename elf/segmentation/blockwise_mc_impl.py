@@ -1,7 +1,7 @@
 from concurrent import futures
 import numpy as np
 import nifty
-from vigra import relabelConsecutive
+from vigra.analysis import relabelConsecutive
 
 
 def solve_subproblems(graph, costs, segmentation,

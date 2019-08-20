@@ -2,7 +2,7 @@ from concurrent import futures
 
 import numpy as np
 import nifty
-from vigra import relabelConsecutive
+from vigra.analysis import relabelConsecutive
 
 
 def find_inner_lifted_edges(lifted_uv_ids, node_list):
