@@ -7,7 +7,8 @@ __version__ = runpy.run_path('elf/__version__.py')['__version__']
 # TODO specify all mandatory dependencies
 requires = [
     "numpy",
-    "imageio"
+    "imageio",
+    "skimage"
 ]
 
 # TODO specify all additional dependencies

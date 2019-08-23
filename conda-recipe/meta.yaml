@@ -1,3 +1,5 @@
+{% set data = load_setup_py_data() %}
+
 package:
   name: elf
   {% set tagged_version = GIT_DESCRIBE_TAG|replace("v","")|replace("-", ".") %}
@@ -25,10 +27,13 @@ requirements:
     - pip
   run:
     - python >=3.6
-    - scikit-image
-    - z5py
-    - h5py
-    - imageio
+    # setup.py is source for dependencies. Add/remove there.
+    {% for dep in data['install_requires'] %}
+    - {{ dep.lower().replace('skimage', 'scikit-image') }}
+    {% endfor %}
+    {% for dep in data['extras_require']['all'] %}
+    - {{ dep.lower().replace('skimage', 'scikit-image') }}
+    {% endfor %}
 
 test:
   imports:
