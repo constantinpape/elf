@@ -6,7 +6,6 @@ package:
   {% if GIT_DESCRIBE_NUMBER|int != 0 %}
     {% set tagged_version = tagged_version + '.post' + GIT_DESCRIBE_NUMBER %}
   {% endif %}
-
   version: {{tagged_version}}
 
 
@@ -16,16 +15,16 @@ source:
 
 build:
   number: 0
-  string: py{{py}}_{{PKG_BUILDNUM}}_g{{GIT_FULL_HASH[:7]}}
-  script: "{{ PYTHON }} -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
-
+  string: py_{{PKG_BUILDNUM}}_g{{GIT_FULL_HASH[:7]}}
+  noarch: python
+  script: "pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
 
 requirements:
-  host:
-    - python {{PY_VER}}*
-
+  build:
+    - python >=3.6
+    - pip
   run:
-    - python {{PY_VER}}*
+    - python >=3.6
     - scikit-image
     - z5py
     - h5py
