@@ -22,10 +22,12 @@ before_install:
   - conda install -q conda-build pip
 
 install:
-  - conda build -c conda-forge -c defaults conda-recipe
+  # we need the cpape channel because nifty is not on conda-forge yet.
+  # remove it once we have nifty on conda
+  - conda build -c conda-forge -c defaults -c cpape conda-recipe
 
 before_script:
-  - conda create -n test-env --use-local elf
+  - conda create -n test-env -c conda-forge -c defaults -c cpape --use-local elf
 
 script:
   - conda activate test-env

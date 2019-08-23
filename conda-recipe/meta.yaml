@@ -29,10 +29,10 @@ requirements:
     - python >=3.6
     # setup.py is source for dependencies. Add/remove there.
     {% for dep in data['install_requires'] %}
-    - {{ dep.lower().replace('skimage', 'scikit-image') }}
+    - {{ dep.lower() }}
     {% endfor %}
     {% for dep in data['extras_require']['all'] %}
-    - {{ dep.lower().replace('skimage', 'scikit-image') }}
+    - {{ dep.lower() }}
     {% endfor %}
 
 test:

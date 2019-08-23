@@ -1,3 +1,4 @@
+import os
 import unittest
 import numpy as np
 try:
@@ -6,11 +7,13 @@ try:
 except ImportError:
     nmc = None
 
+# TODO download from Paul's website instead of hard-coding
+PROBLEM_ROOT = '/home/pape/Work/data/multicut_problems/small/small_problem_sampleA.txt'
+
 
 class TestMulticut(unittest.TestCase):
-    # TODO download from Paul's website instead of hard-coding
-    problem_root = '/home/pape/Work/data/multicut_problems/small/small_problem_sampleA.txt'
     upper_bound = -76900
+    problem_root = PROBLEM_ROOT
 
     @staticmethod
     def load_problem(path):
@@ -54,7 +57,7 @@ class TestMulticut(unittest.TestCase):
     def _test_multicut(self, solver):
         # TODO remove the try-except once download is implemented
         try:
-            graph, costs = self.load_problem()
+            graph, costs = self.load_problem(self.problem_root)
         except FileNotFoundError:
             return
         node_labels = solver(graph, costs)
@@ -62,6 +65,7 @@ class TestMulticut(unittest.TestCase):
         energy = obj.evalNodeLabels(node_labels)
         self.assertGreater(self.upper_bound, energy)
 
+    @unittest.skipUnless(os.path.exists(PROBLEM_ROOT), "Need to have problem path")
     @unittest.skipUnless(nmc, "Need nifty for multicut functionality")
     def test_gaec(self):
         from elf.segmentation.multicut import multicut_gaec
@@ -72,6 +76,7 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_gaec
         self._test_multicut_toy(multicut_gaec)
 
+    @unittest.skipUnless(os.path.exists(PROBLEM_ROOT), "Need to have problem path")
     @unittest.skipUnless(nmc, "Need nifty for multicut functionality")
     def test_kernighan_lin(self):
         from elf.segmentation.multicut import multicut_kernighan_lin
@@ -82,6 +87,7 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_kernighan_lin
         self._test_multicut_toy(multicut_kernighan_lin)
 
+    @unittest.skipUnless(os.path.exists(PROBLEM_ROOT), "Need to have problem path")
     @unittest.skipUnless(nmc, "Need nifty for multicut functionality")
     def test_decomposition(self):
         from elf.segmentation.multicut import multicut_decomposition
@@ -92,11 +98,14 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_decomposition
         self._test_multicut_toy(multicut_decomposition)
 
+    @unittest.skipUnless(os.path.exists(PROBLEM_ROOT), "Need to have problem path")
     @unittest.skipUnless(nmc, "Need nifty for multicut functionality")
     def test_fusion_moves(self):
         from elf.segmentation.multicut import multicut_fusion_moves
         self._test_multicut(multicut_fusion_moves)
 
+    # see https://github.com/constantinpape/elf/issues/8
+    @unittest.skip("Broken in nifty")
     @unittest.skipUnless(nmc, "Need nifty for multicut functionality")
     def test_fusion_moves_toy(self):
         from elf.segmentation.multicut import multicut_fusion_moves
