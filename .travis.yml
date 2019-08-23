@@ -1,27 +1,32 @@
 os: linux
 dist: trusty
 sudo: required
-language: python
+language: generic
 env:
-  - CONDA_PYTHON_VERSION="36"
-  - CONDA_PYTHON_VERSION="37"
+  global:
+    - CONDA_ROOT=$HOME/miniconda
 addons:
   apt:
     update: true
 
-before_script:
+before_install:
   # install conda
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
+  - bash miniconda.sh -b -p $CONDA_ROOT
+  - echo ". $CONDA_ROOT/etc/profile.d/conda.sh" >> ~/.bashrc
+  - source ~/.bashrc
   # update conda
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  # create the test environment
-  - conda create -n elf-env -c conda-forge imageio h5py z5py vigra scikit-image
-  - source activate elf-env
+  - conda install -q conda-build pip
+
+install:
+  - conda build -c conda-forge -c defaults conda-recipe
+
+before_script:
+  - conda create -n test-env --use-local elf
 
 script:
-  - python setup.py install
-  - python -m unittest discover -v test
+  - conda activate test-env
+  - cd test && python -m unittest discover -v .
