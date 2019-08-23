@@ -4,17 +4,17 @@ from setuptools import setup, find_packages
 
 __version__ = runpy.run_path('elf/__version__.py')['__version__']
 
-# TODO specify all mandatory dependencies
 requires = [
     "numpy",
     "imageio",
-    "skimage"
+    "scikit-image"
 ]
 
-# TODO specify all additional dependencies
 extras = {
     "hdf5": ["h5py"],
-    "zarr": ["zarr"]
+    "zarr": ["zarr"],
+    "vigra": ["vigra"],
+    "nifty": ["nifty"]
 }
 
 extras["all"] = list(itertools.chain.from_iterable(extras.values()))
