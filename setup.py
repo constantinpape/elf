@@ -7,7 +7,8 @@ __version__ = runpy.run_path('elf/__version__.py')['__version__']
 requires = [
     "numpy",
     "imageio",
-    "scikit-image"
+    "scikit-image",
+    "skan"
 ]
 
 extras = {
