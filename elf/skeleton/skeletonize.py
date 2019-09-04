@@ -1,4 +1,4 @@
-from .methods import thinning
+from .thinning import thinning
 
 # TODO get a teasar impl
 METHODS = {'thinning': thinning}

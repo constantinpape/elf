@@ -13,7 +13,7 @@ class TestSkeletonize(unittest.TestCase):
     def test_skeletonize(self):
         from elf.skeleton import skeletonize
         x = skimage.data.horse()
-        x = x.max() - x
+        x = 1 - x
         x = np.repeat(x[None], 16, axis=0)
         nodes, edges = skeletonize(x)
         # make sure the results are non-trivial

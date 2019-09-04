@@ -22,10 +22,11 @@ def thinning(obj, resolution, *args, **kwargs):
     adj_mat, nodes, _ = csr.skeleton_to_csgraph(vol, spacing=resolution)
     graph = csr.csr_to_nbgraph(adj_mat)
 
-    # I think we need to substract 1 here, beacuse skan uses 1-based indexing
     n_nodes = len(nodes)
-    edges = np.array([[u - 1, v - 1] for u in range(1, n_nodes + 1) for v in graph.neighbors(u)
+    edges = np.array([[u, v] for u in range(n_nodes) for v in graph.neighbors(u)
                       if u < v], dtype='uint64')
+    # node 0 is invalid
+    assert 0 not in edges
 
-    # retunr node coordinate list and edges
+    # return node coordinate list and edges
     return nodes.astype('uint64'), edges

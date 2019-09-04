@@ -3,8 +3,6 @@ from vigra.analysis import relabelConsecutive
 from affogato.segmentation import compute_mws_segmentation
 from affogato.segmentation import MWSGridGraph, compute_mws_clustering
 
-# TODO add citations to doc strings.
-
 
 def mutex_watershed(affs, offsets, strides,
                     randomize_strides=False, mask=None,

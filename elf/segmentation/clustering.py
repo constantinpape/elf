@@ -1,11 +1,12 @@
 import numpy as np
 import nifty.graph.agglo as nagglo
 
-# TODO add citations in doc-strings
-
 
 def mala_clustering(graph, edge_features, edge_sizes, threshold):
     """ Compute segmentation with mala-style clustering.
+
+    In "Large Scale Image Segmentation with Structured Loss based Deep Learning for Connectome Reconstruction":
+    https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8364622
 
     Arguments:
         graph [nifty.graph] - graph to cluster
@@ -27,7 +28,7 @@ def mala_clustering(graph, edge_features, edge_sizes, threshold):
 def agglomerative_clustering(graph, edge_features,
                              node_sizes, edge_sizes,
                              n_stop, size_regularizer):
-    """ Compute segmentation with agglomerative clustering.
+    """ Compute segmentation with agglomerative clustering with optional size regularizer.
 
     Arguments:
         graph [nifty.graph] - graph to cluster
