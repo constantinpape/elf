@@ -1,0 +1,17 @@
+{
+    "blockSize": [
+        32,
+        32,
+        32
+    ],
+    "compression": {
+        "level": 5,
+        "type": "gzip"
+    },
+    "dataType": "uint64",
+    "dimensions": [
+        32,
+        32,
+        32
+    ]
+}

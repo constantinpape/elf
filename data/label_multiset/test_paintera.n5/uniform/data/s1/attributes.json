@@ -1,0 +1,1 @@
+{"maxNumEntries":-1,"downsamplingFactors":[2.0,2.0,2.0],"dataType":"uint8","compression":{"type":"gzip","level":-1},"blockSize":[64,64,64],"isLabelMultiset":true,"dimensions":[16,16,16]}
