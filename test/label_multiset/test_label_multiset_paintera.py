@@ -61,13 +61,13 @@ class TestLabelMultisetPaintera(unittest.TestCase):
 
     def check_downscale(self, key, key_expected):
         from elf.label_multiset import (create_multiset_from_labels,
-                                        create_multiset_from_multiset,
+                                        downsample_multiset,
                                         serialize_multiset)
         f = z5py.File(self.path)
         x = f[key][:]
         multiset = create_multiset_from_labels(x)
         self.assertEqual(multiset.shape, x.shape)
-        multiset = create_multiset_from_multiset(multiset, [2, 2, 2], -1)
+        multiset = downsample_multiset(multiset, [2, 2, 2], -1)
         self.assertEqual(multiset.shape, tuple(sh // 2 for sh in x.shape))
         ser = serialize_multiset(multiset)
 

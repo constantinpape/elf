@@ -1,7 +1,7 @@
 from math import ceil
 import numpy as np
-import nifty.tools as nt  # use other blocking than nifty.tools
-from .label_multiset import MultisetBase, LabelMultiset
+import nifty.tools as nt
+from .label_multiset import LabelMultiset
 
 
 def create_multiset_from_labels(labels):
@@ -20,84 +20,95 @@ def create_multiset_from_labels(labels):
     return multiset
 
 
-def create_multiset_from_multiset(multiset, scale_factor, restrict_set=-1):
-    """ Create label multiset from another multiset or a multiset grid.
+def downsample_multiset(multiset, scale_factor, restrict_set=-1):
+    """ Downsample label multiset from another label multiset.
     """
-    if not isinstance(multiset, MultisetBase):
+    if not isinstance(multiset, LabelMultiset):
         raise ValueError("Expect input derived from MultisetBase, got %s" % type(multiset))
 
     shape = multiset.shape
     blocking = nt.blocking([0] * len(shape), shape, scale_factor)
-    n_blocks = blocking.numberOfBlocks
 
-    ids, counts = [], []
-    hashed = {}
-
-    argmax, offsets = [], []
-    current_offset = 0
-
-    for block_id in range(n_blocks):
-        block = blocking.getBlock(block_id)
-        bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
-        bids, bcounts = multiset[bb]
-
-        # apply restrict_set if specified
-        if restrict_set > 0:
-            count_sorted = np.argsort(bcounts)[::-1][:restrict_set]
-            bids, bcounts = bids[count_sorted], bcounts[count_sorted]
-            id_sorted = np.argsort(bids)
-            bids, bcounts = bids[id_sorted], bcounts[id_sorted]
-
-        # compute the argmax-label
-        max_id = np.argmax(bcounts)
-        max_label = bids[max_id]
-        max_count = bcounts[max_id]
-        argmax.append(max_label)
-
-        # we use the argmax label + count as block hash
-        myhash = hash((max_label, max_count))
-        candidates = hashed.get(myhash, [])
-        add_entry = True
-
-        # check if we have this entry in the candidates already
-        for offset in candidates:
-
-            cids, ccounts = ids[offset], counts[offset]
-
-            # yes we have this entry already -> just store its offset
-            if np.array_equal(bids, cids) and np.array_equal(bcounts, ccounts):
-                add_entry = False
-                offsets.append(offset)
-                break
-
-        # we haven't found this entry
-        # -> make a new entry and increase the offset count
-        if add_entry:
-            offsets.append(current_offset)
-            ids.append(bids)
-            counts.append(bcounts)
-
-            # TODO how do we do this efficiently in python without two look-ups?
-            # add entry to the hash
-            if myhash in hashed:
-                hashed[myhash].append(current_offset)
-            else:
-                hashed[myhash] = [current_offset]
-
-            # increase the offset by 1 (we count offsets in terms of entries, NOT elements here)
-            current_offset += 1
-
-    # we have computed offsets w.r.t entries and ids, counts as list of lists[int]
-    # label multiset expects offsets w.r.t elements and ids and counts as list[int]
-
-    # compute offsets w.r.t elements
-    element_offsets = np.cumsum([0] + [len(ii) for ii in ids[:-1]])
-    offsets = element_offsets[offsets]
-    # flatten id and count vectors
-    ids = np.array([i for ii in ids for i in ii], dtype='uint64')
-    counts = np.array([c for cc in counts for c in cc], dtype='int32')
-
-    argmax = np.array(argmax, dtype='uint64')
-
+    argmax, offsets, ids, counts = nt.downsampleMultiset(blocking,
+                                                         multiset.offsets, multiset.entry_sizes, multiset.entry_offsets,
+                                                         multiset.ids, multiset.counts, restrict_set)
     new_shape = tuple(int(ceil(sh / sc)) for sh, sc in zip(shape, scale_factor))
     return LabelMultiset(argmax, offsets, ids, counts, new_shape)
+
+
+def merge_multisets(multisets, grid_positions, shape, chunks):
+    if not isinstance(multisets, (tuple, list)) and\
+       not all(isinstance(ms, LabelMultiset) for ms in multisets):
+        raise ValueError("Expect list or tuple of LabelMultiset")
+
+    # arrange multisets according to the grid
+    multisets, blocking = _compute_multiset_vector(multisets, grid_positions,
+                                                   shape, chunks)
+
+    new_size = int(np.prod(shape))
+    argmax = np.zeros(new_size, dtype='uint64')
+    offsets = np.zeros(new_size, dtype='uint64')
+
+    def get_indices(block_id):
+        block = blocking.getBlock(block_id)
+        bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+        new_indices = np.array([ax.flatten() for ax in np.mgrid[bb]])
+        new_indices = np.ravel_multi_index(new_indices, shape)
+        return new_indices
+
+    # create merge helper initialized with multisets[0]
+    ms = multisets[0]
+    merge_helper = nt.MultisetMerger(np.unique(ms.offsets), ms.entry_sizes, ms.ids, ms.counts)
+    # map offsets and argmax for first multiset
+    new_indices = get_indices(0)
+    argmax[new_indices] = ms.argmax
+    offsets[new_indices] = ms.offsets
+
+    for block_id, ms in enumerate(multisets[1:], 1):
+        # map to the new indices
+        new_indices = get_indices(block_id)
+        # map argmax
+        argmax[new_indices] = ms.argmax
+
+        # update the merge helper
+        new_offsets = merge_helper.update(np.unique(ms.offsets), ms.entry_sizes,
+                                          ms.ids, ms.counts, ms.entry_offsets)
+        offsets[new_indices] = new_offsets
+
+    ids = merge_helper.get_ids()
+    counts = merge_helper.get_counts()
+    return LabelMultiset(argmax, offsets, ids, counts, shape)
+
+
+def _compute_multiset_vector(multisets, grid_positions, shape, chunks):
+    """ Store multiset in list with C-Order.
+    """
+    n_sets = len(multisets)
+    ndim = len(shape)
+    multiset_vector = n_sets * [None]
+
+    blocking = nt.blocking(ndim * [0], shape, list(chunks))
+    n_blocks = blocking.numberOfBlocks
+    if n_blocks != n_sets:
+        raise ValueError("Invalid grid: %i, %i" % (n_blocks, n_sets))
+
+    # get the c-order positions
+    positions = np.array([[gp[i] for gp in grid_positions] for i in range(ndim)],
+                         dtype='int')
+    grid_shape = tuple(blocking.blocksPerAxis)
+    positions = np.ravel_multi_index(positions, grid_shape)
+    if any(pos >= n_sets for pos in positions):
+        raise ValueError("Invalid grid positions")
+
+    # put multi-sets into vector and check shapes
+    for pos in positions:
+        mset = multisets[pos]
+        block_shape = tuple(blocking.getBlock(pos).shape)
+        if mset.shape != block_shape:
+            raise ValueError("Invalid multiset shape: %s, %s" % (str(mset.shape),
+                                                                 str(block_shape)))
+        multiset_vector[pos] = mset
+
+    if any(ms is None for ms in multiset_vector):
+        raise ValueError("Not all grid-positions filled")
+    return multiset_vector, blocking

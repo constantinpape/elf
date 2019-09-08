@@ -3,6 +3,22 @@ import numpy as np
 from .label_multiset import LabelMultiset
 
 
+def deserialize_labels(serialization, shape):
+
+    # number of sets is encoded as integer in the first 4 bytes
+    pos = 0
+    next_pos = 4
+    size = struct.unpack('>i', serialization[pos:next_pos].tobytes())[0]
+
+    # the argmax vector is encoded as long in the next 8 * size bytes
+    pos = next_pos
+    next_pos += 8 * size
+    argmax = serialization[pos:next_pos]
+    argmax = np.frombuffer(argmax.tobytes(), dtype='>q')
+
+    return argmax.reshape(shape)
+
+
 def deserialize_multiset(serialization, shape):
 
     # number of sets is encoded as integer in the first 4 bytes

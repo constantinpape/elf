@@ -42,23 +42,20 @@ class TestLabelMultiset(unittest.TestCase):
 
         slices_to_check = [np.s_[:2, :2, :2], np.s_[:2, :4, :8], np.s_[:1, :16, :1], np.s_[:]]
         for slice_ in slices_to_check:
-            # print("Checking", slice_)
             ids, counts = multiset[slice_]
-            # print(ids, counts)
             ids_exp, counts_exp = np.unique(x[slice_], return_counts=True)
-            # print(ids_exp, counts_exp)
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
     @unittest.skipUnless(nifty, "Need nifty")
     def test_multiset_ds(self):
         from elf.label_multiset import (create_multiset_from_labels,
-                                        create_multiset_from_multiset)
+                                        downsample_multiset)
         shape = (32, 32, 32)
         x = np.random.randint(0, 2000, size=shape, dtype='uint64')
         multiset = create_multiset_from_labels(x)
         ds = [2, 2, 2]
-        multiset = create_multiset_from_multiset(multiset, ds)
+        multiset = downsample_multiset(multiset, ds)
         self.assertEqual(multiset.shape, tuple(sh // dd for sh, dd in zip(x.shape, ds)))
 
         slices_to_check = [(np.s_[:1, :1, :1], np.s_[:2, :2, :2]),
@@ -75,8 +72,9 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(counts, counts_exp))
 
     @unittest.skipUnless(nifty, "Need nifty")
-    def test_multiset_grid(self):
-        from elf.label_multiset import create_multiset_from_labels, LabelMultisetGrid
+    def test_merge_multisets(self):
+        from elf.label_multiset import (create_multiset_from_labels,
+                                        merge_multisets)
         shape = (32, 32, 32)
         chunks = (16, 16, 16)
         x = np.random.randint(0, 2000, size=shape, dtype='uint64')
@@ -94,17 +92,14 @@ class TestLabelMultiset(unittest.TestCase):
                     multisets.append(multiset)
                     grid_positions.append(grid_pos)
 
-        multiset = LabelMultisetGrid(multisets, grid_positions, shape, chunks)
+        multiset = merge_multisets(multisets, grid_positions, shape, chunks)
         self.assertEqual(multiset.shape, shape)
-        self.assertEqual(multiset.chunks, chunks)
 
-        slices_to_check = [np.s_[:2, :2, :2], np.s_[:2, :4, :8], np.s_[:3, :16, :19], np.s_[:]]
+        slices_to_check = [np.s_[:1, :1, :1], np.s_[:2, :2, :2],
+                           np.s_[:2, :4, :8], np.s_[:3, :16, :19], np.s_[:]]
         for slice_ in slices_to_check:
-            # print("Checking", slice_)
             ids, counts = multiset[slice_]
-            # print(ids, counts)
             ids_exp, counts_exp = np.unique(x[slice_], return_counts=True)
-            # print(ids_exp, counts_exp)
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 

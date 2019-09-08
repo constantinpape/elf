@@ -1,3 +1,3 @@
-from .create import create_multiset_from_labels, create_multiset_from_multiset
-from .label_multiset import LabelMultiset, LabelMultisetGrid
-from .serialize import serialize_multiset, deserialize_multiset
+from .create import create_multiset_from_labels, downsample_multiset, merge_multisets
+from .label_multiset import LabelMultiset
+from .serialize import serialize_multiset, deserialize_multiset, deserialize_labels

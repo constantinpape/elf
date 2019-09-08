@@ -1,9 +1,8 @@
 import time
 import numpy as np
 import z5py
-from elf.label_multiset import (LabelMultisetGrid,
-                                create_multiset_from_labels,
-                                create_multiset_from_multiset)
+from elf.label_multiset import (create_multiset_from_labels,
+                                downsample_multiset, merge_multisets)
 
 
 def print_times(t):
@@ -24,9 +23,7 @@ def bench_multiset(labels, n=5):
     print_times(t)
 
 
-def get_multiset_grid(labels):
-    shape = labels.shape
-    chunks = tuple(sh // 2 for sh in shape)
+def get_multisets(labels, chunks):
     msets = []
     pos = []
 
@@ -39,29 +36,31 @@ def get_multiset_grid(labels):
                 mset = create_multiset_from_labels(labels[bb])
                 msets.append(mset)
 
-    return LabelMultisetGrid(msets, pos, shape, chunks)
+    return msets, pos
 
 
-def bench_multiset_grid(labels, n=5):
-    print("bench_multiset_grid:")
-    mset = get_multiset_grid(labels)
+def bench_merge(labels, n=5):
+    print("bench_merge:")
+    shape = labels.shape
+    chunks = tuple(sh // 2 for sh in shape)
     t = []
     for _ in range(n):
+        msets, grid_pos = get_multisets(labels, chunks)
         t0 = time.time()
-        mset[:]
+        merge_multisets(msets, grid_pos, shape, chunks)
         t0 = time.time() - t0
         t.append(t0)
     print_times(t)
 
 
-def bench_create(labels, n=5):
-    print("bench_create:")
+def bench_downsample(labels, n=5):
+    print("bench_downsample:")
     mset = create_multiset_from_labels(labels)
     scale_factor = [2, 2, 2]
     t = []
     for _ in range(n):
         t0 = time.time()
-        create_multiset_from_multiset(mset, scale_factor)
+        downsample_multiset(mset, scale_factor)
         t0 = time.time() - t0
         t.append(t0)
     print_times(t)
@@ -76,8 +75,8 @@ if __name__ == '__main__':
     # benchmark the multiset
     bench_multiset(labels)
 
-    # benchmark the multiset grid
-    bench_multiset_grid(labels)
+    # benchmark merging multiset
+    bench_merge(labels)
 
-    # benchmark creating the downscaled multiset
-    bench_create(labels)
+    # benchmark downsapling multiset
+    bench_downsample(labels)
