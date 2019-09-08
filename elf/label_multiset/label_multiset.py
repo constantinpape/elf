@@ -7,7 +7,18 @@ class LabelMultiset:
     """ Implement label multiset similar to
     https://github.com/saalfeldlab/imglib2-label-multisets.
 
-    TODO explain member variables (esp. n_entries and n_elements) and usage
+    Label multisets summarize the ids and counts of label arrays.
+    This implementation uses flat arrays to store `ids` and `counts`.
+    The member variables `shape` and `size` refer to the summarized label array.
+    of pixels. Further, `n_elements` refers to the number of elements
+    (= len(ids) / len(counts)), `n_entries` refers to the number of unique multi-set entries.
+
+    Arguments:
+        argmax [np.ndarray] - flat array of len `size` holding max labels per set.
+        offsets [np.ndarray] - flat array of len `size` holding offsets into
+            `ids`/`counts` for each set.
+        ids [np.ndarray] - flat array holding the summarized label ids.
+        counts [np.ndarray] - flat array holding the summarized label counts.
     """
 
     def __init__(self, argmax, offsets, ids, counts, shape):

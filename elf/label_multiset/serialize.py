@@ -4,6 +4,12 @@ from .label_multiset import LabelMultiset
 
 
 def deserialize_labels(serialization, shape):
+    """ Deserialize summarized label array from multiset serialization.
+
+    Arguments:
+        serialization [np.ndarray] - flat byte array with multiset serialization.
+        shape [tuple] - shape of the multiset.
+    """
 
     # number of sets is encoded as integer in the first 4 bytes
     pos = 0
@@ -20,6 +26,12 @@ def deserialize_labels(serialization, shape):
 
 
 def deserialize_multiset(serialization, shape):
+    """ Deserialize label multiset.
+
+    Arguments:
+        serialization [np.ndarray] - flat byte array with multiset serialization.
+        shape [tuple] - shape of the multiset.
+    """
 
     # number of sets is encoded as integer in the first 4 bytes
     pos = 0
@@ -87,17 +99,18 @@ def deserialize_multiset(serialization, shape):
 # apparently, we do not need to switch to fortran order for the
 # serialization, but that should be duoble checked.
 def serialize_multiset(multiset):
-    """ Convert to imglib multi-set serialization.
+    """ Compute multiset serialization in imglib format.
 
-    Format:
+    The multiset is serialized as follows:
     1.) number of sets / cells encoded as integer (4 bytes)
     2.) max label id for each set encoded as long (8 bytes * num_cells)
     3.) offset in bytes into the data array for each set encoded as int (4 bytes * num cells)
-        NOTE: we pass the offsets in label set elements here, because we need to pad the individual elements
-        have a size in bytes that is a multiple of 8 (= 1 long)
-    4.) the data storing label ids / counts encoded as long / int (datalen in bytes padded to multiple of 8)
+    4.) the data storing label ids / counts encoded as long / int (datalen in bytes)
     cf. https://github.com/saalfeldlab/imglib2-label-multisets/blob/master/src/main/java/net
         /imglib2/type/label/LabelMultisetTypeDownscaler.java#L176
+
+    Arguments:
+        multiset [LabelMultiset] - the label multiset to serialze.
     """
     size, n_entries, n_elements = multiset.size, multiset.n_entries, multiset.n_elements
     argmax, offsets, ids, counts = (multiset.argmax, multiset.offsets,

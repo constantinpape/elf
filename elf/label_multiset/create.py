@@ -6,6 +6,9 @@ from .label_multiset import LabelMultiset
 
 def create_multiset_from_labels(labels):
     """ Create label multiset from a regular label array.
+
+    Arguments:
+        labels [np.ndarray] - label array to summarize.
     """
     # argmaxs per block = labels in our case
     argmax = labels.flatten()
@@ -21,7 +24,12 @@ def create_multiset_from_labels(labels):
 
 
 def downsample_multiset(multiset, scale_factor, restrict_set=-1):
-    """ Downsample label multiset from another label multiset.
+    """ Downsample label multiset from other multiset.
+
+    Arguments:
+        multiset [LabelMultiset] - input label multiset.
+        scale_factor [list] - factor for downscaling.
+        restrict_set [int] - restrict entry length of down-sampled multiset (default: -1).
     """
     if not isinstance(multiset, LabelMultiset):
         raise ValueError("Expect input derived from MultisetBase, got %s" % type(multiset))
@@ -37,6 +45,14 @@ def downsample_multiset(multiset, scale_factor, restrict_set=-1):
 
 
 def merge_multisets(multisets, grid_positions, shape, chunks):
+    """ Merge label multisets aranged in grid.
+
+    Arguments:
+        multisets [listlike[LabelMultiset]] - list of label multisets aranged in grid.
+        grid_positions [list] - list of grid coordinates of the input list.
+        shape [tuple] - shape of the resulting multiset / grid.
+        chunks [tuple] - chunk shape = default shape of input multiset.
+    """
     if not isinstance(multisets, (tuple, list)) and\
        not all(isinstance(ms, LabelMultiset) for ms in multisets):
         raise ValueError("Expect list or tuple of LabelMultiset")
@@ -81,7 +97,7 @@ def merge_multisets(multisets, grid_positions, shape, chunks):
 
 
 def _compute_multiset_vector(multisets, grid_positions, shape, chunks):
-    """ Store multiset in list with C-Order.
+    """ Arange the multisets in c-order.
     """
     n_sets = len(multisets)
     ndim = len(shape)
