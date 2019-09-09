@@ -176,6 +176,21 @@ def map_chunk_to_roi(chunk_id, roi, chunks):
 
 
 def chunks_overlapping_roi(roi, chunks):
+    """ Find all the chunk ids overlapping with given roi.
+    """
     ranges = [range(rr.start // ch, rr.stop // ch if rr.stop % ch == 0 else rr.stop // ch + 1)
               for rr, ch in zip(roi, chunks)]
     return product(*ranges)
+
+
+def downscale_shape(shape, scale_factor):
+    """ Compute new shape after downscaling a volume by given scale factor.
+
+    Arguments:
+        shape [tuple] - input shape
+        scale_factor [tuple or int] - scale factor used for down-sampling.
+    """
+    scale_ = (scale_factor,) * len(shape) if isinstance(scale_factor, int)\
+        else scale_factor
+    return tuple(sh // sf + int((sh % sf) != 0)
+                 for sh, sf in zip(shape, scale_))

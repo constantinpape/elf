@@ -2,6 +2,7 @@ from math import ceil
 import numpy as np
 import nifty.tools as nt
 from .label_multiset import LabelMultiset
+from ..util import downscale_shape
 
 
 def create_multiset_from_labels(labels):
@@ -40,7 +41,7 @@ def downsample_multiset(multiset, scale_factor, restrict_set=-1):
     argmax, offsets, ids, counts = nt.downsampleMultiset(blocking,
                                                          multiset.offsets, multiset.entry_sizes, multiset.entry_offsets,
                                                          multiset.ids, multiset.counts, restrict_set)
-    new_shape = tuple(int(ceil(sh / sc)) for sh, sc in zip(shape, scale_factor))
+    new_shape = downscale_shape(shape, scale_factor)
     return LabelMultiset(argmax, offsets, ids, counts, new_shape)
 
 
