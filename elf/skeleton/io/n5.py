@@ -53,7 +53,7 @@ def write_n5(ds, skel_id, nodes, edges, coordinate_offset=None):
     # check if we have offset and add up if we do
     if coordinate_offset is not None:
         assert len(coordinate_offset) == 3
-        nodes += np.array(coordinate_offset)
+        nodes += np.array(coordinate_offset, dtype='uint64')
 
     # make serialization for number of points and coordinates
     n_points = nodes.shape[0]
