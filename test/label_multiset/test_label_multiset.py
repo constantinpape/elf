@@ -9,17 +9,24 @@ except ImportError:
 
 class TestLabelMultiset(unittest.TestCase):
 
-    def check_multisets(self, l1, l2):
+    def check_multisets(self, l1, l2, allow_equivalent=False):
         # check number of sets and entries
         self.assertEqual(l1.size, l2.size)
         self.assertEqual(l1.n_entries, l2.n_entries)
         # check amax vector
         self.assertTrue(np.array_equal(l1.argmax, l2.argmax))
-        # check offset vector
-        self.assertTrue(np.array_equal(l1.offsets, l2.offsets))
-        # check ids and counts
-        self.assertTrue(np.array_equal(l1.ids, l2.ids))
-        self.assertTrue(np.array_equal(l1.counts, l2.counts))
+        # multisets can equivalent without equality of offsets, ids, counts
+        # but sizes need to agree
+        if allow_equivalent:
+            self.assertEqual(l1.offsets.shape, l2.offsets.shape)
+            self.assertEqual(l1.ids.shape, l2.ids.shape)
+            self.assertEqual(l1.counts.shape, l2.counts.shape)
+        else:
+            # check offset vector
+            self.assertTrue(np.array_equal(l1.offsets, l2.offsets))
+            # check ids and counts
+            self.assertTrue(np.array_equal(l1.ids, l2.ids))
+            self.assertTrue(np.array_equal(l1.counts, l2.counts))
 
     @unittest.skipUnless(nifty, "Need nifty")
     def test_serialization(self):
@@ -94,6 +101,11 @@ class TestLabelMultiset(unittest.TestCase):
 
         multiset = merge_multisets(multisets, grid_positions, shape, chunks)
         self.assertEqual(multiset.shape, shape)
+
+        # NOTE we can't expect the two multi-sets to be identical because of permutation
+        # invariance of the offsets. But we can expect the same number of entries, ids etc
+        multiset_expected = create_multiset_from_labels(x)
+        self.check_multisets(multiset, multiset_expected, allow_equivalent=True)
 
         slices_to_check = [np.s_[:1, :1, :1], np.s_[:2, :2, :2],
                            np.s_[:2, :4, :8], np.s_[:3, :16, :19], np.s_[:]]
