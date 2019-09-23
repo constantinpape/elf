@@ -61,6 +61,22 @@ def compute_affinity_features(rag, affinity_map, offsets,
     return features
 
 
+def compute_boundary_mean_and_length(rag, input_, n_threads=None):
+    """ Compute mean value and length of boundaries.
+
+    Arguments:
+        rag [RegionAdjacencyGraph] - region adjacency graph
+        input_ [np.ndarray] - input map.
+        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    if rag.shape != input_.shape:
+        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
+                                                          str(input_.shape)))
+    features = nrag.accumulateEdgeMeanAndLength(rag, input_, numberOfThreads=n_threads)
+    return features
+
+
 # TODO
 def compute_region_features(rag, input_map, segmentation, n_threads=None):
     """ Compute edge features from input accumulated over segments.
