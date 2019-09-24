@@ -27,10 +27,10 @@ def marching_cubes(obj, smoothing_iterations=0,
         use_ilastik [bool] - whether to use the ilastk marching cubes implementation.
             Default is skimage (default: False)
     """
-    if resolution is not None:
-        if len(resolution) != 3:
-            raise ValueError("Invalid resolution argument")
-        resolution = tuple(resolution)
+    resolution = (1., 1., 1.) if resolution is None else resolution
+    if len(resolution) != 3:
+        raise ValueError("Invalid resolution argument")
+    resolution = tuple(resolution)
 
     if use_ilastik:
         if march is None:
