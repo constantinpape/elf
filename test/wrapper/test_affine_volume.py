@@ -1,4 +1,6 @@
 import unittest
+from math import ceil
+
 import numpy as np
 from scipy.ndimage import affine_transform
 from elf.transformation.affine import compute_affine_matrix, transform_roi
@@ -13,23 +15,38 @@ class TestAffineVolume(unittest.TestCase):
         self.assertEqual(o1.shape, o2.shape)
         if check_close:
             bb = tuple(slice(halo, sh - halo) for sh in o1.shape)
-            self.assertTrue(np.allclose(o1[bb], o2[bb]))
+            o1, o2 = o1[bb], o2[bb]
+            self.assertTrue(np.allclose(o1, o2))
 
-    def _compute_shape(self, matrix, shape):
+    def get_shape_and_offset(self, matrix, shape):
         roi_start, roi_stop = transform_roi([0] * len(shape), shape, matrix)
-        return tuple(int(sto - sta) for sta, sto in zip(roi_start, roi_stop))
+        offset = [-rs for rs in roi_start]
+        return tuple(int(ceil(sto - sta)) for sta, sto in zip(roi_start, roi_stop)), offset
+
+    def compute_scipy_mat(self, matrix, offset):
+        ndim = matrix.shape[0] - 1
+        tmp_mat = matrix.copy()
+        tmp_mat[:ndim, ndim] = offset
+        tmp_mat = np.linalg.inv(tmp_mat)
+        return tmp_mat
 
     def test_affine_2d_full_volume(self):
         from elf.wrapper.affine_volume import AffineVolume
-        matrix = compute_affine_matrix(scale=(2, 2), rotation=(90,))
+
+        matrices = [compute_affine_matrix(scale=(2, 2), rotation=(90,)),
+                    compute_affine_matrix(scale=(1, 3), rotation=(60,)),
+                    compute_affine_matrix(scale=(.5, 4), rotation=(173,))]
         orders = (0, 3)
         data = np.random.rand(128, 128)
-        out_shape = self._compute_shape(matrix, data.shape)
-        for order in orders:
-            out1 = affine_transform(data, np.linalg.inv(matrix), output_shape=out_shape,
-                                    order=order, mode='constant', cval=0)
-            out2 = AffineVolume(data, affine_matrix=matrix, order=order)
-            self._check_index(out1, out2, np.s_[:])
+
+        for matrix in matrices:
+            out_shape, offset = self.get_shape_and_offset(matrix, data.shape)
+            for order in orders:
+                mat_for_scipy = self.compute_scipy_mat(matrix, offset)
+                out1 = affine_transform(data, mat_for_scipy, output_shape=out_shape,
+                                        order=order, mode='constant', cval=0, offset=offset)
+                out2 = AffineVolume(data, affine_matrix=matrix, order=order)
+                self._check_index(out1, out2, np.s_[:])
 
     @unittest.expectedFailure
     def test_affine_2d(self):
@@ -55,9 +72,10 @@ class TestAffineVolume(unittest.TestCase):
 
         orders = (0, 3)
         data = np.random.rand(64, 64, 64)
-        out_shape = self._compute_shape(matrix, data.shape)
+        out_shape, offset = self.get_shape_and_offset(matrix, data.shape)
         for order in orders:
-            out1 = affine_transform(data, np.linalg.inv(matrix), output_shape=out_shape,
+            mat_for_scipy = self.compute_scipy_mat(matrix, offset)
+            out1 = affine_transform(data, mat_for_scipy, output_shape=out_shape,
                                     order=order, mode='constant', cval=0)
             out2 = AffineVolume(data, affine_matrix=matrix, order=order)
             self._check_index(out1, out2, np.s_[:])

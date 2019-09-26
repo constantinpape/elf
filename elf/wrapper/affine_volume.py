@@ -1,5 +1,11 @@
+from math import ceil
 import numpy as np
 from scipy.ndimage import affine_transform
+
+try:
+    import fastfilters as ff
+except ImportError:
+    import vigra.filters as ff
 
 from .wrapper_base import WrapperBase
 from ..transformation import compute_affine_matrix, transform_roi
@@ -21,11 +27,12 @@ class AffineVolume(WrapperBase):
         translation: translation in pixel
         order: order of interpolation (supports 0 up to 5)
         fill_value: fill value for invalid regions (default: 0)
+        sigma_anti_aliasing: sigma used for smoothing
     """
     def __init__(self, volume, output_shape=None,
                  affine_matrix=None,
                  scale=None, rotation=None, shear=None, translation=None,
-                 order=0, fill_value=0):
+                 order=0, fill_value=0, sigma_anti_aliasing=None):
 
         # TODO support 2d + channels and 3d + channels
         assert volume.ndim in (2, 3), "Only 2d or 3d supported"
@@ -34,6 +41,7 @@ class AffineVolume(WrapperBase):
         # scipy transformation options
         self.order = order
         self.fill_value = fill_value
+        self.sigma_anti_aliasing = sigma_anti_aliasing
 
         # validate the affine parameter
         have_matrix = affine_matrix is not None
@@ -51,7 +59,6 @@ class AffineVolume(WrapperBase):
             self.matrix = compute_affine_matrix(scale, rotation, shear, translation)
         assert self.matrix.shape == (self.ndim + 1, self.ndim + 1), "Invalid affine matrix"
 
-        # TODO handle linalg inversion errors
         # get the inverse matrix
         self.inverse_matrix = np.linalg.inv(self.matrix)
 
@@ -73,7 +80,7 @@ class AffineVolume(WrapperBase):
 
     def compute_extent_and_origin(self):
         roi_start, roi_stop = transform_roi([0] * self.ndim, self.volume.shape, self.matrix)
-        extent = tuple(int(sto - sta) for sta, sto in zip(roi_start, roi_stop))
+        extent = tuple(int(ceil(sto - sta)) for sta, sto in zip(roi_start, roi_stop))
         return extent, roi_start
 
     def crop_to_input_space(self, roi_start, roi_stop):
@@ -87,19 +94,26 @@ class AffineVolume(WrapperBase):
     def __getitem__(self, index):
         # 1.) normalize the index to have a proper bounding box
         index, to_squeeze = normalize_index(index, self.shape)
+        roi_start, roi_stop = [ind.start for ind in index], [ind.stop for ind in index]
+        out_shape = tuple(sto - sta for sta, sto in zip(roi_start, roi_stop))
 
         # 2.) transform the bounding box back to the input shape
-        # (= coordinate system of self.volume) and make out shape
-        roi_start, roi_stop = [ind.start for ind in index], [ind.stop for ind in index]
-        tr_start, tr_stop = transform_roi(roi_start, roi_stop, self.inverse_matrix)
-        out_shape = tuple(sto - sta for sta, sto in zip(roi_start, roi_stop))
+        # (= coordinate system of self.volume)
+        # first, add origin as offset
+        tr_start = [rs + orig for rs, orig in zip(roi_start, self.origin)]
+        tr_stop = [rs + orig for rs, orig in zip(roi_stop, self.origin)]
+        # then, pull coordinates back to the initial coordinate space
+        tr_start, tr_stop = transform_roi(tr_start, tr_stop, self.inverse_matrix)
 
         # 3.) crop the transformed bounding box to the valid region
         # and load the input data
-        tr_start_cropped, tr_stop_cropped = self.crop_to_input_space(tr_start, tr_stop)
-        transformed_index = tuple(slice(int(sta), int(sto))
-                                  for sta, sto in zip(tr_start_cropped, tr_stop_cropped))
+        tr_start, tr_stop = self.crop_to_input_space(tr_start, tr_stop)
+        transformed_index = tuple(slice(int(sta), int(ceil(sto)))
+                                  for sta, sto in zip(tr_start, tr_stop))
         input_ = self.volume[transformed_index]
+
+        if self.sigma_anti_aliasing is not None:
+            input_ = ff.gaussianSmoothing(input_.astype('float32'), self.sigma_anti_aliasing)
 
         # TODO this seems to be correct for the full volume now, but not for cutouts yet
         # 4.) adapt the matrix for the local cutout
@@ -110,7 +124,7 @@ class AffineVolume(WrapperBase):
 
         # 5.) apply the affine transformation
         out = affine_transform(input_, tmp_mat, output_shape=out_shape,
-                               order=self.order, mode='constant', cval=self.fill_value)
+                               order=self.order, mode='constant', cval=self.fill_value).astype(self.dtype)
 
         return squeeze_singletons(out, to_squeeze)
 
