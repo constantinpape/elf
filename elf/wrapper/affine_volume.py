@@ -87,17 +87,13 @@ class AffineVolume(WrapperBase):
         return ([max(rs, 0) for rs in roi_start],
                 [min(rs, sh) for rs, sh in zip(roi_stop, self.volume.shape)])
 
-    # TODO this seems to be correct for the full volume now, but not for cutouts yet
-    def compute_offset(self, roi_start):
-        return [-(sta + orig) for sta, orig in zip(roi_start, self.origin)]
-
     def __getitem__(self, index):
         # 1.) normalize the index to have a proper bounding box
         index, to_squeeze = normalize_index(index, self.shape)
         roi_start, roi_stop = [ind.start for ind in index], [ind.stop for ind in index]
         out_shape = tuple(sto - sta for sta, sto in zip(roi_start, roi_stop))
 
-        # 2.) transform the bounding box back to the input shape
+        # 2.) transform the bounding box back to the original space
         # (= coordinate system of self.volume)
         # first, add origin as offset
         tr_start = [rs + orig for rs, orig in zip(roi_start, self.origin)]
@@ -115,16 +111,17 @@ class AffineVolume(WrapperBase):
         if self.sigma_anti_aliasing is not None:
             input_ = ff.gaussianSmoothing(input_.astype('float32'), self.sigma_anti_aliasing)
 
-        # TODO this seems to be correct for the full volume now, but not for cutouts yet
+        # NOTE: this still doesn't pass all the tests fro cutouts
         # 4.) adapt the matrix for the local cutout
-        tmp_mat = self.matrix.copy()
-        offset = self.compute_offset(roi_start)
-        tmp_mat[:self.ndim, self.ndim] = offset
-        tmp_mat = np.linalg.inv(tmp_mat)
+        offset, _ = transform_roi(self.ndim * [0], input_.shape, self.matrix)
+        mat = self.matrix.copy()
+        mat[:self.ndim, self.ndim] = [-off for off in offset]
+        mat = np.linalg.inv(mat)
 
         # 5.) apply the affine transformation
-        out = affine_transform(input_, tmp_mat, output_shape=out_shape,
-                               order=self.order, mode='constant', cval=self.fill_value).astype(self.dtype)
+        # out_shape = [2 * sh for sh in out_shape]
+        out = affine_transform(input_, mat, output_shape=out_shape, order=self.order,
+                               mode='constant', cval=self.fill_value).astype(self.dtype)
 
         return squeeze_singletons(out, to_squeeze)
 
