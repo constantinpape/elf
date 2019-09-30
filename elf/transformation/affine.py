@@ -112,17 +112,13 @@ def compute_affine_matrix(scale=None, rotation=None, shear=None, translation=Non
     return matrix
 
 
-def transform_coordinate_2d(coord, matrix):
-    x = matrix[0, 0] * coord[0] + matrix[0, 1] * coord[1] + matrix[0, 2]
-    y = matrix[1, 0] * coord[0] + matrix[1, 1] * coord[1] + matrix[1, 2]
-    return x, y
-
-
-def transform_coordinate_3d(coord, matrix):
-    x = matrix[0, 0] * coord[0] + matrix[0, 1] * coord[1] + matrix[0, 2] * coord[2] + matrix[0, 3]
-    y = matrix[1, 0] * coord[0] + matrix[1, 1] * coord[1] + matrix[1, 2] * coord[2] + matrix[1, 3]
-    z = matrix[2, 0] * coord[0] + matrix[2, 1] * coord[1] + matrix[2, 2] * coord[2] + matrix[2, 3]
-    return x, y, z
+def transform_coordinate(coord, matrix):
+    # x = matrix[0, 0] * coord[0] + matrix[0, 1] * coord[1] + matrix[0, 2] * coord[2] + matrix[0, 3]
+    # y = matrix[1, 0] * coord[0] + matrix[1, 1] * coord[1] + matrix[1, 2] * coord[2] + matrix[1, 3]
+    # z = matrix[2, 0] * coord[0] + matrix[2, 1] * coord[1] + matrix[2, 2] * coord[2] + matrix[2, 3]
+    ndim = len(coord)
+    new_coord = tuple(sum(coord[jj] * matrix[ii, jj] for jj in range(ndim)) + matrix[ii, -1] for ii in range(ndim))
+    return new_coord
 
 
 def transform_roi(roi_start, roi_stop, matrix):
@@ -130,10 +126,9 @@ def transform_roi(roi_start, roi_stop, matrix):
     the matrix.
     """
     dim = len(roi_start)
-    trafo = transform_coordinate_2d if dim == 2 else transform_coordinate_3d
 
     corners = [corner for corner in product(*zip(roi_start, roi_stop))]
-    transformed_corners = [trafo(corner, matrix) for corner in corners]
+    transformed_corners = [transform_coordinate(corner, matrix) for corner in corners]
 
     transformed_start = [min(corner[d] for corner in transformed_corners) for d in range(dim)]
     transformed_stop = [max(corner[d] for corner in transformed_corners) for d in range(dim)]
