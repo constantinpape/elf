@@ -38,3 +38,9 @@ def glasbey(n_ids, base_palette=None, overwrite_base_palette=False,
     new_palette = gb.generate_palette(size=n_ids)
     new_palette = gb.convert_palette_to_rgb(new_palette)
     return np.array(new_palette, dtype='uint8')
+
+
+def random_colors(n_ids):
+    """ Get random colortable."""
+    shape = (n_ids, 3)
+    return np.random.randint(0, 255, size=shape, dtype='uint8')
