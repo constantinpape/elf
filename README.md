@@ -16,6 +16,8 @@ It is used by several down-stream dependencies:
 [cluster_tools](https://github.com/constantinpape/cluster_tools), [heimdall](https://github.com/constantinpape/heimdall),
 [skeletor](https://github.com/constantinpape/skeletor), [paintera_tools](https://github.com/constantinpape/paintera_tools), [pybdv](https://github.com/constantinpape/pybdv) and [ilastik](https://github.com/ilastik/ilastik).
 
+Of course, the functionality implemented here can also be used stand-alone, see the `examples`.
+For workflows implemented for big data runnable on a compute cluster, check out [cluster_tools](https://github.com/constantinpape/cluster_tools).
 
 ## Installation
 
@@ -29,4 +31,5 @@ conda install -c conda-forge -c cpape elf
 ```
 
 ## Functionality
+
 

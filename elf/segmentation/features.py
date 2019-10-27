@@ -105,3 +105,22 @@ def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
     seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
                                              numberOfThreads=n_threads)
     return seg
+
+
+def feats_to_costs_default():
+    pass
+
+
+def lifted_problem_from_probabilities(rag, watershed, input_maps,
+                                      assignment_threshold, graph_depth=None,
+                                      problem_to_cost=feats_to_costs_default,
+                                      n_threads=None):
+    """
+    """
+
+
+def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
+                                     overlap_threshold, same_segment_cost,
+                                     different_segment_cost, graph_depth=None):
+    """
+    """
