@@ -28,7 +28,7 @@ def compute_boundary_features(rag, boundary_map,
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if rag.shape != boundary_map.shape:
+    if tuple(rag.shape) != boundary_map.shape:
         raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
                                                           str(boundary_map.shape)))
     features = nrag.accumulateEdgeStandartFeatures(rag, boundary_map,
@@ -49,7 +49,7 @@ def compute_affinity_features(rag, affinity_map, offsets,
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if rag.shape != affinity_map.shape[1:]:
+    if tuple(rag.shape) != affinity_map.shape[1:]:
         raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
                                                           str(affinity_map.shape[1:])))
     if len(offsets) != affinity_map.shape[0]:
@@ -70,7 +70,7 @@ def compute_boundary_mean_and_length(rag, input_, n_threads=None):
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if rag.shape != input_.shape:
+    if tuple(rag.shape) != input_.shape:
         raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
                                                           str(input_.shape)))
     features = nrag.accumulateEdgeMeanAndLength(rag, input_, numberOfThreads=n_threads)
@@ -88,3 +88,20 @@ def compute_region_features(rag, input_map, segmentation, n_threads=None):
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+
+
+def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
+    """ Project label values for graph nodes back to pixels to obtain segmentation.
+
+    Arguments:
+        rag [RegionAdjacencyGraph] - region adjacency graph
+        node_labels [np.ndarray] - array with node labels
+        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    if len(node_labels) != rag.numberOfNodes:
+        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels),
+                                                                         rag.numberOfNodes))
+    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
+                                             numberOfThreads=n_threads)
+    return seg
