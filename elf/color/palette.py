@@ -2,8 +2,11 @@ import os
 import glob
 
 import numpy as np
-import glasbey as glasey_impl
-GLASBEY_FOLDER = os.path.split(glasey_impl.__file__)[0]
+try:
+    import glasbey as glasey_impl
+    GLASBEY_FOLDER = os.path.split(glasey_impl.__file__)[0]
+except ImportError:
+    glasey_impl = None
 
 
 def glasbey(n_ids, base_palette=None, overwrite_base_palette=False,
@@ -23,6 +26,9 @@ def glasbey(n_ids, base_palette=None, overwrite_base_palette=False,
         chroma_range [tuple] -
         hue_range [tuple] -
     """
+    if glasey_impl is None:
+        raise ImportError("Glasbey module is not available")
+
     palette_folder = os.path.join(GLASBEY_FOLDER, 'palettes')
     palettes = glob.glob(os.path.join(palette_folder, '*.txt'))
     palettes = {os.path.splitext(name)[0]: name for name in palettes}
