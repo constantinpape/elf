@@ -31,7 +31,7 @@ class TestFiles(unittest.TestCase):
         shape = (128,) * 2
         data = np.random.rand(*shape)
         fname = os.path.join(self.tmp_dir, 'data%s' % ext)
-        with file_constructor(fname) as f:
+        with file_constructor(fname, 'a') as f:
             f.create_dataset('data', data=data)
 
         with open_file(fname) as f:
@@ -63,12 +63,12 @@ class TestFiles(unittest.TestCase):
 
     @unittest.skipIf(h5py is None, "Need h5py")
     def test_is_group_h5py(self):
-        f = h5py.File(os.path.join(self.tmp_dir, 'data.h5'))
+        f = h5py.File(os.path.join(self.tmp_dir, 'data.h5'), 'a')
         self._test_is_group(f)
 
     @unittest.skipIf(z5py is None, "Need z5py")
     def test_is_group_z5py(self):
-        f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'))
+        f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'), 'a')
         self._test_is_group(f)
 
 
