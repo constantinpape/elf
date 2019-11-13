@@ -1,21 +1,22 @@
 import os
 import unittest
+from contextlib import contextmanager
+from unittest.mock import patch
 from shutil import rmtree
+
 import numpy as np
-
-try:
-    import h5py
-except ImportError:
-    h5py = None
-
-try:
-    import z5py
-except ImportError:
-    z5py = None
+from elf.io.extensions import h5py, z5py, pyn5, zarr
 
 
-class TestFiles(unittest.TestCase):
-    tmp_dir = './tmp'
+@contextmanager
+def patch_constructors(constructor, ext):
+    with patch("elf.io.extensions.FILE_CONSTRUCTORS", {ext: constructor}):
+        yield
+
+
+class FileTestBase(unittest.TestCase):
+    # todo: use https://github.com/clbarnes/tempcase/
+    tmp_dir = "./tmp"
 
     def setUp(self):
         os.makedirs(self.tmp_dir, exist_ok=True)
@@ -26,34 +27,32 @@ class TestFiles(unittest.TestCase):
         except OSError:
             pass
 
-    def _test_open(self, file_constructor, ext):
+    def path_to(self, *args):
+        return os.path.join("./tmp", *args)
+
+
+class FileTestMixin:
+    ext = None
+    constructor = None
+
+    def test_open(self):
         from elf.io import open_file
         shape = (128,) * 2
         data = np.random.rand(*shape)
-        fname = os.path.join(self.tmp_dir, 'data%s' % ext)
-        with file_constructor(fname, 'a') as f:
+        fname = self.path_to("data" + self.ext)
+        with self.constructor(fname, 'a') as f:
             f.create_dataset('data', data=data)
 
-        with open_file(fname) as f:
-            out = f['data'][:]
+        with patch("elf.io.extensions.FILE_CONSTRUCTORS", {self.ext: self.constructor}):
+            with open_file(fname) as f:
+                out = f['data'][:]
 
         self.assertEqual(data.shape, out.shape)
         self.assertTrue(np.allclose(data, out))
 
-    @unittest.skipIf(h5py is None, "Need h5py")
-    def test_open_h5(self):
-        self._test_open(h5py.File, '.h5')
-
-    @unittest.skipIf(z5py is None, "Need z5py")
-    def test_open_n5(self):
-        self._test_open(z5py.N5File, '.n5')
-
-    @unittest.skipIf(z5py is None, "Need z5py")
-    def test_open_zarr(self):
-        self._test_open(z5py.ZarrFile, '.zr')
-
-    def _test_is_group(self, f):
+    def test_is_group(self):
         from elf.io import is_group
+        f = self.constructor(self.path_to("data" + self.ext), mode="a")
         g = f.create_group('group')
         ds = f.create_dataset('dataset', data=np.ones((100, 100)),
                               chunks=(10, 10))
@@ -61,16 +60,38 @@ class TestFiles(unittest.TestCase):
         self.assertTrue(is_group(g))
         self.assertFalse(is_group(ds))
 
-    @unittest.skipIf(h5py is None, "Need h5py")
-    def test_is_group_h5py(self):
-        f = h5py.File(os.path.join(self.tmp_dir, 'data.h5'), 'a')
-        self._test_is_group(f)
 
-    @unittest.skipIf(z5py is None, "Need z5py")
-    def test_is_group_z5py(self):
-        f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'), 'a')
-        self._test_is_group(f)
+@unittest.skipIf(h5py is None, "Need h5py")
+class TestH5pyFiles(FileTestBase, FileTestMixin):
+    ext = ".h5"
+    constructor = getattr(h5py, "File", None)
 
+
+@unittest.skipIf(z5py is None, "Need z5py")
+class TestZ5pyN5Files(FileTestBase, FileTestMixin):
+    ext = ".n5"
+    constructor = getattr(z5py, "N5File", None)
+
+
+@unittest.skipIf(z5py is None, "Need z5py")
+class TestZ5pyZarrFiles(FileTestBase, FileTestMixin):
+    ext = ".zr"
+    constructor = getattr(z5py, "ZarrFile", None)
+
+
+@unittest.skipIf(pyn5 is None, "Need pyn5")
+class TestPyn5Files(FileTestBase, FileTestMixin):
+    ext = ".n5"
+    constructor = getattr(pyn5, "File", None)
+
+
+@unittest.skipIf(zarr is None, "Need zarr")
+class TestZarrFiles(FileTestBase, FileTestMixin):
+    ext = ".zr"
+    constructor = getattr(zarr, "open", None)
+
+
+# todo: test loading N5 files using zarr-python
 
 if __name__ == '__main__':
     unittest.main()
