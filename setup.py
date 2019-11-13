@@ -2,34 +2,34 @@ import runpy
 import itertools
 from setuptools import setup, find_packages
 
-__version__ = runpy.run_path('elf/__version__.py')['__version__']
+__version__ = runpy.run_path("elf/__version__.py")["__version__"]
 
 requires = [
     "numpy",
     "imageio",
     "scikit-image",
-    "skan"
+    "skan",
+    "h5py",
+    "zarr"
 ]
 
-extras = {
-    "hdf5": ["h5py"],
-    "zarr": ["zarr"],
-    "vigra": ["vigra"],  # conda-only
-    "nifty": ["nifty"],  # conda-only; name clash w/ different PyPI package
-    # "n5": ["pyn5"],  # PyPI-only
-}
+# extras that are only available on conda
+extras_conda = ["vigra", "nifty", "z5py"]
+# extras that are only available on pip
+extras_pip = ["pyn5"]
 
-extras["all"] = list(itertools.chain.from_iterable(extras.values()))
+extras = {"conda": extras_conda, "pip": extras_pip}
+
 
 setup(
-    name='elf',
-    packages=find_packages(exclude=['test']),
+    name="elf",
+    packages=find_packages(exclude=["test"]),
     version=__version__,
-    author='Constantin Pape',
+    author="Constantin Pape",
     install_requires=requires,
     extras_require=extras,
-    url='https://github.com/constantinpape/elf',
-    license='MIT'
+    url="https://github.com/constantinpape/elf",
+    license="MIT"
     # we will probably have scripts at some point, so I am leaving this for reference
     # entry_points={
     #     "console_scripts": ["view_container = heimdall.scripts.view_container:main"]
