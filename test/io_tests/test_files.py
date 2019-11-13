@@ -1,17 +1,10 @@
 import os
 import unittest
-from contextlib import contextmanager
 from unittest.mock import patch
 from shutil import rmtree
 
 import numpy as np
-from elf.io.extensions import h5py, z5py, pyn5, zarr
-
-
-@contextmanager
-def patch_constructors(constructor, ext):
-    with patch("elf.io.extensions.FILE_CONSTRUCTORS", {ext: constructor}):
-        yield
+from elf.io.extensions import h5py, z5py, pyn5, zarr, FILE_CONSTRUCTORS
 
 
 class FileTestBase(unittest.TestCase):
@@ -89,6 +82,16 @@ class TestPyn5Files(FileTestBase, FileTestMixin):
 class TestZarrFiles(FileTestBase, FileTestMixin):
     ext = ".zr"
     constructor = getattr(zarr, "open", None)
+
+
+class TestBackendPreference(unittest.TestCase):
+    @unittest.skipIf(z5py is None and zarr is None, "Need z5py and zarr")
+    def test_z5py_over_zarr(self):
+        self.assertTrue(issubclass(FILE_CONSTRUCTORS[".n5"], z5py.File))
+
+    @unittest.skipIf(z5py is None and pyn5 is None, "Need z5py and pyn5")
+    def test_z5py_over_pyn5(self):
+        self.assertTrue(issubclass(FILE_CONSTRUCTORS[".zr"], z5py.File))
 
 
 # todo: test loading N5 files using zarr-python
