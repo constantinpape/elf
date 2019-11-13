@@ -4,7 +4,7 @@ from .knossos_wrapper import KnossosFile, KnossosDataset
 
 
 __all__ = [
-    "FILE_CONSTRUCTORS", "GROUP_LIKE", "DATASET_LIKE", "h5py", "z5py",
+    "FILE_CONSTRUCTORS", "GROUP_LIKE", "DATASET_LIKE", "h5py", "z5py", "pyn5", "zarr"
 ]
 
 FILE_CONSTRUCTORS = {}
@@ -52,6 +52,23 @@ try:
     register_filetype(z5py.File, N5_EXTS + ZARR_EXTS, z5py.Group, z5py.Dataset)
 except ImportError:
     z5py = None
+
+
+try:
+    # will not override z5py
+    import pyn5
+    register_filetype(pyn5.File, N5_EXTS, pyn5.Group, pyn5.Dataset)
+except ImportError:
+    pyn5 = None
+
+try:
+    # will not override z5py
+    import zarr
+    register_filetype(
+        zarr.open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array
+    )
+except ImportError:
+    zarr = None
 
 # Are there any typical knossos extensions?
 # add knossos (no extension)
