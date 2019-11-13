@@ -28,7 +28,11 @@ install:
 
 before_script:
   - conda create -n test-env -c conda-forge -c defaults -c cpape --use-local elf
+  - conda activate test-env
+  - conda install -c conda-forge -c defaults -c cpape nifty
+  - conda install -c conda-forge -c defaults z5py
+  - conda install -c conda-forge -c defaults zarr
+  - pip install pyn5
 
 script:
-  - conda activate test-env
   - cd test && python -m unittest discover -v .
