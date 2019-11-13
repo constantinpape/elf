@@ -54,42 +54,42 @@ class FileTestMixin:
         self.assertFalse(is_group(ds))
 
 
-@unittest.skipIf(h5py is None, "Need h5py")
+@unittest.skipUnless(h5py, "Need h5py")
 class TestH5pyFiles(FileTestBase, FileTestMixin):
     ext = ".h5"
     constructor = getattr(h5py, "File", None)
 
 
-@unittest.skipIf(z5py is None, "Need z5py")
+@unittest.skipUnless(z5py, "Need z5py")
 class TestZ5pyN5Files(FileTestBase, FileTestMixin):
     ext = ".n5"
     constructor = getattr(z5py, "N5File", None)
 
 
-@unittest.skipIf(z5py is None, "Need z5py")
+@unittest.skipUnless(z5py, "Need z5py")
 class TestZ5pyZarrFiles(FileTestBase, FileTestMixin):
     ext = ".zr"
     constructor = getattr(z5py, "ZarrFile", None)
 
 
-@unittest.skipIf(pyn5 is None, "Need pyn5")
+@unittest.skipUnless(pyn5, "Need pyn5")
 class TestPyn5Files(FileTestBase, FileTestMixin):
     ext = ".n5"
     constructor = getattr(pyn5, "File", None)
 
 
-@unittest.skipIf(zarr is None, "Need zarr")
+@unittest.skipUnless(zarr, "Need zarr")
 class TestZarrFiles(FileTestBase, FileTestMixin):
     ext = ".zr"
     constructor = getattr(zarr, "open", None)
 
 
 class TestBackendPreference(unittest.TestCase):
-    @unittest.skipIf(z5py is None and zarr is None, "Need z5py and zarr")
+    @unittest.skipUnless(z5py and zarr, "Need z5py and zarr")
     def test_z5py_over_zarr(self):
         self.assertTrue(issubclass(FILE_CONSTRUCTORS[".n5"], z5py.File))
 
-    @unittest.skipIf(z5py is None and pyn5 is None, "Need z5py and pyn5")
+    @unittest.skipUnless(z5py and pyn5, "Need z5py and pyn5")
     def test_z5py_over_pyn5(self):
         self.assertTrue(issubclass(FILE_CONSTRUCTORS[".zr"], z5py.File))
 
