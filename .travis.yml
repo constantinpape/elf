@@ -29,8 +29,7 @@ install:
 before_script:
   - conda create -n test-env -c conda-forge -c defaults -c cpape --use-local elf
   - conda activate test-env
-  - conda install -c conda-forge -c defaults -c cpape nifty
-  - conda install -c conda-forge -c defaults z5py
+  # we still need to install zarr and pyn5, because they are not included by conda
   - conda install -c conda-forge -c defaults zarr
   - pip install pyn5
 

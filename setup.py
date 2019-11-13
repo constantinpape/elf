@@ -8,18 +8,32 @@ requires = [
     "numpy",
     "imageio",
     "scikit-image",
-    "skan",
-    "h5py",
-    "zarr"
+    "skan"
 ]
 
-# extras that are only available on conda
-extras_conda = ["vigra", "nifty", "z5py"]
-# extras that are only available on pip
-extras_pip = ["pyn5"]
 
-extras = {"conda": extras_conda, "pip": extras_pip}
+# optional dependencies for setuptools
+extras = {
+    "hdf5": "h5py",
+    "zarr": "zarr",
+    "n5": "pyn5"
+}
 
+# dependencies only available via conda,
+# we still collect them here, because the conda recipe
+# gets it's requirements from setuptools.
+conda_only = ["vigra", "nifty", "z5py"]
+
+# collect all dependencies for conda
+conda_exclude = [
+    "zarr",  # we don't need zarr dependencies in conda, because we use z5py
+    "pyn5"  # pyn5 is not available on conda (and not needed due to z5py)
+]
+conda_all = conda_only + [v for v in extras.values() if v not in conda_exclude]
+extras["conda_all"] = conda_all
+
+# NOTE in case we want to support different conda flavors at some point, we
+# can add keys to 'extras', e.g. 'conda_no_hdf5' without h5py
 
 setup(
     name="elf",

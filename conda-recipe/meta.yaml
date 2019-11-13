@@ -31,7 +31,7 @@ requirements:
     {% for dep in data['install_requires'] %}
     - {{ dep.lower() }}
     {% endfor %}
-    {% for dep in data['extras_require']['conda'] %}
+    {% for dep in data['extras_require']['conda_all'] %}
     - {{ dep.lower() }}
     {% endfor %}
 
