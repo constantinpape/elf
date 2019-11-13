@@ -4,7 +4,7 @@ from unittest.mock import patch
 from shutil import rmtree
 
 import numpy as np
-from elf.io.extensions import h5py, z5py, pyn5, zarr, FILE_CONSTRUCTORS
+from elf.io.extensions import h5py, z5py, pyn5, zarr, zarr_open, FILE_CONSTRUCTORS
 
 
 class FileTestBase(unittest.TestCase):
@@ -81,7 +81,7 @@ class TestPyn5Files(FileTestBase, FileTestMixin):
 @unittest.skipUnless(zarr, "Need zarr")
 class TestZarrFiles(FileTestBase, FileTestMixin):
     ext = ".zr"
-    constructor = getattr(zarr, "open", None)
+    constructor = staticmethod(zarr_open)
 
 
 class TestBackendPreference(unittest.TestCase):

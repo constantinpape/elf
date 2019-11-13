@@ -1,10 +1,13 @@
+import functools
+
 import numpy as np
 
 from .knossos_wrapper import KnossosFile, KnossosDataset
 
 
 __all__ = [
-    "FILE_CONSTRUCTORS", "GROUP_LIKE", "DATASET_LIKE", "h5py", "z5py", "pyn5", "zarr"
+    "FILE_CONSTRUCTORS", "GROUP_LIKE", "DATASET_LIKE",
+    "h5py", "z5py", "pyn5", "zarr", "zarr_open",
 ]
 
 FILE_CONSTRUCTORS = {}
@@ -61,14 +64,38 @@ try:
 except ImportError:
     pyn5 = None
 
+
+def identity(arg):
+    return arg
+
+
+def noop(*args, **kwargs):
+    pass
+
+
 try:
     # will not override z5py
     import zarr
+
+    # zarr stores cannot be used as context managers,
+    # which breaks compatibility with similar libraries.
+    # This wrapper patches in those methods.
+    @functools.wraps(zarr.open)
+    def zarr_open(*args, **kwargs):
+        z = zarr.open(*args, **kwargs)
+        ztype = type(z)
+        if not hasattr(ztype, "__enter__"):
+            ztype.__enter__ = identity
+        if not hasattr(ztype, "__exit__"):
+            ztype.__exit__ = noop
+        return z
+
     register_filetype(
-        zarr.open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array
+        zarr_open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array
     )
 except ImportError:
     zarr = None
+    zarr_open = None
 
 # Are there any typical knossos extensions?
 # add knossos (no extension)

@@ -1,6 +1,8 @@
 import os
-from .extensions import FILE_CONSTRUCTORS, GROUP_LIKE, DATASET_LIKE
-from .extensions import h5py, z5py
+from .extensions import (
+    FILE_CONSTRUCTORS, GROUP_LIKE, DATASET_LIKE,
+    h5py, z5py, pyn5, zarr,
+)
 from .knossos_wrapper import KnossosFile, KnossosDataset
 
 
@@ -59,6 +61,14 @@ def is_h5py(node):
     """ Check if this is a h5py object
     """
     return h5py and isinstance(node, (h5py.Dataset, h5py.Group))
+
+
+def is_zarr(node):
+    return zarr and isinstance(node, (zarr.core.Array, zarr.hierarchy.Group))
+
+
+def is_pyn5(node):
+    return pyn5 and isinstance(node, (pyn5.Dataset, pyn5.Group))
 
 
 def is_knossos(node):
