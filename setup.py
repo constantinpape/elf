@@ -14,8 +14,11 @@ requires = [
 extras = {
     "hdf5": ["h5py"],
     "zarr": ["zarr"],
+    # only available on conda, breaks pip install
     "vigra": ["vigra"],
-    "nifty": ["nifty"]
+    "nifty": ["nifty"],
+    # only available on PyPI, breaks conda install
+    # "n5": ["pyn5"],
 }
 
 extras["all"] = list(itertools.chain.from_iterable(extras.values()))
