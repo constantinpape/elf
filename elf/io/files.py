@@ -1,6 +1,8 @@
 import os
-from .extensions import FILE_CONSTRUCTORS
-from .extensions import h5py, z5py
+from .extensions import (
+    FILE_CONSTRUCTORS, GROUP_LIKE, DATASET_LIKE,
+    h5py, z5py, pyn5, zarr,
+)
 from .knossos_wrapper import KnossosFile, KnossosDataset
 
 
@@ -27,10 +29,12 @@ def open_file(path, mode='a', ext=None):
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
     except KeyError:
-        raise ValueError("""Could not infer file type from extension %s,
-                          because it is not in the supported extensions: %s.
-                          You may need to install additional dependencies (h5py, z5py, zarr)."""
-                         % (ext, ' '.join(supported_extensions())))
+        raise ValueError(
+            f"Could not infer file type from extension {ext}, "
+            f"because it is not in the supported extensions: "
+            f"{' '.join(supported_extensions())}. "
+            f"You may need to install additional dependencies (h5py, z5py, zarr)."
+        )
     return constructor(path, mode=mode)
 
 
@@ -38,25 +42,13 @@ def open_file(path, mode='a', ext=None):
 def is_group(node):
     """ Check if argument is an h5py or z5py group
     """
-    if h5py and isinstance(node, h5py.Group):
-        return True
-    if z5py and isinstance(node, z5py.Group):
-        return True
-    if isinstance(node, KnossosFile):
-        return True
-    return False
+    return isinstance(node, tuple(GROUP_LIKE))
 
 
 def is_dataset(node):
     """ Check if argument is an h5py or z5py dataset
     """
-    if h5py and isinstance(node, h5py.Dataset):
-        return True
-    if z5py and isinstance(node, z5py.Dataset):
-        return True
-    if isinstance(node, KnossosDataset):
-        return True
-    return False
+    return isinstance(node, tuple(DATASET_LIKE))
 
 
 def is_z5py(node):
@@ -69,6 +61,14 @@ def is_h5py(node):
     """ Check if this is a h5py object
     """
     return h5py and isinstance(node, (h5py.Dataset, h5py.Group))
+
+
+def is_zarr(node):
+    return zarr and isinstance(node, (zarr.core.Array, zarr.hierarchy.Group))
+
+
+def is_pyn5(node):
+    return pyn5 and isinstance(node, (pyn5.Dataset, pyn5.Group))
 
 
 def is_knossos(node):

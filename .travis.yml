@@ -28,7 +28,10 @@ install:
 
 before_script:
   - conda create -n test-env -c conda-forge -c defaults -c cpape --use-local elf
+  - conda activate test-env
+  # we still need to install zarr and pyn5, because they are not included by conda
+  - conda install -c conda-forge -c defaults zarr
+  - pip install pyn5
 
 script:
-  - conda activate test-env
   - cd test && python -m unittest discover -v .
