@@ -127,19 +127,17 @@ class TestMetrics(unittest.TestCase):
 
     @unittest.skipUnless(adapted_rand and nifty, "Need cremi_tools and nifty")
     def test_ri_random_data(self):
-        print("Blob")
         from elf.evaluation import rand_index
         shape = (256, 256)
         x = np.random.randint(0, 100, size=shape)
         y = np.random.randint(0, 100, size=shape)
         ari, ri = rand_index(x, y, ignore_gt=[0])
-        ari_exp = adapted_rand(x, gy)
+        ari_exp = adapted_rand(x, y)
         self.assertAlmostEqual(ari, ari_exp)
 
     @unittest.skipUnless(voi and nifty, "Need cremi_tools and nifty")
     def test_vi_random_data(self):
-        print("Blub")
-        from elf.evaluation import rand_index
+        from elf.evaluation import variation_of_information
         shape = (256, 256)
         x = np.random.randint(0, 100, size=shape)
         y = np.random.randint(0, 100, size=shape)
