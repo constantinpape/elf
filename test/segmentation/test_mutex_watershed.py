@@ -4,11 +4,15 @@ try:
     import affogato
 except ImportError:
     affogato = None
+try:
+    import nifty
+except ImportError:
+    nifty = None
 
 
+@unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
 class TestMutexWatershed(unittest.TestCase):
 
-    @unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
     def test_mutex_watershed(self):
         from elf.segmentation.mutex_watershed import mutex_watershed
         shape = (10, 256, 256)
@@ -24,7 +28,6 @@ class TestMutexWatershed(unittest.TestCase):
         # make sure the segmentation is not trivial
         self.assertGreater(len(np.unique(seg)), 10)
 
-    @unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
     def test_mutex_watershed_with_seeds(self):
         from elf.segmentation.mutex_watershed import mutex_watershed_with_seeds
         shape = (10, 256, 256)
@@ -42,6 +45,10 @@ class TestMutexWatershed(unittest.TestCase):
         # make sure the segmentation is not trivial
         self.assertGreater(len(np.unique(seg)), 10)
         # TODO check that seeds were actually taken into account
+
+    @unittest.skipUnless(nifty, "Need nifty to run blockwise mutex watershed")
+    def test_blockwise_mutex_watershed(self):
+        from elf.segmentation.mutex_watershed import blockwise_mutex_watershed
 
 
 if __name__ == '__main__':

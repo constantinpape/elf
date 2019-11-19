@@ -3,7 +3,13 @@ from vigra.analysis import relabelConsecutive
 from affogato.segmentation import compute_mws_segmentation
 from affogato.segmentation import MWSGridGraph, compute_mws_clustering
 
+try:
+    from .blockwise_mws_impl import blockwise_mws_impl
+except ImportError:
+    blockwise_mc_impl = None
 
+
+# FIXME don't change the affinities in-place
 def mutex_watershed(affs, offsets, strides,
                     randomize_strides=False, mask=None,
                     noise_level=0):
@@ -103,3 +109,34 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
         return seg, grid_graph
     else:
         return seg
+
+
+# TODO additional params for the block-wise mws impl
+def blockwise_mutex_watershed(affs, offsets, strides, block_shape,
+                              randomize_strides=False, mask=None,
+                              noise_level=0, beta0=.75, beta1=.5,
+                              n_threads=None):
+    """ Block-wise mutex watershed implementation.
+
+    Solves mutex watershed in parallel for blocking of the input volume
+    and then stitches block-wise segmentation with biased multicut.
+
+    Arguments:
+        affs [np.ndarray] - input affinity map
+        offsets [list[list[int]]] - pixel offsets corresponding to affinity channels
+        strides [list[int]] - strides used to sub-sample long range edges
+        block_shape [list[int]] - block shape used for parallelizing the mws
+        randomize_strides [bool] - randomize the strides? (default: False)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
+        noise_level [float] - sigma of noise added to affinities (default: 0)
+        beta0 [float] - boundary bias for the inner block edges (default: 0.75)
+        beta1 [float] - boundary bias for the between block edges (default: 0.5)
+        n_threads [int] - number of threads (default: None)
+    """
+    if blockwise_mws_impl is None:
+        raise RuntimeError("Cannot run blockwise mutex watershed, probably nifty is misssing.")
+    assert len(affs) == len(offsets)
+    return blockwise_mws_impl(affs, offsets, strides, block_shape,
+                              randomize_strides, mask=mask,
+                              beta0=beta0, beta1=beta1,
+                              noise_level=noise_level, n_threads=n_threads)
