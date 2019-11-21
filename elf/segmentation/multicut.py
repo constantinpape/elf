@@ -10,6 +10,17 @@ from vigra.analysis import relabelConsecutive
 from .blockwise_mc_impl import blockwise_mc_impl
 
 
+# TODO check that this works
+def _to_objective(graph, costs):
+    if isinstance(graph, nifty.graph.UndirectedGraph):
+        graph_ = graph
+    else:
+        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
+        graph_.insertEdges(graph.uvIds())
+    objective = nmc.multicutObjective(graph_, costs)
+    return objective
+
+
 def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
                                      weighting_exponent=1.):
     """ Transform probabilities to costs via negative log likelihood.
@@ -96,7 +107,7 @@ def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwar
         time_limit [float] - time limit for inference (default: None)
         warmstart [bool] - whether to warmstart with gaec solution (default: True)
     """
-    objective = nmc.multicutObjective(graph, costs)
+    objective = _to_objective(graph, costs)
     solver = objective.kernighanLinFactory(warmStartGreedy=warmstart).create(objective)
     if time_limit is None:
         return solver.optimize()
@@ -117,7 +128,7 @@ def multicut_gaec(graph, costs, time_limit=None, **kwargs):
         costs [np.ndarray] - edge costs of multicut problem
         time_limit [float] - time limit for inference (default: None)
     """
-    objective = nmc.multicutObjective(graph, costs)
+    objective = _to_objective(graph, costs)
     solver = objective.greedyAdditiveFactory().create(objective)
     if time_limit is None:
         return solver.optimize()
@@ -244,7 +255,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
         num_it_stop [int] - stop if no improvement after num_it_stop (default: 1000)
     """
     assert internal_solver in ('kernighan-lin', 'greedy-additive')
-    objective = nmc.multicutObjective(graph, costs)
+    objective = _to_objective(graph, costs)
 
     if internal_solver == 'kernighan-lin':
         sub_solver = objective.greedyAdditiveFactory()
