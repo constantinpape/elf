@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import shift
 from sklearn.decomposition import PCA
 from skimage.segmentation import slic
 
@@ -41,10 +42,43 @@ def embedding_slic(embeddings, run_pca=True):
     return seg
 
 
-def embeddings_to_probabilities():
-    """ Convert embeddings to connectivity probabilities.
+# could probably be implemented more efficiently with shift kernels
+# instead of explicit call to shift
+# (or implement in C++ to save memory)
+def embeddings_to_affinities(embeddings, offsets, delta, invert=False):
+    """ Convert embeddings to affinities.
 
-    Implementation following
+    Computes the affinity according to the formula
+    a_ij = max((2 * delta - ||x_i - x_j||) / 2 * delta, 0) ** 2,
+    where delta is the push force used in training the embeddings.
+    Introduced in "Learning Dense Voxel Embeddings for 3D Neuron Reconstruction":
     https://arxiv.org/pdf/1909.09872.pdf
+
+    Arguments:
+        embeddings [np.ndarray] - the array with embeddings
+        offsets [list] - the offset vectors for which to compute affinities
+        delta [float] - the delta factor used in the push force when training the embeddings
+        invert [bool] - whether to invert the affinites (default=False)
     """
-    pass
+    ndim = embeddings.ndim - 1
+    if not all(len(off) == ndim for off in offsets):
+        raise ValueError("Incosistent dimension of offsets and embeddings")
+
+    n_channels = len(offsets)
+    shape = embeddings.shape[1:]
+    affinities = np.zeros((n_channels,) + shape, dtype='float32')
+
+    for cid, off in enumerate(offsets):
+        # we need to  shift in the other direction in order to
+        # get the correct offset
+        # also, we need to add a zero shift in the first axis
+        shift_off = [0] + [-o for o in off]
+        shifted = shift(embeddings, shift_off, order=0, prefilter=False)
+        affs = (2 * delta - np.linalg.norm(embeddings - shifted, axis=0)) / (2 * delta)
+        affs = np.maximum(affs, 0) ** 2
+        affinities[cid] = affs
+
+    if invert:
+        affinities = 1. - affinities
+
+    return affinities

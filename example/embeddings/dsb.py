@@ -23,8 +23,9 @@ def segment_from_embeddings():
     seg = embed.embedding_slic(pred)
 
     with napari.gui_qt():
-        viewer = napari.view_image(pca, rgb=True, name='pca')
+        viewer = napari.Viewer()
         viewer.add_image(im, name='image')
+        viewer.add_image(pca, rgb=True, name='pca')
         viewer.add_labels(seg, name='segmentation')
 
 
