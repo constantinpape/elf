@@ -1,6 +1,9 @@
 import numpy as np
+import vigra
+
 from scipy.ndimage import shift
 from sklearn.decomposition import PCA
+
 from skimage.segmentation import slic
 
 
@@ -35,11 +38,38 @@ def embedding_slic(embeddings, run_pca=True):
     """
 
     if run_pca:
-        embeddings = embedding_pca(embeddings)
+        embeddings = embedding_pca(embeddings, as_rgb=True)
     embeddings = embeddings.transpose((1, 2, 0)) if embeddings.ndim == 3 else\
         embeddings.transpose((1, 2, 3, 0))
-    seg = slic(embeddings)
+    seg = slic(embeddings, convert2lab=True)
+    # print(embeddings.shape)
+    # seg = slicSuperpixels(embeddings[..., 0], intensityScaling=1., seedDistance=1)[0]
     return seg
+
+
+def _embeddings_to_probabilities(embed1, embed2, delta, embedding_axis):
+    probs = (2 * delta - np.linalg.norm(embed1 - embed2, axis=embedding_axis)) / (2 * delta)
+    probs = np.maximum(probs, 0) ** 2
+    return probs
+
+
+def edge_probabilities_from_embeddings(embeddings, segmentation, rag, delta):
+    # TODO this looks inefficient :(
+    n_nodes = rag.numberOfNodes
+    embed_dim = embeddings.shape[0]
+
+    segmentation = segmentation.astype('uint32')
+    mean_embeddings = np.zeros((n_nodes, embed_dim), dtype='float32')
+    for cid in range(embed_dim):
+        mean_embed = vigra.analysis.extractRegionFeatures(embeddings[cid],
+                                                          segmentation, features=['mean'])['mean']
+        mean_embeddings[:, cid] = mean_embed
+
+    uv_ids = rag.uvIds()
+    embed_u = mean_embeddings[uv_ids[:, 0]]
+    embed_v = mean_embeddings[uv_ids[:, 1]]
+    edge_probabilities = 1. - _embeddings_to_probabilities(embed_u, embed_v, delta, embedding_axis=1)
+    return edge_probabilities
 
 
 # could probably be implemented more efficiently with shift kernels
@@ -74,8 +104,7 @@ def embeddings_to_affinities(embeddings, offsets, delta, invert=False):
         # also, we need to add a zero shift in the first axis
         shift_off = [0] + [-o for o in off]
         shifted = shift(embeddings, shift_off, order=0, prefilter=False)
-        affs = (2 * delta - np.linalg.norm(embeddings - shifted, axis=0)) / (2 * delta)
-        affs = np.maximum(affs, 0) ** 2
+        affs = _embeddings_to_probabilities(embeddings, shifted, delta, embedding_axis=0)
         affinities[cid] = affs
 
     if invert:
