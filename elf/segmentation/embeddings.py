@@ -103,6 +103,7 @@ def embeddings_to_affinities(embeddings, offsets, delta, invert=False):
         # get the correct offset
         # also, we need to add a zero shift in the first axis
         shift_off = [0] + [-o for o in off]
+        # we could also shift via np.pad and slicing
         shifted = shift(embeddings, shift_off, order=0, prefilter=False)
         affs = _embeddings_to_probabilities(embeddings, shifted, delta, embedding_axis=0)
         affinities[cid] = affs

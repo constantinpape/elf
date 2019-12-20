@@ -247,3 +247,17 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     lifted_costs[~same_mask] = different_segment_cost
 
     return lifted_uvs, lifted_costs
+
+
+def compute_z_edge_mask(rag, watershed):
+    """ Compute edge mask of in-between plane edges for flat superpixels.
+
+    This function does not check wether the input watersheds are
+    actually flat!
+    """
+    node_z_coords = np.zeros(rag.numberOfNodes, dtype='uint32')
+    for z in range(watershed.shape[0]):
+        node_z_coords[watershed[z]] = z
+    uv_ids = rag.uvIds()
+    z_edge_mask = node_z_coords[uv_ids[:, 0]] != node_z_coords[uv_ids[:, 1]]
+    return z_edge_mask

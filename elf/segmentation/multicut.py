@@ -21,14 +21,41 @@ def _to_objective(graph, costs):
     return objective
 
 
+def _weight_edges(costs, edge_sizes, weighting_exponent):
+    w = edge_sizes / float(edge_sizes.max())
+    print(edge_sizes.max())
+    if weighting_exponent != 1.:
+        w = w**weighting_exponent
+    costs *= w
+    print(costs.min(), costs.max())
+    return costs
+
+
+def _weight_populations(costs, edge_sizes, edge_populations, weighting_exponent):
+    # check that the population indices cover each edge at most once
+    covered = np.zeros(len(costs), dtype='uint8')
+    for edge_pop in edge_populations:
+        covered[edge_pop] += 1
+    assert (covered <= 1).all()
+
+    for edge_pop in edge_populations:
+        costs[edge_pop] = _weight_edges(costs[edge_pop], edge_sizes[edge_pop],
+                                        weighting_exponent)
+
+    return costs
+
+
 def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
-                                     weighting_exponent=1.):
+                                     edge_populations=None, weighting_exponent=1.):
     """ Transform probabilities to costs via negative log likelihood.
 
     Arguments:
         probs [np.ndarray] - Input probabilities.
         beta [float] - boundary bias (default: .5)
         edge_sizes [np.ndarray] - sizes of edges for weighting (default: None)
+        edge_populations [list[np.ndarray]] - different edge populations that will be
+            size weighted independently passed as list of masks or index arrays.
+            This can e.g. be useful if we have flat superpixels in a 3d problem. (default: None)
         weighting_exponent [float] - exponent used for weighting (default: 1.)
     """
     p_min = 0.001
@@ -39,10 +66,10 @@ def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
     # weight the costs with edge sizes, if they are given
     if edge_sizes is not None:
         assert len(edge_sizes) == len(costs)
-        w = edge_sizes / edge_sizes.max()
-        if weighting_exponent != 1.:
-            w = w**weighting_exponent
-        costs *= w
+        if edge_populations is None:
+            costs = _weight_edges(costs, edge_sizes, weighting_exponent)
+        else:
+            costs = _weight_populations(costs, edge_sizes, edge_populations, weighting_exponent)
     return costs
 
 #
