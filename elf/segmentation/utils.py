@@ -3,7 +3,12 @@ from scipy.ndimage import convolve
 
 
 def seg_to_edges(segmentation, only_in_plane_edges=False):
-    """
+    """ Compute edges from segmentation.
+
+    Arguments:
+        segmentation [np.ndarray] - input segmentation
+        only_in_plane_edges [bool] - compute only in-plane edges
+            for 3d segmentation (default: False)
     """
     if segmentation.ndim == 2:
         return make_2d_edges(segmentation)
