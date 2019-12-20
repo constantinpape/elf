@@ -1,3 +1,5 @@
+import multiprocessing
+from concurrent import futures
 import numpy as np
 import vigra
 try:
@@ -10,6 +12,41 @@ except ImportError:
     import vigra.filters as ff
 
 
+def stacked_watershed(input_, ws_function=distance_transform_watershed,
+                      n_threads=None, **ws_kwargs):
+    """ Run 2d watershed stacked along z-axis.
+
+    Arguments:
+        input_ [np.ndarray] - input height map.
+        ws_function [callable] - watershed function (default: distance_transform_watershed)
+        n_threads [int] - number of threads (default: None)
+        ws_kwargs - keyworrd arguments for the watershed function
+
+    Returns:
+        np.ndarray - watershed segmentation
+        int - max id of watershed segmentation
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    out = np.zero(input_.shape, dtype='uint64')
+
+    def _wsz(z):
+        wsz, max_id = ws_function(input_[z], **ws_kwargs)
+        out[z] = wsz
+        return max_id
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        tasks = [tp.submit(_wsz, z) for z in range(len(input_))]
+        offsets = np.array([t.result() for t in tasks])
+
+    offsets = np.roll(offsets, 1)
+    offsets[0] = 0
+    offsets = np.cumsum(offsets)
+
+    out += offsets[:, None, None]
+    max_id = int(out[-1].max())
+    return out, max_id
+
+
 def watershed(input_, seeds, size_filter=0, exclude=None):
     """ Compute seeded watershed.
 
@@ -18,6 +55,10 @@ def watershed(input_, seeds, size_filter=0, exclude=None):
         seeds [np.ndarray] - seed map.
         size_filter [int] - minimal segment size (default: 0).
         exclude [list] - list of segment ids that will not be size filtered (default: None).
+
+    Returns:
+        np.ndarray - watershed segmentation
+        int - max id of watershed segmentation
     """
     ws, max_id = vigra.analysis.watershedsNew(input_, seeds=seeds)
     if size_filter > 0:
@@ -34,6 +75,10 @@ def apply_size_filter(segmentation, input_, size_filter, exclude=None):
         input_ [np.ndarray] - input height map.
         size_filter [int] - minimal segment size.
         exclude [list] - list of segment ids that will not be size filtered (default: None).
+
+    Returns:
+        np.ndarray - size filtered segmentation
+        int - max id of size filtered segmentation
     """
     ids, sizes = np.unique(segmentation, return_counts=True)
     filter_ids = ids[sizes < size_filter]
@@ -76,6 +121,10 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
         pixel_pitch [listlike[int]] - anisotropy factor used to compute the distance transform (default: None)
         apply_nonmax_suppression [bool] - whetther to apply non-maxmimum suppression to filter out seeds.
             Needs nifty. (default: False)
+
+    Returns:
+        np.ndarray - watershed segmentation
+        int - max id of watershed segmentation
     """
     if apply_nonmax_suppression and nonMaximumDistanceSuppression is None:
         raise ValueError("Non-maximum suppression is only available with nifty.")

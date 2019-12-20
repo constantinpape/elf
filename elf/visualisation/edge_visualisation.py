@@ -2,7 +2,8 @@ import nifty.graph.rag as nrag
 
 
 def visualise_edges(rag, edge_values,
-                    edge_direction=2, ignore_edges=None):
+                    edge_direction=2, ignore_edges=None,
+                    n_threads=None):
     """ Visualize values mapped to the edges of a rag as volume.
 
     Arguments:
@@ -13,14 +14,16 @@ def visualise_edges(rag, edge_values,
             1 - drawn in negative direction
             2 - drawn in positive direction
         ignore_edges [np.ndarray]: mask or indices of edges that should not be drawn
+        n_threads [int] - number of threads (default: None)
 
     Returns:
-        np.ndarray - volume of attractive edges
-        np.ndarray - volume of repulsive edges
+        np.ndarray - edge volume
     """
     assert rag.numberOfEdges == len(edge_values), "%i, %i" % (rag.numberOfEdges,
                                                               len(edge_values))
-    edge_builder = nrag.ragCoordinates(rag)
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+
+    edge_builder = nrag.ragCoordinates(rag, numberOfThreads=n_threads)
     if ignore_edges is None:
         edge_values_ = edge_values
     else:
@@ -31,7 +34,8 @@ def visualise_edges(rag, edge_values,
 
 
 def visualise_attractive_and_repulsive_edges(rag, edge_values, threshold,
-                                             edge_direction=2, ignore_edges=None):
+                                             edge_direction=2, ignore_edges=None,
+                                             n_threads=None):
     """ Visualize values mapped to the edges of a rag that are attractive and repulsive.
 
     Arguments:
@@ -43,6 +47,7 @@ def visualise_attractive_and_repulsive_edges(rag, edge_values, threshold,
             1 - drawn in negative direction
             2 - drawn in positive direction
         ignore_edges [np.ndarray]: mask or indices of edges that should not be drawn
+        n_threads [int] - number of threads (default: None)
 
     Returns:
         np.ndarray - volume of attractive edges
@@ -50,7 +55,8 @@ def visualise_attractive_and_repulsive_edges(rag, edge_values, threshold,
     """
     assert rag.numberOfEdges == len(edge_values), "%i, %i" % (rag.numberOfEdges,
                                                               len(edge_values))
-    edge_builder = nrag.ragCoordinates(rag)
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    edge_builder = nrag.ragCoordinates(rag, numberOfThreads=n_threads)
 
     if ignore_edges is None:
         edge_values_ = edge_values
