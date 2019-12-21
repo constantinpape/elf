@@ -82,7 +82,8 @@ class TestWatershed(unittest.TestCase):
             self.assertEqual(ws.max(), max_id)
             self.assertNotIn(0, ws)
 
-    @unittest.skipUnless(vigra and nifty, "Need vigra and nifty for watershed with non-max suppression")
+    @unittest.skipUnless(vigra and nifty,
+                         "Need vigra and nifty for watershed with non-max suppression")
     def test_distance_transform_watershed_suppression(self):
         from elf.segmentation.watershed import distance_transform_watershed
         shape = (256, 256)
@@ -93,6 +94,19 @@ class TestWatershed(unittest.TestCase):
         self.assertEqual(inp.shape, ws.shape)
         # make sure result is non-trivial
         self.assertGreater(max_id, 32)
+        self.assertEqual(ws.max(), max_id)
+        self.assertNotIn(0, ws)
+
+    @unittest.skipUnless(vigra, "Need vigra for watershed functionality")
+    def test_stacked_watershed(self):
+        from elf.segmentation.watershed import stacked_watershed
+        shape = (32, 256, 256)
+        inp = np.random.rand(*shape).astype('float32')
+
+        ws, max_id = stacked_watershed(inp, threshold=.5, sigma_seeds=2.)
+        self.assertEqual(inp.shape, ws.shape)
+        # make sure result is non-trivial
+        self.assertGreater(max_id, 256)
         self.assertEqual(ws.max(), max_id)
         self.assertNotIn(0, ws)
 

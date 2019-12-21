@@ -27,7 +27,7 @@ install:
   - conda build -c conda-forge -c defaults -c cpape --python=3.7 conda-recipe
 
 before_script:
-  - conda create -n test-env -c conda-forge -c defaults -c cpape python=3.7 --use-local elf
+  - conda create -n test-env -c conda-forge -c defaults -c cpape --use-local python=3.7 elf
   - conda activate test-env
   # we still need to install zarr and pyn5, because they are not included by conda
   - conda install -c conda-forge -c defaults zarr
