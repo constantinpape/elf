@@ -40,23 +40,25 @@ class TestFeatures(unittest.TestCase):
                                                                      assignment_threshold, graph_depth)
         self.assertEqual(len(lifted_uvs), len(lifted_costs))
 
-    # FIXME this sometimes fails with out of bounds,
-    # apparently because node ids in lifted edges can be 1 to big
     @unittest.skipUnless(vigra and nifty, "Need vigra and nifty")
     def test_lifted_problem_from_segmentation(self):
         from elf.segmentation.features import (compute_rag,
                                                lifted_problem_from_segmentation)
         shape = (32, 128, 128)
-        ws = self.make_seg(shape)
-        rag = compute_rag(ws)
-        seg = self.make_seg(shape)
+        N = 5
+        for _ in range(N):
+            ws = self.make_seg(shape)
+            rag = compute_rag(ws)
+            seg = self.make_seg(shape)
 
-        overlap_threshold = .5
-        graph_depth = 4
-        lifted_uvs, lifted_costs = lifted_problem_from_segmentation(rag, ws, seg,
-                                                                    overlap_threshold, graph_depth,
-                                                                    same_segment_cost=1., different_segment_cost=-1)
-        self.assertEqual(len(lifted_uvs), len(lifted_costs))
+            overlap_threshold = .5
+            graph_depth = 4
+            lifted_uvs, lifted_costs = lifted_problem_from_segmentation(rag, ws, seg,
+                                                                        overlap_threshold,
+                                                                        graph_depth,
+                                                                        same_segment_cost=1.,
+                                                                        different_segment_cost=-1)
+            self.assertEqual(len(lifted_uvs), len(lifted_costs))
 
 
 if __name__ == '__main__':

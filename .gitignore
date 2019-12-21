@@ -125,4 +125,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# tmp folders and data
 tmp/
+*.h5

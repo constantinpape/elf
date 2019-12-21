@@ -9,15 +9,17 @@ import nifty.ground_truth as ngt
 from .multicut import transform_probabilities_to_costs
 
 
-def compute_rag(segmentation, n_threads=None):
+def compute_rag(segmentation, n_labels=None, n_threads=None):
     """ Compute region adjacency graph of segmentation.
 
     Arguments:
         segmentation [np.ndarray] - the segmentation
+        n_labels [int] - number of  labels in segmentation. If None is give, will be computed from
+            the data. (default: None)
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    n_labels = int(segmentation.max()) + 1
+    n_labels = int(segmentation.max()) + 1 if n_labels is None else n_labels
     rag = nrag.gridRag(segmentation, numberOfLabels=n_labels,
                        numberOfThreads=n_threads)
     return rag
@@ -225,11 +227,22 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     # compute the overlaps
     ovlp_comp = ngt.overlap(watershed, input_segmentation)
     ws_ids = np.unique(watershed)
+    n_labels = ws_ids[-1] + 1
+    assert n_labels == rag.numberOfNodes, "%i, %i" % (n_labels, rag.numberOfNodes)
+
+    # initialise the arrays for node labels, to be
+    # dense in the watershed id space (even if some ws-ids are not present)
+    node_labels = np.zeros(n_labels, dtype='uint64')
+
+    # extract the overlap values and node labels from the overlap
+    # computation results
     overlaps = [ovlp_comp.overlapArraysNormalized(ws_id, sorted=False)
                 for ws_id in ws_ids]
-    node_labels = np.array([ovlp[0][0] for ovlp in overlaps])
+    node_label_vals = np.array([ovlp[0][0] for ovlp in overlaps])
     overlap_values = np.array([ovlp[1][0] for ovlp in overlaps])
-    node_labels[overlap_values < overlap_threshold] = 0
+    node_label_vals[overlap_values < overlap_threshold] = 0
+    assert len(node_label_vals) == len(ws_ids)
+    node_labels[ws_ids] = node_label_vals
 
     # find all lifted edges up to the graph depth between mapped nodes
     # NOTE we need to convert to the different graph type for now, but
@@ -239,6 +252,9 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
 
     lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(g_temp, node_labels, graph_depth, mode=mode,
                                                         numberOfThreads=n_threads, ignoreLabel=0)
+    # make sure that the lifted uv ids are in range of the node labels
+    assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()),
+                                                             rag.numberOfNodes)
     lifted_labels = node_labels[lifted_uvs]
     lifted_costs = np.zeros_like(lifted_labels, dtype='float32')
 
@@ -247,3 +263,17 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     lifted_costs[~same_mask] = different_segment_cost
 
     return lifted_uvs, lifted_costs
+
+
+def compute_z_edge_mask(rag, watershed):
+    """ Compute edge mask of in-between plane edges for flat superpixels.
+
+    This function does not check wether the input watersheds are
+    actually flat!
+    """
+    node_z_coords = np.zeros(rag.numberOfNodes, dtype='uint32')
+    for z in range(watershed.shape[0]):
+        node_z_coords[watershed[z]] = z
+    uv_ids = rag.uvIds()
+    z_edge_mask = node_z_coords[uv_ids[:, 0]] != node_z_coords[uv_ids[:, 1]]
+    return z_edge_mask

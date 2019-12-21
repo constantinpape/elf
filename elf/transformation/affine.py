@@ -123,7 +123,7 @@ def transform_coordinate(coord, matrix):
 
 def transform_roi(roi_start, roi_stop, matrix):
     """ Transform a roi under the affine transformation defined by
-    the matrix.
+    affine matrix.
     """
     dim = len(roi_start)
 
