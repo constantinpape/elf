@@ -9,15 +9,17 @@ import nifty.ground_truth as ngt
 from .multicut import transform_probabilities_to_costs
 
 
-def compute_rag(segmentation, n_threads=None):
+def compute_rag(segmentation, n_labels=None, n_threads=None):
     """ Compute region adjacency graph of segmentation.
 
     Arguments:
         segmentation [np.ndarray] - the segmentation
+        n_labels [int] - number of  labels in segmentation. If None is give, will be computed from
+            the data. (default: None)
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    n_labels = int(segmentation.max()) + 1
+    n_labels = int(segmentation.max()) + 1 if n_labels is None else n_labels
     rag = nrag.gridRag(segmentation, numberOfLabels=n_labels,
                        numberOfThreads=n_threads)
     return rag

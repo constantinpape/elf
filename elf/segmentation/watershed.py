@@ -12,41 +12,6 @@ except ImportError:
     import vigra.filters as ff
 
 
-def stacked_watershed(input_, ws_function=distance_transform_watershed,
-                      n_threads=None, **ws_kwargs):
-    """ Run 2d watershed stacked along z-axis.
-
-    Arguments:
-        input_ [np.ndarray] - input height map.
-        ws_function [callable] - watershed function (default: distance_transform_watershed)
-        n_threads [int] - number of threads (default: None)
-        ws_kwargs - keyworrd arguments for the watershed function
-
-    Returns:
-        np.ndarray - watershed segmentation
-        int - max id of watershed segmentation
-    """
-    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    out = np.zero(input_.shape, dtype='uint64')
-
-    def _wsz(z):
-        wsz, max_id = ws_function(input_[z], **ws_kwargs)
-        out[z] = wsz
-        return max_id
-
-    with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(_wsz, z) for z in range(len(input_))]
-        offsets = np.array([t.result() for t in tasks])
-
-    offsets = np.roll(offsets, 1)
-    offsets[0] = 0
-    offsets = np.cumsum(offsets)
-
-    out += offsets[:, None, None]
-    max_id = int(out[-1].max())
-    return out, max_id
-
-
 def watershed(input_, seeds, size_filter=0, exclude=None):
     """ Compute seeded watershed.
 
@@ -155,3 +120,38 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     # compute watershed
     ws, max_id = watershed(hmap, seeds, size_filter=min_size)
     return ws, max_id
+
+
+def stacked_watershed(input_, ws_function=distance_transform_watershed,
+                      n_threads=None, **ws_kwargs):
+    """ Run 2d watershed stacked along z-axis.
+
+    Arguments:
+        input_ [np.ndarray] - input height map.
+        ws_function [callable] - watershed function (default: distance_transform_watershed)
+        n_threads [int] - number of threads (default: None)
+        ws_kwargs - keyworrd arguments for the watershed function
+
+    Returns:
+        np.ndarray - watershed segmentation
+        int - max id of watershed segmentation
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    out = np.zeros(input_.shape, dtype='uint64')
+
+    def _wsz(z):
+        wsz, max_id = ws_function(input_[z], **ws_kwargs)
+        out[z] = wsz
+        return max_id
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        tasks = [tp.submit(_wsz, z) for z in range(len(input_))]
+        offsets = np.array([t.result() for t in tasks], dtype='uint64')
+
+    offsets = np.roll(offsets, 1)
+    offsets[0] = 0
+    offsets = np.cumsum(offsets)
+
+    out += offsets[:, None, None]
+    max_id = int(out[-1].max())
+    return out, max_id

@@ -8,29 +8,6 @@ from elf.visualisation import visualise_edges
 from elf.io import open_file
 
 
-# TODO we should parallelize this and put it into elf.seg.watershed as well
-def make_2d_watershed(affs):
-    # first, we have to make a single channel input map for the watershed,
-    # which we obtain by averaging the afifnities
-    boundary_input = np.mean(affs, axis=0)
-
-    # next, we run the distance transform watershed.
-    # the data is very anisotropic, so we apply the watershed in 2d
-    # and stack the watershed results along z, with the appropriate id offset
-    watershed = np.zeros_like(boundary_input, dtype='uint64')
-    offset = 0
-    for z in range(watershed.shape[0]):
-        # the threshold parameter determines at which value the input map is thresholded before applying
-        # the distance transform.
-        # the parameter sigma_seeds determines how strong the seed map is smoothed before seeds are
-        # computed via local minima. This controls the degree of over-segmentation
-        wsz, max_id = ws.distance_transform_watershed(boundary_input[z], threshold=.5, sigma_seeds=2.)
-        wsz += offset
-        offset += max_id
-        watershed[z] = wsz
-    return boundary_input, watershed
-
-
 def visualize_edges_isbi():
     data_path = '/home/pape/Work/data/isbi/isbi_test_volume.h5'  # adjust this path
     with open_file(data_path, 'r') as f:
@@ -39,9 +16,10 @@ def visualize_edges_isbi():
         # load the affinities, we only need the first 3 channels
         affs = f['affinities'][:3, :]
 
-    boundaries, watershed = make_2d_watershed(affs)
+    boundaries = np.mean(affs, axis=0)
+    watershed, max_id = ws.stacked_watershed(boundaries, threshold=.5, sigma_seeds=2.)
     # compute the region adjacency graph
-    rag = feats.compute_rag(watershed)
+    rag = feats.compute_rag(watershed, n_labels=max_id + 1)
 
     # compute the edge costs
     # the offsets encode the pixel transition encoded by the
