@@ -227,11 +227,22 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     # compute the overlaps
     ovlp_comp = ngt.overlap(watershed, input_segmentation)
     ws_ids = np.unique(watershed)
+    n_labels = ws_ids[-1] + 1
+    assert n_labels == rag.numberOfNodes, "%i, %i" % (n_labels, rag.numberOfNodes)
+
+    # initialise the arrays for node labels, to be
+    # dense in the watershed id space (even if some ws-ids are not present)
+    node_labels = np.zeros(n_labels, dtype='uint64')
+
+    # extract the overlap values and node labels from the overlap
+    # computation results
     overlaps = [ovlp_comp.overlapArraysNormalized(ws_id, sorted=False)
                 for ws_id in ws_ids]
-    node_labels = np.array([ovlp[0][0] for ovlp in overlaps])
+    node_label_vals = np.array([ovlp[0][0] for ovlp in overlaps])
     overlap_values = np.array([ovlp[1][0] for ovlp in overlaps])
-    node_labels[overlap_values < overlap_threshold] = 0
+    node_label_vals[overlap_values < overlap_threshold] = 0
+    assert len(node_label_vals) == len(ws_ids)
+    node_labels[ws_ids] = node_label_vals
 
     # find all lifted edges up to the graph depth between mapped nodes
     # NOTE we need to convert to the different graph type for now, but
@@ -241,6 +252,9 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
 
     lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(g_temp, node_labels, graph_depth, mode=mode,
                                                         numberOfThreads=n_threads, ignoreLabel=0)
+    # make sure that the lifted uv ids are in range of the node labels
+    assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()),
+                                                             rag.numberOfNodes)
     lifted_labels = node_labels[lifted_uvs]
     lifted_costs = np.zeros_like(lifted_labels, dtype='float32')
 
