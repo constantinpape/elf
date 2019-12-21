@@ -9,6 +9,10 @@ from elf.io import open_file
 
 
 def visualize_edges_isbi():
+    """ Example for edge weight visualization, which is very useful to debug
+    multicut (or other agglomeration) problems.
+    """
+
     data_path = '/home/pape/Work/data/isbi/isbi_test_volume.h5'  # adjust this path
     with open_file(data_path, 'r') as f:
         # load the raw data
