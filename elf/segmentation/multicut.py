@@ -10,7 +10,6 @@ from vigra.analysis import relabelConsecutive
 from .blockwise_mc_impl import blockwise_mc_impl
 
 
-# TODO check that this works
 def _to_objective(graph, costs):
     if isinstance(graph, nifty.graph.UndirectedGraph):
         graph_ = graph
@@ -23,11 +22,9 @@ def _to_objective(graph, costs):
 
 def _weight_edges(costs, edge_sizes, weighting_exponent):
     w = edge_sizes / float(edge_sizes.max())
-    print(edge_sizes.max())
     if weighting_exponent != 1.:
         w = w**weighting_exponent
     costs *= w
-    print(costs.min(), costs.max())
     return costs
 
 
