@@ -8,6 +8,7 @@ requires = [
     "numpy",
     "imageio",
     "scikit-image",
+    "scikit-learn",
     "skan"
 ]
 
