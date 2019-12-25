@@ -104,8 +104,6 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_fusion_moves
         self._test_multicut(multicut_fusion_moves)
 
-    # see https://github.com/constantinpape/elf/issues/8
-    @unittest.skip("Broken in nifty")
     @unittest.skipUnless(nmc, "Need nifty for multicut functionality")
     def test_fusion_moves_toy(self):
         from elf.segmentation.multicut import multicut_fusion_moves

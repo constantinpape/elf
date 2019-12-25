@@ -260,7 +260,7 @@ def multicut_decomposition(graph, costs, time_limit=None,
 # TODO enable warmstart with gaec / kl
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                           internal_solver='kernighan-lin', seed_fraction=.05,
-                          num_it=1000, num_it_stop=10):
+                          num_it=1000, num_it_stop=25):
     """ Solve multicut problem with fusion moves solver.
 
     Introduced in "Fusion moves for correlation clustering":
@@ -287,16 +287,13 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
         sub_solver = objective.kernighanLinFactory(warmStartGreedy=True)
 
     sub_solver = objective.fusionMoveSettings(mcFactory=sub_solver)
-    proposal_gen = objective.watershedProposals(sigma=10,
-                                                seedFraction=seed_fraction)
+    proposal_gen = objective.watershedCcProposals(sigma=2., numberOfSeeds=seed_fraction)
 
-    solver = objective.fusionMoveBasedFactory(fusionMove=sub_solver,
-                                              verbose=1, fuseN=2,
-                                              proposalGen=proposal_gen,
-                                              numberOfIterations=num_it,
-                                              numberOfParallelProposals=2*n_threads,
-                                              numberOfThreads=n_threads,
-                                              stopIfNoImprovement=num_it_stop).create(objective)
+    solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
+                                                proposalGenerator=proposal_gen,
+                                                numberOfThreads=n_threads,
+                                                numberOfIterations=num_it,
+                                                stopIfNoImprovement=num_it_stop).create(objective)
 
     if time_limit is None:
         return solver.optimize()
