@@ -10,7 +10,18 @@ import numpy as np
 
 
 def unique(data, return_counts=False, block_shape=None, n_threads=None, mask=None):
-    """
+    """ Compute the unique values of the data.
+
+    Arguments:
+        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
+        return_counts [bool] - whether to return the counts (default: False)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+    Returns:
+        np.ndarray - unique values
+        np.ndarray - count values (only if return_counts is True)
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -24,14 +35,25 @@ def unique(data, return_counts=False, block_shape=None, n_threads=None, mask=Non
     def _unique(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+
+        # check if we have a mask and if we do if we
+        # have pixels in the mask
+        if mask is not None:
+            m = mask[bb].astype('bool')
+            if m.sum() == 0:
+                return None
+
+        # load the data and apply the mask if given
         d = data[bb]
         if mask is not None:
-            d = d[mask[bb].astype('bool')]
+            d = d[m]
+
         return np.unique(d, return_counts=return_counts)
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
         tasks = [tp.submit(_unique, block_id) for block_id in range(n_blocks)]
         results = [t.result() for t in tasks]
+    results = [res for res in results if res is not None]
 
     if return_counts:
 
