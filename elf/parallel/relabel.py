@@ -1,6 +1,7 @@
 import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
+from tqdm import tqdm
 
 import nifty.tools as nt
 from .unique import unique
@@ -11,7 +12,8 @@ import numpy as np
 
 
 def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
-                        block_shape=None, n_threads=None, mask=None):
+                        block_shape=None, n_threads=None,
+                        mask=None, verbose=False):
     """Compute the unique values of the data.
 
     Arguments:
@@ -23,6 +25,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         array_like - the output data
         int - the max id after relabeling
@@ -72,7 +75,9 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         out[bb] = o
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(_relabel, block_id) for block_id in range(n_blocks)]
-        [t.result() for t in tasks]
+        if verbose:
+            list(tqdm(tp.map(_relabel, range(n_blocks)), total=n_blocks))
+        else:
+            tp.map(_relabel, range(n_blocks))
 
     return out, max_id, mapping

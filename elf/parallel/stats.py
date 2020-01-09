@@ -5,6 +5,7 @@ from concurrent import futures
 
 # TODO use python blocking implementation
 import nifty.tools as nt
+from tqdm import tqdm
 
 from .common import get_block_shape
 from ..util import set_numpy_threads
@@ -12,7 +13,7 @@ set_numpy_threads(1)
 import numpy as np
 
 
-def mean(data, block_shape=None, n_threads=None, mask=None):
+def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Compute the mean of the data in parallel.
 
     Arguments:
@@ -21,6 +22,7 @@ def mean(data, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         float - mean of the data
     """
@@ -52,14 +54,16 @@ def mean(data, block_shape=None, n_threads=None, mask=None):
         return np.mean(d)
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(_mean, block_id) for block_id in range(n_blocks)]
-        means = [t.result() for t in tasks]
+        if verbose:
+            means = list(tqdm(tp.map(_mean, range(n_blocks)), total=n_blocks))
+        else:
+            means = tp.map(_mean, range(n_blocks))
     means = [m for m in means if m is not None]
 
     return np.mean(means)
 
 
-def mean_and_std(data, block_shape=None, n_threads=None, mask=None):
+def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Compute the mean and the standard deviation of the data in parallel.
 
     Arguments:
@@ -68,6 +72,7 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         float - mean of the data
         float - standard deviation of the data
@@ -100,8 +105,10 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None):
         return np.mean(d), np.var(d), d.size
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(_mean_and_std, block_id) for block_id in range(n_blocks)]
-        results = [t.result() for t in tasks]
+        if verbose:
+            results = list(tqdm(tp.map(_mean_and_std, range(n_blocks)), total=n_blocks))
+        else:
+            results = tp.map(_mean_and_std, range(n_blocks))
     results = [res for res in results if res is not None]
 
     means = np.array([res[0] for res in results])
@@ -116,7 +123,7 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None):
     return mean_val, std_val
 
 
-def std(data, block_shape=None, n_threads=None, mask=None):
+def std(data, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Compute the standard deviation of the data in parallel.
 
     Arguments:
@@ -125,7 +132,8 @@ def std(data, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         float - standard deviation of the data
     """
-    return mean_and_std(data, block_shape, n_threads, mask)[1]
+    return mean_and_std(data, block_shape, n_threads, mask, verbose)[1]

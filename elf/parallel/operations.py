@@ -3,6 +3,7 @@ import multiprocessing
 # so that this could be used on a cluster as well
 from concurrent import futures
 from numbers import Number
+from tqdm import tqdm
 
 # TODO use python blocking implementation
 import nifty.tools as nt
@@ -15,7 +16,8 @@ import numpy as np
 
 # TODO support broadcasting
 def apply_operation(x, y, operation, out=None,
-                    block_shape=None, n_threads=None, mask=None):
+                    block_shape=None, n_threads=None,
+                    mask=None, verbose=False):
     """ Apply operation to two operands in parallel.
 
     Arguments:
@@ -29,6 +31,7 @@ def apply_operation(x, y, operation, out=None,
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         array_like - output
     """
@@ -88,13 +91,15 @@ def apply_operation(x, y, operation, out=None,
 
     _apply = _apply_scalar if scalar_operand else _apply_array
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(_apply, block_id) for block_id in range(n_blocks)]
-        [t.result() for t in tasks]
+        if verbose:
+            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
+        else:
+            tp.map(_apply, range(n_blocks))
 
     return out
 
 
-def add(x, y, out=None, block_shape=None, n_threads=None, mask=None):
+def add(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Add y to x in parallel.
 
     Arguments:
@@ -107,14 +112,15 @@ def add(x, y, out=None, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         array_like - output
     """
     return apply_operation(x, y, np.add, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask)
+                           n_threads=n_threads, mask=mask, verbose=verbose)
 
 
-def subtract(x, y, out=None, block_shape=None, n_threads=None, mask=None):
+def subtract(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Subtract x from y in parallel.
 
     Arguments:
@@ -127,14 +133,15 @@ def subtract(x, y, out=None, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         array_like - output
     """
     return apply_operation(x, y, np.subtract, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask)
+                           n_threads=n_threads, mask=mask, verbose=verbose)
 
 
-def multiply(x, y, out=None, block_shape=None, n_threads=None, mask=None):
+def multiply(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Multiply x and y in parallel.
 
     Arguments:
@@ -147,14 +154,15 @@ def multiply(x, y, out=None, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         array_like - output
     """
     return apply_operation(x, y, np.multiply, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask)
+                           n_threads=n_threads, mask=mask, verbose=verbose)
 
 
-def divide(x, y, out=None, block_shape=None, n_threads=None, mask=None):
+def divide(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
     """ Divide x by y in parallel.
 
     Arguments:
@@ -167,8 +175,9 @@ def divide(x, y, out=None, block_shape=None, n_threads=None, mask=None):
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
     Returns:
         array_like - output
     """
     return apply_operation(x, y, np.divide, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask)
+                           n_threads=n_threads, mask=mask, verbose=verbose)
