@@ -39,8 +39,14 @@ def apply_operation(x, y, operation, out=None,
     if out is None:
         out = x
 
-    # TODO proper check if y is a scalar
     scalar_operand = isinstance(y, Number)
+    # check the second operand
+    if not scalar_operand:
+        if not isinstance(y, np.ndarray):
+            raise ValueError("Expected second operand to be scalar or numpy array, got %s" % type(y))
+        # check that the shapes match (need to adapt this to support broadcasting)
+        if x.shape != y.shape:
+            raise ValueError("Shapes of operands do not match.")
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     block_shape = get_block_shape(x, block_shape)
