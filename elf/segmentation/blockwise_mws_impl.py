@@ -11,7 +11,7 @@ from . import features
 from . import multicut
 
 
-def compute_stitch_edges(rag, segmentation, blocking):
+def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
 
     def edges_from_face(lower_block_id, upper_block_id, axis):
         lower_block = blocking.getBlock(lower_block_id)
@@ -29,6 +29,14 @@ def compute_stitch_edges(rag, segmentation, blocking):
         edges = np.concatenate([lower_seg[:, None], upper_seg[:, None]], axis=1)
         edges = np.unique(edges, axis=0)
 
+        # NOTE if we have a mask, we might get the id pair [0, 0], which
+        # is not a valid edge in the rag
+        if with_mask:
+            edge_mask = (edges == 0).all(axis=1)
+            edges = edges[~edge_mask]
+            if edges.size == 0:
+                return None
+
         edge_ids = rag.findEdges(edges)
         assert (edge_ids != -1).all()
         return edge_ids
@@ -41,11 +49,17 @@ def compute_stitch_edges(rag, segmentation, blocking):
             ngb_id = blocking.getNeighborId(block_id, axis, lower=True)
             if ngb_id == -1:
                 continue
-            stitch_edges.append(edges_from_face(ngb_id, block_id, axis))
-    stitch_edges = np.concatenate(stitch_edges, axis=0)
+
+            this_stitch_edges = edges_from_face(ngb_id, block_id, axis)
+            if this_stitch_edges is not None:
+                stitch_edges.append(this_stitch_edges)
 
     stitch_edge_mask = np.zeros(rag.numberOfEdges, dtype='bool')
-    stitch_edge_mask[stitch_edges] = 1
+
+    if len(stitch_edges) > 0:
+        stitch_edges = np.concatenate(stitch_edges, axis=0)
+        stitch_edge_mask[stitch_edges] = 1
+
     return stitch_edge_mask
 
 
@@ -73,7 +87,7 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         bb_affs = (slice(None),) + bb
-        affs_ = affs[bb_affs]
+        affs_ = affs[bb_affs].copy()  # we need to copy here to leave the original affs unchanged
         mask_ = None if mask is None else mask[bb]
 
         if noise_level > 0:
@@ -111,9 +125,10 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
     with futures.ThreadPoolExecutor(n_threads) as tp:
         tasks = [tp.submit(apply_offset, block_id)
                  for block_id in range(n_blocks)]
+        [t.result() for t in tasks]
 
     # 3.) compute rag, features and block edges (if specified)
-    rag = features.compute_rag(segmentation, n_threads)
+    rag = features.compute_rag(segmentation, n_threads=n_threads)
     edge_feats = features.compute_affinity_features(rag, affs, offsets,
                                                     n_threads=n_threads)
     costs, sizes = edge_feats[:, 0], edge_feats[:, -1]
@@ -123,7 +138,7 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
     if np.isclose(beta0, beta1):
         costs = multicut.transform_probabilities_to_costs(costs, edge_sizes=sizes)
     else:
-        stitch_edges = compute_stitch_edges(rag, segmentation, blocking)
+        stitch_edges = compute_stitch_edges(rag, segmentation, blocking, with_mask=mask is not None)
         costs[stitch_edges] = multicut.transform_probabilities_to_costs(costs[stitch_edges],
                                                                         beta=beta1,
                                                                         edge_sizes=sizes[stitch_edges])
@@ -133,12 +148,12 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
         # if we have a mask, set all edges with 0 to be maximally repulsive
         if mask is not None:
             max_repulsive = 5 * costs.min()
-            costs[(costs == 0).any(axis=1)] = max_repulsive
+            uv_ids = rag.uvIds()
+            costs[(uv_ids == 0).any(axis=1)] = max_repulsive
 
-    # 4.) compute costs and multicut
+    # 4.) compute multicut
     solver = multicut.get_multicut_solver(solver_name)
     node_labels = solver(rag, costs)
-    # TODO make sure that 0 is mapped to 0 if we have a mask
 
     # 5.) project multicut results back to segmentation
     segmentation = features.project_node_labels_to_pixels(rag, node_labels, n_threads)

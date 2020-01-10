@@ -111,7 +111,6 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
         return seg
 
 
-# TODO additional params for the block-wise mws impl
 def blockwise_mutex_watershed(affs, offsets, strides, block_shape,
                               randomize_strides=False, mask=None,
                               noise_level=0, beta0=.75, beta1=.5,
