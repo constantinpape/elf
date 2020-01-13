@@ -187,3 +187,87 @@ def divide(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=
     """
     return apply_operation(x, y, np.divide, block_shape=block_shape,
                            n_threads=n_threads, mask=mask, verbose=verbose)
+
+
+def greater(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
+    """ Compute greater operation in parallel.
+
+    Arguments:
+        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
+        y [array_like or scalar] - operand 2, numpy array or similar like h5py or zarr dataset
+            or scalar
+        out [array_like] - output, by default the operation
+            is done inplace in the first operand (default: None)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
+    Returns:
+        array_like - output
+    """
+    return apply_operation(x, y, np.greater, block_shape=block_shape,
+                           n_threads=n_threads, mask=mask, verbose=verbose)
+
+
+def greater_equal(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
+    """ Compute greater operation in parallel.
+
+    Arguments:
+        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
+        y [array_like or scalar] - operand 2, numpy array or similar like h5py or zarr dataset
+            or scalar
+        out [array_like] - output, by default the operation
+            is done inplace in the first operand (default: None)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
+    Returns:
+        array_like - output
+    """
+    return apply_operation(x, y, np.greater_equal, block_shape=block_shape,
+                           n_threads=n_threads, mask=mask, verbose=verbose)
+
+
+def less(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
+    """ Compute greater operation in parallel.
+
+    Arguments:
+        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
+        y [array_like or scalar] - operand 2, numpy array or similar like h5py or zarr dataset
+            or scalar
+        out [array_like] - output, by default the operation
+            is done inplace in the first operand (default: None)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
+    Returns:
+        array_like - output
+    """
+    return apply_operation(x, y, np.less, block_shape=block_shape,
+                           n_threads=n_threads, mask=mask, verbose=verbose)
+
+
+def less_equal(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
+    """ Compute less operation in parallel.
+
+    Arguments:
+        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
+        y [array_like or scalar] - operand 2, numpy array or similar like h5py or zarr dataset
+            or scalar
+        out [array_like] - output, by default the operation
+            is done inplace in the first operand (default: None)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
+    Returns:
+        array_like - output
+    """
+    return apply_operation(x, y, np.less_equal, block_shape=block_shape,
+                           n_threads=n_threads, mask=mask, verbose=verbose)
