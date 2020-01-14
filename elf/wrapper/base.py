@@ -24,6 +24,13 @@ class WrapperBase(ABC):
     def dtype(self):
         return self._volume.dtype
 
+    @property
+    def chunks(self):
+        try:
+            return self._volume.chunks
+        except AttributeError:
+            return None
+
 
 class SimpleTransformationWrapper(WrapperBase):
     """ Volume wrapper to apply transformation to the data on the fly.
