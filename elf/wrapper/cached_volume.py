@@ -9,7 +9,7 @@ try:
 except ImportError:
     blosc = None
 
-from .wrapper_base import WrapperBase
+from .base import WrapperBase
 from ..util import (normalize_index, squeeze_singletons,
                     map_chunk_to_roi, chunks_overlapping_roi)
 

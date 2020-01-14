@@ -7,7 +7,7 @@ try:
 except ImportError:
     import vigra.filters as ff
 
-from .wrapper_base import WrapperBase
+from .base import WrapperBase
 from ..transformation import compute_affine_matrix, transform_roi
 from ..util import normalize_index, squeeze_singletons
 

@@ -4,7 +4,7 @@ from math import floor, ceil
 import numpy as np
 import vigra
 
-from .wrapper_base import WrapperBase
+from .base import WrapperBase
 from ..util import normalize_index, squeeze_singletons
 
 
