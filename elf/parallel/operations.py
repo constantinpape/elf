@@ -123,7 +123,8 @@ def add(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=Fal
         array_like - output
     """
     return apply_operation(x, y, np.add, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def subtract(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -144,7 +145,8 @@ def subtract(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbos
         array_like - output
     """
     return apply_operation(x, y, np.subtract, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def multiply(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -165,7 +167,8 @@ def multiply(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbos
         array_like - output
     """
     return apply_operation(x, y, np.multiply, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def divide(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -186,7 +189,8 @@ def divide(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=
         array_like - output
     """
     return apply_operation(x, y, np.divide, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def greater(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -207,7 +211,8 @@ def greater(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose
         array_like - output
     """
     return apply_operation(x, y, np.greater, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def greater_equal(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -228,7 +233,8 @@ def greater_equal(x, y, out=None, block_shape=None, n_threads=None, mask=None, v
         array_like - output
     """
     return apply_operation(x, y, np.greater_equal, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def less(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -249,7 +255,8 @@ def less(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=Fa
         array_like - output
     """
     return apply_operation(x, y, np.less, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
 
 
 def less_equal(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
@@ -270,4 +277,5 @@ def less_equal(x, y, out=None, block_shape=None, n_threads=None, mask=None, verb
         array_like - output
     """
     return apply_operation(x, y, np.less_equal, block_shape=block_shape,
-                           n_threads=n_threads, mask=mask, verbose=verbose)
+                           n_threads=n_threads, mask=mask, verbose=verbose,
+                           out=out)
