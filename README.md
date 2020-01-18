@@ -5,6 +5,7 @@
 This repository implements common functionality for (large-scale) bio-medical image analysis:
 - **evaluation**: evaluation of partitions via rand index and variation of information
 - **io**: common interface for different libraries / formats 
+- **parallel**: parallel / larger than memory implementation of common numpy functions
 - **segmentation**: graph-partition based segmentation
 - **skeleton**: skeletonization
 - **transformation**: helper functions for affine transformations
