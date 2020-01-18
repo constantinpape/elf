@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+from skimage.measure import label as label_reference
 
 try:
     import nifty
@@ -51,6 +52,36 @@ class TestParallel(unittest.TestCase):
             exp = vigra.analysis.relabelConsecutive(x)[0]
             unexp = np.unique(exp)
             self.assertTrue(np.array_equal(unx, unexp))
+
+    def test_label(self):
+        from elf.parallel import label
+        from elf.evaluation import rand_index
+        shape = 3 * (32,)
+        block_shape = 3 * (16,)
+        x = np.random.randint(1, 1000, size=shape).astype('uint32')
+
+        res = np.zeros_like(x)
+        res = label(x, res, block_shape=block_shape, with_background=False)
+        exp = label_reference(x)
+
+        # there is a tiny differnce in ri, maybe some border artifacts?
+        _, ri = rand_index(res, exp)
+        self.assertAlmostEqual(ri, 1., places=5)
+
+    def test_label_with_background(self):
+        from elf.parallel import label
+        from elf.evaluation import rand_index
+        shape = 3 * (32,)
+        block_shape = 3 * (16,)
+        x = np.random.randint(0, 1000, size=shape).astype('uint32')
+
+        res = np.zeros_like(x)
+        res = label(x, res, block_shape=block_shape, with_background=True)
+        exp = label_reference(x)
+
+        # there is a tiny differnce in ri, maybe some border artifacts?
+        _, ri = rand_index(res, exp)
+        self.assertAlmostEqual(ri, 1., places=5)
 
 
 if __name__ == '__main__':
