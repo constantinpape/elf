@@ -1,6 +1,7 @@
 import ctypes
 import numbers
 import os
+from math import ceil
 from itertools import product
 
 
@@ -227,3 +228,20 @@ def set_numpy_threads(n_threads):
     os.environ['MKL_NUM_THREADS'] = str(n_threads)
     os.environ['VECLIB_NUM_THREADS'] = str(n_threads)
     os.environ['NUMEXPR_NUM_THREADS'] = str(n_threads)
+
+
+def sigma_to_halo(sigma, order):
+    """ Compute the halo value to apply filter in parallel.
+
+    Based on:
+    https://github.com/ukoethe/vigra/blob/master/include/vigra/multi_blockwise.hxx#L408
+
+    Arguments:
+        sigma [float or list[float]] - sigma value
+        order [int] - order of the filter
+    """
+    if isinstance(sigma, numbers.Number):
+        halo = int(ceil(3.0 * sigma + 0.5 * order + 0.5))
+    else:
+        halo = [int(ceil(3.0 * sig + 0.5 * order + 0.5)) for sig in sigma]
+    return halo
