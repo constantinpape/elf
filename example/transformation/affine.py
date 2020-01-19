@@ -21,7 +21,7 @@ def check_affine():
     ds = f['astronaut']
 
     im = ds[:]
-    slice_ = np.s_[0:256, 0:256]
+    slice_ = np.s_[64:256, 64:256]
 
     matrix = compute_affine_matrix(scale=(.5, .5), rotation=(45,))
     matrix = np.linalg.inv(matrix)
