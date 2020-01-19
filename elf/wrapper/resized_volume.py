@@ -97,6 +97,3 @@ class ResizedVolume(WrapperBase):
         else:
             out = self._interpolate(data, ret_shape)
         return squeeze_singletons(out, to_squeeze)
-
-    def __setitem__(self, key, item):
-        raise NotImplementedError("Setitem not implemented")

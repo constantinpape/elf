@@ -31,6 +31,10 @@ class WrapperBase(ABC):
         except AttributeError:
             return None
 
+    # most wrappers will not implement setitem
+    def __setitem__(self, index, item):
+        raise NotImplementedError("Setitem not implemented")
+
 
 class SimpleTransformationWrapper(WrapperBase):
     """ Volume wrapper to apply transformation to the data on the fly.
