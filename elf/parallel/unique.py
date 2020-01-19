@@ -32,7 +32,7 @@ def unique(data, return_counts=False, block_shape=None, n_threads=None,
 
     # TODO support roi and use python blocking implementation
     shape = data.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = nt.blocking(data.ndim * [0], shape, block_shape)
     n_blocks = blocking.numberOfBlocks
 
     def _unique(block_id):

@@ -32,7 +32,7 @@ def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False):
 
     # TODO support roi and use python blocking implementation
     shape = data.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = nt.blocking(data.ndim * [0], shape, block_shape)
     n_blocks = blocking.numberOfBlocks
 
     def _mean(block_id):

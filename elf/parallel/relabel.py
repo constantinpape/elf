@@ -44,11 +44,14 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
 
     # TODO support roi and use python blocking implementation
     shape = data.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = nt.blocking(data.ndim * [0], shape, block_shape)
     n_blocks = blocking.numberOfBlocks
 
     if out is None:
         out = data
+    elif data.shape != out.shape:
+        raise ValueError("Expect data and out of same shape, got %s and %s" % (str(data.shape),
+                                                                               str(out.shape)))
 
     def _relabel(block_id):
         block = blocking.getBlock(block_id)

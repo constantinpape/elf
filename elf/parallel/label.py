@@ -223,12 +223,16 @@ def label(data, out, with_background=True, block_shape=None,
         array_like - the output data
     """
 
+    if data.shape != out.shape:
+        raise ValueError("Expect data and out of same shape, got %s and %s" % (str(data.shape),
+                                                                               str(out.shape)))
+
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     block_shape = get_block_shape(data, block_shape)
 
     # TODO support roi and use python blocking implementation
     shape = data.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = nt.blocking([0] * data.ndim, shape, block_shape)
 
     # 1) compute connected components for all blocks
     out, offsets = cc_blocks(data, out, mask, blocking, with_background,

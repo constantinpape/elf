@@ -71,6 +71,9 @@ def apply_operation(x, y, operation, out=None,
 
     if out is None:
         out = x
+    elif x.shape != out.shape:
+        raise ValueError("Expect x and out of same shape, got %s and %s" % (str(x.shape),
+                                                                            str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     block_shape = get_block_shape(x, block_shape)
