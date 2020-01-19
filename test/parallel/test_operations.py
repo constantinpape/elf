@@ -7,7 +7,6 @@ except ImportError:
     nifty = None
 
 
-# TODO tests with mask
 @unittest.skipUnless(nifty, "Need nifty")
 class TestOperations(unittest.TestCase):
     def _test_op_array(self, op, op_exp, inplace):
@@ -46,11 +45,36 @@ class TestOperations(unittest.TestCase):
             # make sure x is unchaged
             self.assertTrue(np.allclose(x, x_cpy))
 
+    def _test_op_broadcast(self, op, op_exp):
+        shapex = 3 * (64,)
+        shapey = (1, 64, 64)
+        block_shape = 3 * (16,)
+        x = np.random.rand(*shapex)
+        y = np.random.rand(*shapey)
+
+        exp = op_exp(x, y)
+        op(x, y, block_shape=block_shape)
+        self.assertTrue(np.allclose(exp, x))
+
+    def _test_op_masked(self, op, op_exp):
+        shape = 3 * (64,)
+        block_shape = 3 * (16,)
+        x = np.random.rand(*shape)
+        y = np.random.rand()
+        mask = np.random.rand(*shape) > .5
+
+        exp = x.copy()
+        exp[mask] = op_exp(x[mask], y)
+        op(x, y, block_shape=block_shape, mask=mask)
+        self.assertTrue(np.allclose(exp, x))
+
     def _test_op(self, op1, op2):
         self._test_op_array(op1, op2, True)
         self._test_op_array(op1, op2, False)
         self._test_op_scalar(op1, op2, True)
         self._test_op_scalar(op1, op2, False)
+        self._test_op_broadcast(op1, op2)
+        self._test_op_masked(op1, op2)
 
     def test_add(self):
         from elf.parallel import add

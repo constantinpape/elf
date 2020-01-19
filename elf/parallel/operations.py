@@ -14,7 +14,18 @@ set_numpy_threads(1)
 import numpy as np
 
 
-# TODO support broadcasting
+def _compute_broadcast(shapex, shapey):
+    broadcast = []
+    for shx, shy in zip(shapex, shapey):
+        if shx == shy:
+            broadcast.append(False)
+        elif shy == 1:
+            broadcast.append(True)
+        else:
+            raise ValueError("Cannot broadcast shapes %s and %s" % (str(shapex, str(shapey))))
+    return broadcast
+
+
 def apply_operation(x, y, operation, out=None,
                     block_shape=None, n_threads=None,
                     mask=None, verbose=False):
@@ -36,24 +47,37 @@ def apply_operation(x, y, operation, out=None,
         array_like - output
     """
 
-    if out is None:
-        out = x
-
+    # check type and dimension of the second operand and check if we need to broadcast
     scalar_operand = isinstance(y, Number)
-    # check the second operand
-    if not scalar_operand:
+    if scalar_operand:
+        broadcast = False
+    else:
         if not isinstance(y, np.ndarray):
             raise ValueError("Expected second operand to be scalar or numpy array, got %s" % type(y))
-        # check that the shapes match (need to adapt this to support broadcasting)
-        if x.shape != y.shape:
-            raise ValueError("Shapes of operands do not match.")
+        # check that the dimensions of operators
+        if x.ndim != y.ndim:
+            raise ValueError("Dimensions of operands do not match.")
+        # if the shapes disagree, check if we can broadcast
+        broadcast = False if x.shape == y.shape else _compute_broadcast(x.shape, y.shape)
+
+    # broadcasting and masking is not supported yet
+    if mask is not None and broadcast:
+        raise NotImplementedError("Broadcasting and masking is not implemented yet")
+
+    # check the mask if given
+    if mask is not None and mask.shape != x.shape:
+        raise ValueError("Invalid mask shape, got %s, expected %s (= shape of first operand)" % (str(mask.shape),
+                                                                                                 str(x.shape)))
+
+    if out is None:
+        out = x
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     block_shape = get_block_shape(x, block_shape)
 
     # TODO support roi and use python blocking implementation
     shape = x.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = nt.blocking([0] * x.ndim, shape, block_shape)
     n_blocks = blocking.numberOfBlocks
 
     def _apply_scalar(block_id):
@@ -78,6 +102,11 @@ def apply_operation(x, y, operation, out=None,
     def _apply_array(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+        # change the bounding boxes if inputs need to be broadcast
+        if broadcast:
+            bby = tuple(slice(None) if bcast else b for bcast, b in zip(broadcast, bb))
+        else:
+            bby = bb
 
         # check if we have a mask and if we do if we
         # have pixels in the mask
@@ -88,7 +117,7 @@ def apply_operation(x, y, operation, out=None,
 
         # load the data and apply the mask if given
         xx = x[bb]
-        yy = y[bb]
+        yy = y[bby]
         if mask is None:
             xx = operation(xx, yy)
         else:
