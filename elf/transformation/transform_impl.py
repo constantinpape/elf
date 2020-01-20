@@ -15,6 +15,9 @@ def apply_transform_chunked_2d(data, out, transform_coordinate, start, stop,
     chunk_cache = {}
     chunks = blocking.blockShape
 
+    # precompute for range check
+    max_range = tuple(sh - 1 for sh in data.shape)
+
     # if sigma is not None:
     #   halo = sigma_to_halo(sigma, 0)
 
@@ -24,7 +27,7 @@ def apply_transform_chunked_2d(data, out, transform_coordinate, start, stop,
             coord = transform_coordinate(old_coord)
 
             # range check
-            if any(co < 0 for co in coord) or any(co >= sh for co, sh in zip(coord, data.shape)):
+            if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
                 continue
 
             # TODO support more than nearest neighbor assignment
@@ -56,6 +59,9 @@ def apply_transform_chunked_3d(data, out, transform_coordinate, start, stop,
     chunk_cache = {}
     chunks = blocking.blockShape
 
+    # precompute for range check
+    max_range = tuple(sh - 1 for sh in data.shape)
+
     for ii in range(start[0], stop[0]):
         for jj in range(start[1], stop[1]):
             for kk in range(start[2], stop[2]):
@@ -63,16 +69,15 @@ def apply_transform_chunked_3d(data, out, transform_coordinate, start, stop,
                 coord = transform_coordinate(old_coord)
 
                 # range check
-                if any(co < 0 for co in coord) or any(co >= sh
-                                                      for co, sh in zip(coord, data.shape)):
+                if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
                     continue
 
                 # TODO support more than nearest neighbor assignment
                 coord = [int(round(co, 0)) for co in coord]
 
                 chunk_id = blocking.coordinatesToBlockId(coord)
-                chunk, offset = chunk_cache.get(chunk_id, None)
-                if chunk_id is None:
+                chunk, offset = chunk_cache.get(chunk_id, (None, None))
+                if chunk is None:
                     # NOTE only works for z5py, need to implement this for other backends
                     # also, it's problematic to put this into c++ if we want to support arbitrary
                     # backends, try numba / cython first?
@@ -91,9 +96,8 @@ def apply_transform_chunked_3d(data, out, transform_coordinate, start, stop,
 
 def apply_transform_2d(data, out, transform_coordinate, start, stop, order):
 
-    # precompute for range check, NOTE this is only valid for order 0, need to
-    # generalize it for the other orders
-    max_range = tuple(sh - .5 for sh in data.shape)
+    # precompute for range check
+    max_range = tuple(sh - 1 for sh in data.shape)
 
     for ii in range(start[0], stop[0]):
         for jj in range(start[1], stop[1]):
@@ -101,7 +105,7 @@ def apply_transform_2d(data, out, transform_coordinate, start, stop, order):
             coord = transform_coordinate(old_coord)
 
             # range check
-            if any(co < 0 for co in coord) or any(co >= maxr for co, maxr in zip(coord, max_range)):
+            if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
                 continue
 
             # TODO support more than nearest neighbor assignment
@@ -115,9 +119,8 @@ def apply_transform_2d(data, out, transform_coordinate, start, stop, order):
 
 def apply_transform_3d(data, out, transform_coordinate, start, stop, order):
 
-    # precompute for range check, NOTE this is only valid for order 0, need to
-    # generalize it for the other orders
-    max_range = tuple(sh - .5 for sh in data.shape)
+    # precompute for range check
+    max_range = tuple(sh - 1 for sh in data.shape)
 
     for ii in range(start[0], stop[0]):
         for jj in range(start[1], stop[1]):
@@ -126,8 +129,7 @@ def apply_transform_3d(data, out, transform_coordinate, start, stop, order):
                 coord = transform_coordinate(old_coord)
 
                 # range check
-                if any(co <= 0 for co in coord) or any(co >= maxr
-                                                       for co, maxr in zip(coord, max_range)):
+                if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
                     continue
 
                 # TODO support more than nearest neighbor assignment
