@@ -37,9 +37,22 @@ class TestAffine(unittest.TestCase):
         bbs = [np.s_[:, :, :], np.s_[:32, :32, :32], np.s_[1:31, 5:27, 3:13],
                np.s_[4:19, :, 22:], np.s_[1:29], np.s_[:, 15:27, :], np.s_[:, 1:3, 4:14]]
         for bb in bbs:
+            print("Check bb", bb)
             bb, _ = normalize_index(bb, shape)
             res = transform_subvolume_with_affine(x, matrix, bb, **kwargs)
             exp_bb = exp[bb]
+
+            # TODO for debugging, transform some of the diff coordinates
+            diff = ~np.isclose(exp_bb, res)
+            print("Differing pixes", diff.sum())
+            diff = diff.reshape(res.shape)
+            import napari
+            with napari.gui_qt():
+                viewer = napari.Viewer()
+                viewer.add_image(res, name='res')
+                viewer.add_image(exp_bb, name='exp_bb')
+                viewer.add_labels(diff, name='pix-diff')
+
             self.assertEqual(res.shape, exp_bb.shape)
             self.assertTrue(np.allclose(res, exp_bb))
 
