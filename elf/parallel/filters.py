@@ -4,6 +4,7 @@ from concurrent import futures
 from functools import partial
 from tqdm import tqdm
 
+import numpy as np
 import nifty.tools as nt
 try:
     import fastfilters as ff
@@ -26,7 +27,7 @@ def block_to_bb(block):
 def get_halo(sigma, order, ndim, outer_scale=None):
     sigma_ = sigma if outer_scale is None else sigma + outer_scale
     halo = sigma_to_halo(sigma_, order)
-    if isinstance(halo, float):
+    if isinstance(halo, int):
         halo = ndim * [halo]
     return halo
 
@@ -91,7 +92,7 @@ def apply_filter(data, filter_name, sigma,
         out = data
     else:
         exp_shape = data.shape
-        if multi_channel and return_channel is not None:
+        if multi_channel and return_channel is None:
             exp_shape = (ndim,) + exp_shape
         if out.shape != exp_shape:
             raise ValueError("Output shape %s does not match expected shape %s" % (str(out.shape),
@@ -124,6 +125,13 @@ def apply_filter(data, filter_name, sigma,
         block_data = data[outer_slice]
         block_response = filter_function(block_data, sigma)[inner_local_slice]
 
+        # vigra / fastfilters are channel last, but we are channel first
+        if block_response.ndim > ndim:
+            inner_slice = (slice(None),) + inner_slice
+            block_response = np.rollaxis(block_response, -1)
+            if mask is not None:
+                m = m[None]
+
         if mask is not None:
             block_response[m] = block_data[m]
         out[inner_slice] = block_response
@@ -133,7 +141,7 @@ def apply_filter(data, filter_name, sigma,
         if verbose:
             list(tqdm(tp.map(_apply_filter, range(n_blocks)), total=n_blocks))
         else:
-            tp.map(_apply_filter, range(n_blocks))
+            list(tp.map(_apply_filter, range(n_blocks)))
 
     return out
 
@@ -159,9 +167,9 @@ def _generate_filter(filter_name):
 
     def op(data, sigma, out=None, block_shape=None,
            n_threads=None, mask=None, verbose=False):
-        apply_filter(data, filter_name, sigma, outer_scale=None,
-                     return_channel=None, out=out, block_shape=block_shape,
-                     n_threads=n_threads, mask=mask, verbose=verbose)
+        return apply_filter(data, filter_name, sigma, outer_scale=None,
+                            return_channel=None, out=out, block_shape=block_shape,
+                            n_threads=n_threads, mask=mask, verbose=verbose)
 
     op.__doc__ = doc_str
     op.__name__ = elf_name
@@ -192,9 +200,9 @@ def _generate_structure_tensor(filter_name):
     def op(data, sigma, outer_scale,
            return_channel=None, out=None, block_shape=None,
            n_threads=None, mask=None, verbose=False):
-        apply_filter(data, filter_name, sigma, outer_scale=outer_scale,
-                     return_channel=return_channel, out=out, block_shape=block_shape,
-                     n_threads=n_threads, mask=mask, verbose=verbose)
+        return apply_filter(data, filter_name, sigma, outer_scale=outer_scale,
+                            return_channel=return_channel, out=out, block_shape=block_shape,
+                            n_threads=n_threads, mask=mask, verbose=verbose)
 
     op.__doc__ = doc_str
     op.__name__ = elf_name
@@ -224,21 +232,21 @@ def _generate_hessian(filter_name):
     def op(data, sigma, return_channel=None,
            out=None, block_shape=None,
            n_threads=None, mask=None, verbose=False):
-        apply_filter(data, sigma, return_channel=return_channel,
-                     out=out, block_shape=block_shape,
-                     n_threads=n_threads, mask=mask, verbose=verbose)
+        return apply_filter(data, filter_name, sigma, return_channel=return_channel,
+                            out=out, block_shape=block_shape,
+                            n_threads=n_threads, mask=mask, verbose=verbose)
 
     op.__doc__ = doc_str
     op.__name__ = elf_name
-    globals()[filter_name] = op
+    globals()[elf_name] = op
 
 
 # autogenerate parallel filter implementations
 _filter_names = ["gaussianSmoothing",
                  "gaussianGradientMagnitude",
                  "hessianOfGaussianEigenvalues",
-                 "structureTensorEigenvalues",
-                 "laplacianOfGaussian"]
+                 "laplacianOfGaussian",
+                 "structureTensorEigenvalues"]
 
 
 for filter_name in _filter_names:
