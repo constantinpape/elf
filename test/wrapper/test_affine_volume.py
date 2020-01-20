@@ -3,7 +3,7 @@ from math import ceil
 
 import numpy as np
 from scipy.ndimage import affine_transform
-from elf.transformation.affine import compute_affine_matrix, transform_roi
+from elf.transformation.affine import compute_affine_matrix, transform_roi_with_affine
 
 
 # TODO run tests for more transformation matrices
@@ -29,7 +29,7 @@ class TestAffineVolume(unittest.TestCase):
             self.assertTrue(np.allclose(o1, o2))
 
     def get_shape_and_offset(self, matrix, shape):
-        roi_start, roi_stop = transform_roi([0] * len(shape), shape, matrix)
+        roi_start, roi_stop = transform_roi_with_affine([0] * len(shape), shape, matrix)
         offset = [-rs for rs in roi_start]
         return tuple(int(ceil(sto - sta)) for sta, sto in zip(roi_start, roi_stop)), offset
 

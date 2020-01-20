@@ -1,24 +1,27 @@
 from functools import partial
 import numpy as np
 import nifty.tools as nt
-from .affine import transform_coordinate
+# fom ..util import sigma_to_halo
 # try:
 #     import fastfilters as ff
 # except ImportError:
 #     import vigra.filters as ff
 
 
-def apply_affine_chunked_2d(data, out, matrix, start, stop,
-                            order, blocking, sigma):
+def apply_transform_chunked_2d(data, out, transform_coordinate, start, stop,
+                               order, blocking, sigma):
     # TODO in a more serious impl, would need to limit the cache size,
     # ideally using lru cache
     chunk_cache = {}
     chunks = blocking.blockShape
 
+    # if sigma is not None:
+    #   halo = sigma_to_halo(sigma, 0)
+
     for ii in range(start[0], stop[0]):
         for jj in range(start[1], stop[1]):
             old_coord = (ii, jj)
-            coord = transform_coordinate(old_coord, matrix)
+            coord = transform_coordinate(old_coord)
             # TODO support more than nearest neighbor assignment
             coord = [int(round(co, 0)) for co in coord]
 
@@ -45,8 +48,8 @@ def apply_affine_chunked_2d(data, out, matrix, start, stop,
     return out
 
 
-def apply_affine_chunked_3d(data, out, matrix, start, stop,
-                            order, blocking, sigma):
+def apply_transform_chunked_3d(data, out, transform_coordinate, start, stop,
+                               order, blocking, sigma):
     # TODO in a more serious impl, would need to limit the cache size
     # ideally using lru cache
     chunk_cache = {}
@@ -56,7 +59,7 @@ def apply_affine_chunked_3d(data, out, matrix, start, stop,
         for jj in range(start[1], stop[1]):
             for kk in range(start[2], stop[2]):
                 old_coord = (ii, jj, kk)
-                coord = transform_coordinate(old_coord, matrix)
+                coord = transform_coordinate(old_coord)
 
                 # TODO support more than nearest neighbor assignment
                 coord = [int(round(co, 0)) for co in coord]
@@ -85,11 +88,11 @@ def apply_affine_chunked_3d(data, out, matrix, start, stop,
     return out
 
 
-def apply_affine_2d(data, out, matrix, start, stop, order):
+def apply_transform_2d(data, out, transform_coordinate, start, stop, order):
     for ii in range(start[0], stop[0]):
         for jj in range(start[1], stop[1]):
             old_coord = (ii, jj)
-            coord = transform_coordinate(old_coord, matrix)
+            coord = transform_coordinate(old_coord)
 
             # TODO support more than nearest neighbor assignment
             coord = tuple(int(round(co, 0)) for co in coord)
@@ -104,12 +107,12 @@ def apply_affine_2d(data, out, matrix, start, stop, order):
     return out
 
 
-def apply_affine_3d(data, out, matrix, start, stop, order):
+def apply_transform_3d(data, out, transform_coordinate, start, stop, order):
     for ii in range(start[0], stop[0]):
         for jj in range(start[1], stop[1]):
             for kk in range(start[2], stop[2]):
                 old_coord = (ii, jj, kk)
-                coord = transform_coordinate(old_coord, matrix)
+                coord = transform_coordinate(old_coord)
 
                 # TODO support more than nearest neighbor assignment
                 coord = tuple(int(round(co, 0)) for co in coord)
@@ -126,15 +129,15 @@ def apply_affine_3d(data, out, matrix, start, stop, order):
 
 
 # TODO support order > 0 and smoothing with sigma for anti-aliasing
-# prototype impl for on the fly affine transformation of
+# prototype impl for on the fly coordinate, transformation of
 # sub-volumes / bounding boxes
-def affine_transform_for_subvolume(data, matrix, bb,
-                                   order=0, fill_value=0, sigma=None):
-    """ Apply affine transformation to subvolume.
+def transform_subvolume(data, transform, bb,
+                        order=0, fill_value=0, sigma=None):
+    """ Apply transform transformation to subvolume.
 
     Arguments:
         data [array_like] - input data
-        matrix [np.ndarray] - 4x4 matrix defining the affine transformation
+        transform [callable] - coordinate transfotmation
         bb [tuple[slice]] - bounding box into the output data
         order [int] - interpolation order (default: 0)
         fill_value [scalar] - output value for invald coordinates (default: 0)
@@ -155,12 +158,12 @@ def affine_transform_for_subvolume(data, matrix, bb,
 
     if chunks is None:
         # TODO apply smoothing to input if sigma is not None
-        _apply = apply_affine_2d if ndim == 2 else apply_affine_3d
+        _apply = apply_transform_2d if ndim == 2 else apply_transform_3d
     else:
         blocking = nt.blocking([0] * ndim, data.shape, chunks)
-        _apply = apply_affine_chunked_2d if ndim == 2 else apply_affine_chunked_3d
+        _apply = apply_transform_chunked_2d if ndim == 2 else apply_transform_chunked_3d
         _apply = partial(_apply, blocking=blocking, sigma=sigma)
 
     out = np.full(sub_shape, fill_value, dtype=data.dtype)
-    out = _apply(data, out, matrix, start, stop, order)
+    out = _apply(data, out, transform, start, stop, order)
     return out

@@ -6,7 +6,7 @@ from elf.util import normalize_index
 
 class TestAffine(unittest.TestCase):
     def _test_2d(self, matrix, **kwargs):
-        from elf.transformation import affine_transform_for_subvolume
+        from elf.transformation import transform_subvolume_with_affine
         shape = (512, 512)
         x = np.random.rand(*shape)
         exp = affine_transform(x, matrix, **kwargs)
@@ -15,7 +15,7 @@ class TestAffine(unittest.TestCase):
                np.s_[:200, :], np.s_[:, 10:115]]
         for bb in bbs:
             bb, _ = normalize_index(bb, shape)
-            res = affine_transform_for_subvolume(x, matrix, bb, **kwargs)
+            res = transform_subvolume_with_affine(x, matrix, bb, **kwargs)
             exp_bb = exp[bb]
             self.assertEqual(res.shape, exp_bb.shape)
             self.assertTrue(np.allclose(res, exp_bb))
@@ -29,7 +29,7 @@ class TestAffine(unittest.TestCase):
 
     # FIXME 3d test is failing
     def _test_3d(self, matrix, **kwargs):
-        from elf.transformation import affine_transform_for_subvolume
+        from elf.transformation import transform_subvolume_with_affine
         shape = 3 * (64,)
         x = np.random.rand(*shape)
         exp = affine_transform(x, matrix, **kwargs)
@@ -38,7 +38,7 @@ class TestAffine(unittest.TestCase):
                np.s_[4:19, :, 22:], np.s_[1:29], np.s_[:, 15:27, :], np.s_[:, 1:3, 4:14]]
         for bb in bbs:
             bb, _ = normalize_index(bb, shape)
-            res = affine_transform_for_subvolume(x, matrix, bb, **kwargs)
+            res = transform_subvolume_with_affine(x, matrix, bb, **kwargs)
             exp_bb = exp[bb]
             self.assertEqual(res.shape, exp_bb.shape)
             self.assertTrue(np.allclose(res, exp_bb))

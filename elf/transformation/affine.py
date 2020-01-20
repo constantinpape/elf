@@ -1,5 +1,7 @@
 from itertools import product
+from functools import partial
 import numpy as np
+from .transform_impl import transform_subvolume
 
 
 def update_parameters(scale, rotation, shear, translation, dim):
@@ -120,7 +122,8 @@ def transform_coordinate(coord, matrix):
     return tuple(sum(coord[jj] * matrix[ii, jj] for jj in range(ndim)) + matrix[ii, -1] for ii in range(ndim))
 
 
-def transform_roi(roi_start, roi_stop, matrix):
+# TODO use general purpose transform_roi from transform_impl
+def transform_roi_with_affine(roi_start, roi_stop, matrix):
     """ Transform a roi under the affine transformation defined by
     affine matrix.
     """
@@ -184,3 +187,22 @@ def bdv_trafo_to_affine_matrix(trafo):
     matrix[3, 3] = 1
 
     return matrix
+
+
+def transform_subvolume_with_affine(data, matrix, bb,
+                                    order=0, fill_value=0, sigma=None):
+    """ Apply affine transformation to subvolume.
+
+    Arguments:
+        data [array_like] - input data
+        matrix [np.ndarray] - 4x4 matrix defining the affine transformation
+        bb [tuple[slice]] - bounding box into the output data
+        order [int] - interpolation order (default: 0)
+        fill_value [scalar] - output value for invald coordinates (default: 0)
+        sigma [float] - sigma value used for pre-smoothing the input
+            in order to avoid aliasing effects (default: None)
+    """
+    trafo = partial(transform_coordinate, matrix=matrix)
+    return transform_subvolume(data, trafo, bb,
+                               order=order, fill_value=fill_value,
+                               sigma=sigma)

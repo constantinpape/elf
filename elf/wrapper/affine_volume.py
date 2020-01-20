@@ -1,6 +1,6 @@
 import numpy as np
 from .base import WrapperBase
-from ..transformation import compute_affine_matrix, affine_transform_for_subvolume
+from ..transformation import compute_affine_matrix, transform_subvolume_with_affine
 from ..util import normalize_index, squeeze_singletons
 
 
@@ -66,8 +66,8 @@ class AffineVolume(WrapperBase):
 
         # TODO do we need the matrix or the inverse matrix ?
         # apply affine for the subvolume
-        out = affine_transform_for_subvolume(self._volume, self.matrix, index,
-                                             self.order, self.fill_value,
-                                             self.sigma_anti_aliasing)
+        out = transform_subvolume_with_affine(self._volume, self.matrix, index,
+                                              self.order, self.fill_value,
+                                              self.sigma_anti_aliasing)
 
         return squeeze_singletons(out, to_squeeze)
