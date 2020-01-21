@@ -141,9 +141,9 @@ def apply_transform_3d(data, out, transform_coordinate, start, stop, order):
     return out
 
 
+# TODO support multichannel transformation -> don't transform first coordinate dimension
 # TODO support order > 0 and smoothing with sigma for anti-aliasing
-# prototype impl for on the fly coordinate, transformation of
-# sub-volumes / bounding boxes
+# prototype impl for on the fly coordinate, transformation of sub-volumes / bounding boxes
 def transform_subvolume(data, transform, bb,
                         order=0, fill_value=0, sigma=None):
     """ Apply transform transformation to subvolume.

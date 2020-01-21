@@ -1,5 +1,4 @@
 from functools import partial
-from math import floor, ceil
 
 import numpy as np
 import vigra
@@ -69,24 +68,24 @@ class ResizedVolume(WrapperBase):
 
     def __getitem__(self, key):
         index, to_squeeze = normalize_index(key, self.shape)
-        # get the return shape and singletons
+
+        # get the return shape and find singleton axes
         ret_shape = tuple(ind.stop - ind.start for ind in index)
         singletons = tuple(sh == 1 for sh in ret_shape)
 
-        # get the donwsampled index; respecting singletons
-        starts = tuple(int(floor(ind.start * sc)) for ind, sc in zip(index, self.scale))
-        stops = tuple(sta + 1 if is_single else int(ceil(ind.stop * sc))
-                      for ind, sc, sta, is_single in zip(index, self.scale,
-                                                         starts, singletons))
-        index_ = tuple(slice(sta, sto) for sta, sto in zip(starts, stops))
+        # get the sampled index, respecting singletons
+        starts = tuple(int(round(ind.start * sc, 0)) for ind, sc in zip(index, self.scale))
+        stops = tuple(max(int(round(ind.stop * sc, 0)), sta + 1)
+                      for ind, sc, sta in zip(index, self.scale, starts))
+        index = tuple(slice(sta, sto) for sta, sto in zip(starts, stops))
 
         # check if we have a singleton in the return shape
-        data_shape = tuple(idx.stop - idx.start for idx in index_)
+        data_shape = tuple(idx.stop - idx.start for idx in index)
         # remove singletons from data iff axis is not singleton in return data
-        index_ = tuple(slice(idx.start, idx.stop) if sh > 1 or is_single else
-                       slice(idx.start, idx.stop + 1)
-                       for idx, sh, is_single in zip(index_, data_shape, singletons))
-        data = self.volume[index_]
+        index = tuple(slice(idx.start, idx.stop) if sh > 1 or is_single else
+                      slice(idx.start, idx.stop + 1)
+                      for idx, sh, is_single in zip(index, data_shape, singletons))
+        data = self.volume[index]
 
         # speed ups for empty blocks and masks
         dsum = data.sum()

@@ -189,8 +189,8 @@ def bdv_trafo_to_affine_matrix(trafo):
     return matrix
 
 
-def transform_subvolume_with_affine(data, matrix, bb,
-                                    order=0, fill_value=0, sigma=None):
+def transform_subvolume_affine(data, matrix, bb,
+                               order=0, fill_value=0, sigma=None):
     """ Apply affine transformation to subvolume.
 
     Arguments:
