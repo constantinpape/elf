@@ -9,7 +9,7 @@ import nifty.tools as nt
 
 
 def apply_transform_chunked_2d(data, out,
-                               transform_coordinate, sample_coordinates,
+                               transform_coordinate, interpolate_coordinates,
                                start, stop, blocking, sigma):
     # TODO in a more serious impl, would need to limit the cache size,
     # ideally using lru cache
@@ -32,7 +32,7 @@ def apply_transform_chunked_2d(data, out,
                 continue
 
             # get the coordinates to iterate over and the interpolation weights
-            coords, weights = sample_coordinates(coord)
+            coords, weights = interpolate_coordinates(coord)
 
             # iterate over coordinates and compute the output value
             val = 0.
@@ -58,7 +58,7 @@ def apply_transform_chunked_2d(data, out,
 
 
 def apply_transform_chunked_3d(data, out,
-                               transform_coordinate, sample_coordinates,
+                               transform_coordinate, interpolate_coordinates,
                                start, stop, blocking, sigma):
     # TODO in a more serious impl, would need to limit the cache size
     # ideally using lru cache
@@ -79,7 +79,7 @@ def apply_transform_chunked_3d(data, out,
                     continue
 
                 # get the coordinates to iterate over and the interpolation weights
-                coords, weights = sample_coordinates(coord)
+                coords, weights = interpolate_coordinates(coord)
 
                 # iterate over coordinates and compute the output value
                 val = 0.
@@ -104,7 +104,7 @@ def apply_transform_chunked_3d(data, out,
 
 
 def apply_transform_2d(data, out,
-                       transform_coordinate, sample_coordinates,
+                       transform_coordinate, interpolate_coordinates,
                        start, stop):
 
     # precompute for range check
@@ -120,7 +120,7 @@ def apply_transform_2d(data, out,
                 continue
 
             # get the coordinates to iterate over and the interpolation weights
-            coords, weights = sample_coordinates(coord, where_format=True)
+            coords, weights = interpolate_coordinates(coord, where_format=True)
             # compute the output value
             val = (weights * data[coords]).sum()
 
@@ -130,7 +130,7 @@ def apply_transform_2d(data, out,
 
 
 def apply_transform_3d(data, out,
-                       transform_coordinate, sample_coordinates,
+                       transform_coordinate, interpolate_coordinates,
                        start, stop):
 
     # precompute for range check
@@ -147,7 +147,7 @@ def apply_transform_3d(data, out,
                     continue
 
                 # get the coordinates to iterate over and the interpolation weights
-                coords, weights = sample_coordinates(coord, where_format=True)
+                coords, weights = interpolate_coordinates(coord, where_format=True)
                 # compute the output value
                 val = (weights * data[coords]).sum()
 
@@ -157,31 +157,50 @@ def apply_transform_3d(data, out,
 
 
 # nearest neighbor sampling / order 0
-def sample_nn(coord, where_format=False):
+def interpolate_nn(coord, where_format=False):
     if where_format:
         return tuple(np.array([round(co, 0)], dtype='uint64') for co in coord), np.ones(1)
     else:
         return [tuple(int(round(co, 0)) for co in coord)], [1.]
 
 
-# TODO implement the higher orders
 # linear sampling / order 1
-def sample_linear(coord, where_format=False):
-    pass
+def interpolate_linear(coord, where_format=False):
+    # determine upper and lower coordinate bound
+    ndim = len(coord)
+    lower = [int(co) for co in coord]
+    upper = [lo + 1 for lo in lower]
+
+    # find all next neighbor coordiantes by choosing all upper/lower
+    # combinations via bitshifts of 2 ** ndim
+    coords = [[lower[d] if (i & (1 << (k - 1))) else upper[d]
+               for d, k in enumerate(range(1, ndim + 1))]
+              for i in range(2 ** ndim)]
+    # compute the weights for the different coordinates
+    weights = [np.prod([abs(1. - abs(co - sa)) for sa, co in zip(sampled, coord)])
+               for sampled in coords]
+
+    # cast to np.where coordinate format
+    if where_format:
+        coords = tuple(np.array([coo[d] for coo in coords], dtype='uint64')
+                       for d in range(ndim))
+        weights = np.array(weights)
+    return coords, weights
 
 
+# TODO implement the higher orders
 # quadratic sampling / order 2
-def sample_quadratic(coord, where_format=False):
+def interpolate_quadratic(coord, where_format=False):
     pass
 
 
 # cubic sampling / order 3
-def sample_cubic(coord, where_format=False):
+def interpolate_cubic(coord, where_format=False):
     pass
 
 
 # TODO support multichannel transformation -> don't transform first coordinate dimension
-# TODO support order > 0 and smoothing with sigma for anti-aliasing
+# TODO support smoothing for anti-aliasing
 # prototype impl for on the fly coordinate, transformation of sub-volumes / bounding boxes
 def transform_subvolume(data, transform, bb,
                         order=0, fill_value=0, sigma=None):
@@ -217,12 +236,12 @@ def transform_subvolume(data, transform, bb,
         _apply = partial(_apply, blocking=blocking, sigma=sigma)
 
     if order == 0:
-        sampler = sample_nn
-    # elif order == 1:
-    #     sampler = sample_linear
+        interpolate = interpolate_nn
+    elif order == 1:
+        interpolate = interpolate_linear
     else:
         raise NotImplementedError("Only interpolation with order <= 0 is currently implemented.")
 
     out = np.full(sub_shape, fill_value, dtype=data.dtype)
-    out = _apply(data, out, transform, sampler, start, stop)
+    out = _apply(data, out, transform, interpolate, start, stop)
     return out

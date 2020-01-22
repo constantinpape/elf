@@ -36,7 +36,7 @@ class TestAffine(unittest.TestCase):
     def test_affine_subvolume_2d(self):
         from elf.transformation import compute_affine_matrix
         # TODO test more orders once implemented
-        orders = [0]
+        orders = [0, 1]
         matrices = [compute_affine_matrix(scale=(2, 2), rotation=(45,)),
                     compute_affine_matrix(scale=(1, 2), rotation=(33,)),
                     compute_affine_matrix(scale=(3, 2), rotation=(137,))]
@@ -72,7 +72,7 @@ class TestAffine(unittest.TestCase):
     def test_affine_subvolume_3d(self):
         from elf.transformation import compute_affine_matrix
         # TODO test more orders once implemented
-        orders = [0]
+        orders = [0, 1]
         matrices = [compute_affine_matrix(scale=(1, 2, 1), rotation=(15, 30, 0)),
                     compute_affine_matrix(scale=(3, 2, .5), rotation=(24, 33, 99))]
         for mat in matrices:
