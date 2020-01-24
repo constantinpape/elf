@@ -1,8 +1,31 @@
 # Benchmarks
 
-You can download the benchmark data from [here](https://drive.google.com/file/d/1E_Wpw9u8E4foYKk7wvx5RPSWvg_NCN7U/view?usp=sharing).
+
+## Transformation
+
+### Affine
+
+Results on Notebook, min of 5 runs, in seconds.
+
+- 2d benchmark
+	- elf (python)
+		- order 0: 4.3399
+		- order 1: 11.2030
+	- scipy
+		- order 0: 0.0056
+		- order 1: 0.0179
+- 3d benchmark
+	- elf (python)
+		- order 0: 84.1674
+		- order 1: 91.3547
+	- scipy
+		- order 0: 0.1734
+		- order 1: 0.1673
+
 
 ## Label Multisets
+
+You can download the benchmark data from [here](https://drive.google.com/file/d/1E_Wpw9u8E4foYKk7wvx5RPSWvg_NCN7U/view?usp=sharing).
 
 Results on gpu6, min of 5 runs.
 
