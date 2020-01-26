@@ -170,7 +170,7 @@ def bdv_trafo_to_affine_matrix(trafo):
     """
     assert len(trafo) == 12
 
-    sub_matrix = np.zeros((3, 3))
+    sub_matrix = np.zeros((3, 3), dtype='float64')
     sub_matrix[0, 0] = trafo[10]
     sub_matrix[0, 1] = trafo[9]
     sub_matrix[0, 2] = trafo[8]
@@ -212,7 +212,7 @@ def transform_subvolume_affine(data, matrix, bb,
     has_nifty_trafo = isinstance(data, np.ndarray) and data.dtype in nifty_trafo_types
 
     # TODO more orders in nifty, support presmoothing in nifty
-    if has_nifty_trafo and order <= 0:
+    if has_nifty_trafo and order < 2:
         return ntrafo.affineTransformation(data, matrix, order, bb, fill_value)
     else:
         # TODO warn that pure python trafo will be slow

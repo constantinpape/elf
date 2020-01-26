@@ -40,7 +40,9 @@ class TestAffine(unittest.TestCase):
         orders = [0, 1]
         matrices = [compute_affine_matrix(scale=(2, 2), rotation=(45,)),
                     compute_affine_matrix(scale=(1, 2), rotation=(33,)),
-                    compute_affine_matrix(scale=(3, 2), rotation=(137,))]
+                    compute_affine_matrix(scale=(3, 2), rotation=(137,)),
+                    compute_affine_matrix(scale=(.5, 1.5), rotation=(23,),
+                                          translation=(23., -14.))]
         for mat in matrices:
             for order in orders:
                 self._test_2d(mat, order=order)
@@ -75,7 +77,9 @@ class TestAffine(unittest.TestCase):
         # TODO test more orders once implemented
         orders = [0, 1]
         matrices = [compute_affine_matrix(scale=(1, 2, 1), rotation=(15, 30, 0)),
-                    compute_affine_matrix(scale=(3, 2, .5), rotation=(24, 33, 99))]
+                    compute_affine_matrix(scale=(3, 2, .5), rotation=(24, 33, 99)),
+                    compute_affine_matrix(scale=(1., 1.3, .79), rotation=(12, -4, 8),
+                                          translation=(10.5, 18., -33.2))]
         for mat in matrices:
             for order in orders:
                 self._test_3d(mat, order=order)
@@ -84,6 +88,18 @@ class TestAffine(unittest.TestCase):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(1, 2, 1), rotation=(15, 30, 0))
         self._test_3d(mat, order=0, chunked=True)
+
+    def test_toy(self):
+        from elf.transformation import compute_affine_matrix
+        from elf.transformation import transform_subvolume_affine
+        mat = compute_affine_matrix(scale=(2, 2), rotation=(45,), translation=(-1, 1))
+        x = np.random.rand(10, 10)
+
+        bb = np.s_[0:3, 0:3]
+        res = transform_subvolume_affine(x, mat, bb, order=1)
+        exp = affine_transform(x, mat, order=1)[bb]
+
+        self.assertTrue(np.allclose(res, exp))
 
 
 if __name__ == '__main__':
