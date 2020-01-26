@@ -11,6 +11,9 @@ Results on Notebook, min of 5 runs, in seconds.
 	- elf (python)
 		- order 0: 4.3399
 		- order 1: 11.2030
+	- elf (C++)
+		- order 0: 0.0030
+		- order 1: 0.0044
 	- scipy
 		- order 0: 0.0056
 		- order 1: 0.0179
@@ -18,6 +21,9 @@ Results on Notebook, min of 5 runs, in seconds.
 	- elf (python)
 		- order 0: 84.1674
 		- order 1: 91.3547
+	- elf (C++)
+		- order 0: 0.0778
+		- order 1: 0.0797
 	- scipy
 		- order 0: 0.1734
 		- order 1: 0.1673
