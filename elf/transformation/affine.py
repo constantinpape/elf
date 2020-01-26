@@ -2,6 +2,10 @@ from itertools import product
 from functools import partial
 import numpy as np
 from .transform_impl import transform_subvolume
+try:
+    import nifty.transformation as ntrafo
+except ImportError:
+    ntrafo = None
 
 
 def update_parameters(scale, rotation, shear, translation, dim):
@@ -202,7 +206,17 @@ def transform_subvolume_affine(data, matrix, bb,
         sigma [float] - sigma value used for pre-smoothing the input
             in order to avoid aliasing effects (default: None)
     """
-    trafo = partial(transform_coordinate, matrix=matrix)
-    return transform_subvolume(data, trafo, bb,
-                               order=order, fill_value=fill_value,
-                               sigma=sigma)
+
+    # TODO extend the transformation types supported in nifty
+    nifty_trafo_types = [np.uint8, np.float32, np.float64]
+    has_nifty_trafo = isinstance(data, np.ndarray) and data.dtype in nifty_trafo_types
+
+    # TODO more orders in nifty, support presmoothing in nifty
+    if has_nifty_trafo and order <= 0:
+        return ntrafo.affineTransformation(data, matrix, order, bb, fill_value)
+    else:
+        # TODO warn that pure python trafo will be slow
+        trafo = partial(transform_coordinate, matrix=matrix)
+        return transform_subvolume(data, trafo, bb,
+                                   order=order, fill_value=fill_value,
+                                   sigma=sigma)

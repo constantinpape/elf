@@ -30,6 +30,7 @@ class TestAffine(unittest.TestCase):
             bb, _ = normalize_index(bb, shape)
             res = transform_subvolume_affine(x, matrix, bb, **kwargs)
             exp_bb = exp[bb]
+
             self.assertEqual(res.shape, exp_bb.shape)
             self.assertTrue(np.allclose(res, exp_bb))
 
