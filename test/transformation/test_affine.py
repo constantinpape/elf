@@ -14,7 +14,7 @@ class TestAffine(unittest.TestCase):
         except OSError:
             pass
 
-    def _test_2d(self, matrix, chunked=False, **kwargs):
+    def _test_2d(self, matrix, chunked=False, sigma=None, **kwargs):
         from elf.transformation import transform_subvolume_affine
         shape = (512, 512)
         x = np.random.rand(*shape)
@@ -28,11 +28,14 @@ class TestAffine(unittest.TestCase):
                np.s_[:200, :], np.s_[:, 10:115]]
         for bb in bbs:
             bb, _ = normalize_index(bb, shape)
-            res = transform_subvolume_affine(x, matrix, bb, **kwargs)
+            res = transform_subvolume_affine(x, matrix, bb, sigma=sigma, **kwargs)
             exp_bb = exp[bb]
 
             self.assertEqual(res.shape, exp_bb.shape)
-            self.assertTrue(np.allclose(res, exp_bb))
+            if sigma is None:
+                self.assertTrue(np.allclose(res, exp_bb))
+            else:
+                self.assertTrue(~np.allclose(res, 0))
 
     def test_affine_subvolume_2d(self):
         from elf.transformation import compute_affine_matrix
@@ -51,6 +54,11 @@ class TestAffine(unittest.TestCase):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(2, 2), rotation=(45,))
         self._test_2d(mat, order=0, chunked=True)
+
+    def test_presmoothing(self):
+        from elf.transformation import compute_affine_matrix
+        mat = compute_affine_matrix(scale=(2, 2), rotation=(45,))
+        self._test_2d(mat, order=1, chunked=True, sigma=1.)
 
     def _test_3d(self, matrix, chunked=False, **kwargs):
         from elf.transformation import transform_subvolume_affine

@@ -1,159 +1,138 @@
 from functools import partial
+from numbers import Number
+
 import numpy as np
 import nifty.tools as nt
-# fom ..util import sigma_to_halo
-# try:
-#     import fastfilters as ff
-# except ImportError:
-#     import vigra.filters as ff
+from ..util import sigma_to_halo
+try:
+    import fastfilters as ff
+except ImportError:
+    import vigra.filters as ff
 
 
-def apply_transform_chunked_2d(data, out,
-                               transform_coordinate, interpolate_coordinates,
-                               start, stop, blocking, sigma):
-    # TODO in a more serious impl, would need to limit the cache size,
-    # ideally using lru cache
+#
+# transformation impls
+#
+
+
+def apply_transform_chunked(data, out,
+                            transform_coordinate, interpolate_coordinates,
+                            start, stop, blocking, sigma):
+    ndim = data.ndim
+    # initialise the chunk cache
     chunk_cache = {}
     chunks = blocking.blockShape
 
     # precompute for range check
     max_range = tuple(sh - 1 for sh in data.shape)
 
-    # if sigma is not None:
-    #   halo = sigma_to_halo(sigma, 0)
+    if sigma is not None:
+        halo = sigma_to_halo(sigma, 0)
+        if isinstance(halo, Number):
+            halo = ndim * (halo,)
 
-    for ii in range(start[0], stop[0]):
-        for jj in range(start[1], stop[1]):
-            old_coord = (ii, jj)
-            coord = transform_coordinate(old_coord)
+    def _apply_coord(old_coord):
+        coord = transform_coordinate(old_coord)
 
-            # range check
-            if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
-                continue
+        # range check
+        if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
+            return
 
-            # get the coordinates to iterate over and the interpolation weights
-            coords, weights = interpolate_coordinates(coord)
+        # get the coordinates to iterate over and the interpolation weights
+        coords, weights = interpolate_coordinates(coord)
 
-            # iterate over coordinates and compute the output value
-            val = 0.
-            for coord, weight in zip(coords, weights):
-                chunk_id = blocking.coordinatesToBlockId(list(coord))
-                chunk, offset = chunk_cache.get(chunk_id, (None, None))
-                if chunk is None:
-                    # NOTE only works for z5py, need to implement this for other backends
-                    # also, it's problematic to put this into c++ if we want to support arbitrary
-                    # backends, try numba / cython first?
-                    chunk_pos = blocking.blockGridPosition(chunk_id)
-                    chunk = data.read_chunk(chunk_pos)
-                    # TODO apply pre-smoothing to chunk if sigma is not None
-                    offset = [cp * ch for cp, ch in zip(chunk_pos, chunks)]
-                    chunk_cache[chunk_id] = (chunk, offset)
+        # iterate over coordinates and compute the output value
+        val = 0.
+        for coord, weight in zip(coords, weights):
+            chunk_id = blocking.coordinatesToBlockId(list(coord))
+            chunk, offset = chunk_cache.get(chunk_id, (None, None))
+            if chunk is None:
 
-                chunk_coord = tuple(oc - of for oc, of in zip(coord, offset))
-                val += weight * chunk[chunk_coord]
+                chunk_pos = blocking.blockGridPosition(chunk_id)
+                if sigma is None:
+                    block = blocking.getBlock(chunk_id)
+                    chunk_bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+                else:
+                    block = blocking.getBlockWithHalo(chunk_id, list(halo))
+                    chunk_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin,
+                                                                         block.outerBlock.end))
 
-            out_coord = tuple(co - of for co, of in zip(old_coord, start))
-            out[out_coord] = val
+                chunk = data[chunk_bb]
+                if sigma is not None:
+                    chunk = ff.gaussianSmoothing(chunk, sigma)
+                    inner_bb = tuple(slice(beg, end) for beg, end in zip(block.innerBlockLocal.begin,
+                                                                         block.innerBlockLocal.end))
+                    chunk = chunk[inner_bb]
+
+                offset = [cp * ch for cp, ch in zip(chunk_pos, chunks)]
+                chunk_cache[chunk_id] = (chunk, offset)
+
+            chunk_coord = tuple(oc - of for oc, of in zip(coord, offset))
+            val += weight * chunk[chunk_coord]
+
+        out_coord = tuple(co - of for co, of in zip(old_coord, start))
+        out[out_coord] = val
+
+    if ndim == 2:
+        for ii in range(start[0], stop[0]):
+            for jj in range(start[1], stop[1]):
+                old_coord = (ii, jj)
+                _apply_coord(old_coord)
+    elif ndim == 3:
+        for ii in range(start[0], stop[0]):
+            for jj in range(start[1], stop[1]):
+                for kk in range(start[2], stop[2]):
+                    old_coord = (ii, jj, kk)
+                    _apply_coord(old_coord)
+    else:
+        raise ValueError("Invalid dimension %i" % ndim)
+
     return out
 
 
-def apply_transform_chunked_3d(data, out,
-                               transform_coordinate, interpolate_coordinates,
-                               start, stop, blocking, sigma):
-    # TODO in a more serious impl, would need to limit the cache size
-    # ideally using lru cache
-    chunk_cache = {}
-    chunks = blocking.blockShape
+def apply_transform(data, out,
+                    transform_coordinate, interpolate_coordinates,
+                    start, stop):
 
+    ndim = data.ndim
     # precompute for range check
     max_range = tuple(sh - 1 for sh in data.shape)
 
-    for ii in range(start[0], stop[0]):
-        for jj in range(start[1], stop[1]):
-            for kk in range(start[2], stop[2]):
-                old_coord = (ii, jj, kk)
-                coord = transform_coordinate(old_coord)
+    def _apply_coord(old_coord):
+        coord = transform_coordinate(old_coord)
 
-                # range check
-                if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
-                    continue
+        # range check
+        if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
+            return
 
-                # get the coordinates to iterate over and the interpolation weights
-                coords, weights = interpolate_coordinates(coord)
+        # get the coordinates to iterate over and the interpolation weights
+        coords, weights = interpolate_coordinates(coord, where_format=True)
+        # compute the output value
+        val = (weights * data[coords]).sum()
 
-                # iterate over coordinates and compute the output value
-                val = 0.
-                for coord, weight in zip(coords, weights):
-                    chunk_id = blocking.coordinatesToBlockId(list(coord))
-                    chunk, offset = chunk_cache.get(chunk_id, (None, None))
-                    if chunk is None:
-                        # NOTE only works for z5py, need to implement this for other backends
-                        # also, it's problematic to put this into c++ if we want to support arbitrary
-                        # backends, try numba / cython first?
-                        chunk_pos = blocking.blockGridPosition(chunk_id)
-                        chunk = data.read_chunk(chunk_pos)
-                        # TODO apply pre-smoothing to chunk if sigma is not None
-                        offset = [cp * ch for cp, ch in zip(chunk_pos, chunks)]
-                        chunk_cache[chunk_id] = (chunk, offset)
+        out_coord = tuple(co - of for co, of in zip(old_coord, start))
+        out[out_coord] = val
 
-                    chunk_coord = tuple(oc - of for oc, of in zip(coord, offset))
-                    val += weight * chunk[chunk_coord]
-                out_coord = tuple(co - of for co, of in zip(old_coord, start))
-                out[out_coord] = val
+    if ndim == 2:
+        for ii in range(start[0], stop[0]):
+            for jj in range(start[1], stop[1]):
+                old_coord = (ii, jj)
+                _apply_coord(old_coord)
+    elif ndim == 3:
+        for ii in range(start[0], stop[0]):
+            for jj in range(start[1], stop[1]):
+                for kk in range(start[2], stop[2]):
+                    old_coord = (ii, jj, kk)
+                    _apply_coord(old_coord)
+    else:
+        raise ValueError("Invalid dimension %i" % ndim)
+
     return out
 
 
-def apply_transform_2d(data, out,
-                       transform_coordinate, interpolate_coordinates,
-                       start, stop):
-
-    # precompute for range check
-    max_range = tuple(sh - 1 for sh in data.shape)
-
-    for ii in range(start[0], stop[0]):
-        for jj in range(start[1], stop[1]):
-            old_coord = (ii, jj)
-            coord = transform_coordinate(old_coord)
-
-            # range check
-            if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
-                continue
-
-            # get the coordinates to iterate over and the interpolation weights
-            coords, weights = interpolate_coordinates(coord, where_format=True)
-            # compute the output value
-            val = (weights * data[coords]).sum()
-
-            out_coord = tuple(co - of for co, of in zip(old_coord, start))
-            out[out_coord] = val
-    return out
-
-
-def apply_transform_3d(data, out,
-                       transform_coordinate, interpolate_coordinates,
-                       start, stop):
-
-    # precompute for range check
-    max_range = tuple(sh - 1 for sh in data.shape)
-
-    for ii in range(start[0], stop[0]):
-        for jj in range(start[1], stop[1]):
-            for kk in range(start[2], stop[2]):
-                old_coord = (ii, jj, kk)
-                coord = transform_coordinate(old_coord)
-
-                # range check
-                if any(co < 0 or co >= maxr for co, maxr in zip(coord, max_range)):
-                    continue
-
-                # get the coordinates to iterate over and the interpolation weights
-                coords, weights = interpolate_coordinates(coord, where_format=True)
-                # compute the output value
-                val = (weights * data[coords]).sum()
-
-                out_coord = tuple(co - of for co, of in zip(old_coord, start))
-                out[out_coord] = val
-    return out
+#
+# Coordinate interpolation
+#
 
 
 # nearest neighbor sampling / order 0
@@ -220,8 +199,6 @@ def transform_subvolume(data, transform, bb,
         raise ValueError("Only support 2 or 3 dimensional data, not %i dimensions" % ndim)
 
     chunks = getattr(data, 'chunks', None)
-    if sigma is not None:
-        raise NotImplementedError("Pre-smoothing is currently not implemented.")
 
     start = tuple(b.start for b in bb)
     stop = tuple(b.stop for b in bb)
@@ -229,11 +206,12 @@ def transform_subvolume(data, transform, bb,
 
     if chunks is None:
         # TODO apply smoothing to input if sigma is not None
-        _apply = apply_transform_2d if ndim == 2 else apply_transform_3d
+        if sigma is not None:
+            raise NotImplementedError("Pre-smoothing is currently not implemented.")
+        _apply = apply_transform
     else:
         blocking = nt.blocking([0] * ndim, data.shape, chunks)
-        _apply = apply_transform_chunked_2d if ndim == 2 else apply_transform_chunked_3d
-        _apply = partial(_apply, blocking=blocking, sigma=sigma)
+        _apply = partial(apply_transform_chunked, blocking=blocking, sigma=sigma)
 
     if order == 0:
         interpolate = interpolate_nn

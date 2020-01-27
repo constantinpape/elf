@@ -1,5 +1,7 @@
+import warnings
 from itertools import product
 from functools import partial
+
 import numpy as np
 from .transform_impl import transform_subvolume
 try:
@@ -209,13 +211,13 @@ def transform_subvolume_affine(data, matrix, bb,
 
     # TODO extend the transformation types supported in nifty
     nifty_trafo_types = [np.uint8, np.float32, np.float64]
-    has_nifty_trafo = isinstance(data, np.ndarray) and data.dtype in nifty_trafo_types
+    has_nifty_trafo = ntrafo is not None and isinstance(data, np.ndarray) and data.dtype in nifty_trafo_types
 
     # TODO more orders in nifty, support presmoothing in nifty
     if has_nifty_trafo and order < 2:
         return ntrafo.affineTransformation(data, matrix, order, bb, fill_value)
     else:
-        # TODO warn that pure python trafo will be slow
+        warnings.warn("Could not find c++ implementation for affine transformation, using slow python implementation.")
         trafo = partial(transform_coordinate, matrix=matrix)
         return transform_subvolume(data, trafo, bb,
                                    order=order, fill_value=fill_value,
