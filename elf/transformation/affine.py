@@ -4,7 +4,7 @@ from functools import partial
 
 import numpy as np
 from .transform_impl import transform_subvolume
-from ..io import is_z5py
+from ..io import is_z5py, is_h5py
 
 try:
     import nifty.transformation as ntrafo
@@ -214,17 +214,19 @@ def transform_subvolume_affine(data, matrix, bb,
     # TODO extend the transformation types supported in nifty
     nifty_trafo_types = [np.uint8, np.float32, np.float64]
     has_nifty_trafo = ntrafo is not None and np.dtype(data.dtype) in nifty_trafo_types
-    # TODO support hdf5 as well
-    has_nifty_trafo = has_nifty_trafo and (isinstance(data, np.ndarray) or is_z5py(data))
+    has_nifty_trafo = has_nifty_trafo and (isinstance(data, np.ndarray)
+                                           or is_z5py(data) or is_h5py(data))
+    # TODO implement pre-smoothing in nifty
     has_nifty_trafo = has_nifty_trafo and sigma is None
 
-    # TODO implement pre-smoothing in nifty
     # TODO more orders in nifty
     if has_nifty_trafo and order < 2:
         if isinstance(data, np.ndarray):
             return ntrafo.affineTransformation(data, matrix, order, bb, fill_value)
         elif is_z5py(data):
             return ntrafo.affineTransformationZ5(data, matrix, order, bb, fill_value, sigma)
+        elif is_h5py(data):
+            return ntrafo.affineTransformationH5(data, matrix, order, bb, fill_value, sigma)
     else:
         warnings.warn("Could not find c++ implementation for affine transformation, using slow python implementation.")
         trafo = partial(transform_coordinate, matrix=matrix)

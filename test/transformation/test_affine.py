@@ -1,3 +1,4 @@
+import os
 import unittest
 from shutil import rmtree
 
@@ -13,16 +14,22 @@ class TestAffine(unittest.TestCase):
             rmtree('tmp.n5')
         except OSError:
             pass
+        try:
+            os.remove('tmp.h5')
+        except OSError:
+            pass
 
-    def _test_2d(self, matrix, chunked=False, sigma=None, **kwargs):
+    def _test_2d(self, matrix, out_file=None, sigma=None, **kwargs):
         from elf.transformation import transform_subvolume_affine
         shape = (512, 512)
         x = np.random.rand(*shape)
         exp = affine_transform(x, matrix, **kwargs)
 
-        if chunked:
-            f = open_file('tmp.n5')
-            x = f.create_dataset('tmp', data=x, chunks=(64, 64))
+        if out_file is not None:
+            with open_file(out_file) as f:
+                x = f.create_dataset('tmp', data=x, chunks=(64, 64))
+            f = open_file(out_file, 'r')
+            x = f['tmp']
 
         bbs = [np.s_[:, :], np.s_[:256, :256], np.s_[37:115, 226:503],
                np.s_[:200, :], np.s_[:, 10:115]]
@@ -37,6 +44,9 @@ class TestAffine(unittest.TestCase):
             else:
                 self.assertTrue(~np.allclose(res, 0))
 
+        if out_file is not None:
+            f.close()
+
     def test_affine_subvolume_2d(self):
         from elf.transformation import compute_affine_matrix
         # TODO test more orders once implemented
@@ -50,25 +60,33 @@ class TestAffine(unittest.TestCase):
             for order in orders:
                 self._test_2d(mat, order=order)
 
-    def test_affine_subvolume_2d_chunked(self):
+    def _test_affine_subvolume_2d_chunked(self, out_file):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(2, 2), rotation=(45,))
-        self._test_2d(mat, order=0, chunked=True)
+        self._test_2d(mat, order=0, out_file=out_file)
+
+    def test_affine_subvolume_2d_z5(self):
+        self._test_affine_subvolume_2d_chunked('tmp.n5')
+
+    def test_affine_subvolume_2d_h5(self):
+        self._test_affine_subvolume_2d_chunked('tmp.h5')
 
     def test_presmoothing(self):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(2, 2), rotation=(45,))
-        self._test_2d(mat, order=1, chunked=True, sigma=1.)
+        self._test_2d(mat, order=1, out_file='tmp.n5', sigma=1.)
 
-    def _test_3d(self, matrix, chunked=False, **kwargs):
+    def _test_3d(self, matrix, out_file=None, **kwargs):
         from elf.transformation import transform_subvolume_affine
         shape = 3 * (64,)
         x = np.random.rand(*shape)
         exp = affine_transform(x, matrix, **kwargs)
 
-        if chunked:
-            f = open_file('tmp.n5')
-            x = f.create_dataset('tmp', data=x, chunks=3 * (16,))
+        if out_file is not None:
+            with open_file(out_file) as f:
+                x = f.create_dataset('tmp', data=x, chunks=3 * (16,))
+            f = open_file(out_file, 'r')
+            x = f['tmp']
 
         bbs = [np.s_[:, :, :], np.s_[:32, :32, :32], np.s_[1:31, 5:27, 3:13],
                np.s_[4:19, :, 22:], np.s_[1:29], np.s_[:, 15:27, :], np.s_[:, 1:3, 4:14]]
@@ -79,6 +97,9 @@ class TestAffine(unittest.TestCase):
 
             self.assertEqual(res.shape, exp_bb.shape)
             self.assertTrue(np.allclose(res, exp_bb))
+
+        if out_file is not None:
+            f.close()
 
     def test_affine_subvolume_3d(self):
         from elf.transformation import compute_affine_matrix
@@ -92,10 +113,16 @@ class TestAffine(unittest.TestCase):
             for order in orders:
                 self._test_3d(mat, order=order)
 
-    def test_affine_subvolume_3d_chunked(self):
+    def _test_affine_subvolume_3d_chunked(self, out_file):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(1, 2, 1), rotation=(15, 30, 0))
-        self._test_3d(mat, order=0, chunked=True)
+        self._test_3d(mat, order=0, out_file=out_file)
+
+    def test_affine_subvolume_3d_z5(self):
+        self._test_affine_subvolume_3d_chunked('tmp.n5')
+
+    def test_affine_subvolume_3d_h5(self):
+        self._test_affine_subvolume_3d_chunked('tmp.h5')
 
     def test_toy(self):
         from elf.transformation import compute_affine_matrix
