@@ -179,7 +179,6 @@ def interpolate_cubic(coord, where_format=False):
 
 
 # TODO support multichannel transformation -> don't transform first coordinate dimension
-# TODO support smoothing for anti-aliasing
 # prototype impl for on the fly coordinate, transformation of sub-volumes / bounding boxes
 def transform_subvolume(data, transform, bb,
                         order=0, fill_value=0, sigma=None):
@@ -218,7 +217,7 @@ def transform_subvolume(data, transform, bb,
     elif order == 1:
         interpolate = interpolate_linear
     else:
-        raise NotImplementedError("Only interpolation with order <= 0 is currently implemented.")
+        raise NotImplementedError("Only interpolation with order < 2 is currently implemented.")
 
     out = np.full(sub_shape, fill_value, dtype=data.dtype)
     out = _apply(data, out, transform, interpolate, start, stop)
