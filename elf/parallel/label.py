@@ -205,6 +205,7 @@ def write_mapping(out, mask, offsets, mapping,
     return out
 
 
+# FIXME this still does not merge over all block boundaries
 def label(data, out, with_background=True, block_shape=None,
           n_threads=None, mask=None, verbose=False):
     """Label the data in parallel by applying blockwise connected component and

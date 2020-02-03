@@ -128,7 +128,7 @@ def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwar
     Arguments:
         graph [nifty.graph] - graph of multicut problem
         costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference (default: None)
+        time_limit [float] - time limit for inference in seconds (default: None)
         warmstart [bool] - whether to warmstart with gaec solution (default: True)
     """
     objective = _to_objective(graph, costs)
@@ -150,7 +150,7 @@ def multicut_gaec(graph, costs, time_limit=None, **kwargs):
     Arguments:
         graph [nifty.graph] - graph of multicut problem
         costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference (default: None)
+        time_limit [float] - time limit for inference in seconds (default: None)
     """
     objective = _to_objective(graph, costs)
     solver = objective.greedyAdditiveFactory().create(objective)
@@ -171,7 +171,7 @@ def multicut_decomposition(graph, costs, time_limit=None,
     Arguments:
         graph [nifty.graph] - graph of multicut problem
         costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference (default: None)
+        time_limit [float] - time limit for inference in seconds (default: None)
         n_threads [int] - number of threads (default: 1)
         internal_solver [str] - name of solver used for connected components
             (default: 'kernighan-lin')
@@ -269,7 +269,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
     Arguments:
         graph [nifty.graph] - graph of multicut problem
         costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference (default: None)
+        time_limit [float] - time limit for inference in seconds (default: None)
         n_threasd [int] - number of threads (default: 1)
         internal_solver [str] - name of solver used for connected components
             (default: 'kernighan-lin')

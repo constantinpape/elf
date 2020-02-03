@@ -26,6 +26,72 @@ def _compute_broadcast(shapex, shapey):
     return broadcast
 
 
+def isin(x, y, out=None,
+         block_shape=None, n_threads=None,
+         mask=None, verbose=False):
+    """ Compute np.isin in parallel.
+
+    Arguments:
+        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
+        y [array_like or scalar] - operand 2, scalar, numpy array or list
+        out [array_like] - output, by default the operation
+            is done inplace in the first operand (default: None)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
+    Returns:
+        array_like - output
+    """
+
+    # check the mask if given
+    if mask is not None and mask.shape != x.shape:
+        raise ValueError("Invalid mask shape, got %s, expected %s (= shape of first operand)" % (str(mask.shape),
+                                                                                                 str(x.shape)))
+
+    if out is None:
+        out = x
+    elif x.shape != out.shape:
+        raise ValueError("Expect x and out of same shape, got %s and %s" % (str(x.shape),
+                                                                            str(out.shape)))
+
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    block_shape = get_block_shape(x, block_shape)
+
+    # TODO support roi and use python blocking implementation
+    shape = x.shape
+    blocking = nt.blocking([0] * x.ndim, shape, block_shape)
+    n_blocks = blocking.numberOfBlocks
+
+    def _isin(block_id):
+        block = blocking.getBlock(block_id)
+        bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+
+        # check if we have a mask and if we do if we
+        # have pixels in the mask
+        if mask is not None:
+            m = mask[bb].astype('bool')
+            if m.sum() == 0:
+                return None
+
+        # load the data and apply the mask if given
+        xx = x[bb]
+        if mask is None:
+            xx = np.isin(xx, y)
+        else:
+            xx[m] = np.isin(xx[m], y)
+        out[bb] = xx
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        if verbose:
+            list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks))
+        else:
+            tp.map(_isin, range(n_blocks))
+
+    return out
+
+
 def apply_operation(x, y, operation, out=None,
                     block_shape=None, n_threads=None,
                     mask=None, verbose=False):
@@ -52,11 +118,12 @@ def apply_operation(x, y, operation, out=None,
     if scalar_operand:
         broadcast = False
     else:
+        # TODO we ned to check for array_like here to also allow h5py, z5py, etc.
         if not isinstance(y, np.ndarray):
             raise ValueError("Expected second operand to be scalar or numpy array, got %s" % type(y))
         # check that the dimensions of operators
         if x.ndim != y.ndim:
-            raise ValueError("Dimensions of operands do not match.")
+            raise ValueError("Dimensions of operands do not match: %i, %i" % (x.ndim, y.ndim))
         # if the shapes disagree, check if we can broadcast
         broadcast = False if x.shape == y.shape else _compute_broadcast(x.shape, y.shape)
 
