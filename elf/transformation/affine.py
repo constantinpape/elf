@@ -212,7 +212,7 @@ def transform_subvolume_affine(data, matrix, bb,
     """
 
     # TODO extend the transformation types supported in nifty
-    nifty_trafo_types = [np.uint8, np.float32, np.float64]
+    nifty_trafo_types = [np.uint8, np.int8, np.uint16, np.int16, np.float32, np.float64]
     has_nifty_trafo = ntrafo is not None and np.dtype(data.dtype) in nifty_trafo_types
     has_nifty_trafo = has_nifty_trafo and (isinstance(data, np.ndarray)
                                            or is_z5py(data) or is_h5py(data))
