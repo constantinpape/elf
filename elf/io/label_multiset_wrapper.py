@@ -45,7 +45,10 @@ class LabelMultisetWrapper:
         def load_chunk(chunk_id):
             chunk_shape = self._dataset.get_chunk_shape(chunk_id)
             chunk_data = self._dataset.read_chunk(chunk_id)
-            chunk_data = deserialize_labels(chunk_data, chunk_shape)
+            if chunk_data is None:
+                chunk_data = np.zeros(chunk_shape, dtype='uint64')
+            else:
+                chunk_data = deserialize_labels(chunk_data, chunk_shape)
 
             chunk_bb, out_bb = map_chunk_to_roi(chunk_id, roi, self.chunks)
             data[out_bb] = chunk_data[chunk_bb]
