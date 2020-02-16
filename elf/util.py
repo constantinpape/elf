@@ -186,17 +186,21 @@ def chunks_overlapping_roi(roi, chunks):
     return product(*ranges)
 
 
-def downscale_shape(shape, scale_factor):
+def downscale_shape(shape, scale_factor, ceil_mode=True):
     """ Compute new shape after downscaling a volume by given scale factor.
 
     Arguments:
         shape [tuple] - input shape
         scale_factor [tuple or int] - scale factor used for down-sampling.
+        ceil_mode [bool] - whether to apply ceil to output shape (default: True)
     """
     scale_ = (scale_factor,) * len(shape) if isinstance(scale_factor, int)\
         else scale_factor
-    return tuple(sh // sf + int((sh % sf) != 0)
-                 for sh, sf in zip(shape, scale_))
+    if ceil_mode:
+        return tuple(sh // sf + int((sh % sf) != 0)
+                     for sh, sf in zip(shape, scale_))
+    else:
+        return tuple(sh // sf for sh, sf in zip(shape, scale_))
 
 
 def set_numpy_threads(n_threads):
