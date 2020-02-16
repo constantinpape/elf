@@ -40,7 +40,7 @@ class KnossosDataset:
 
     @property
     def dtype(self):
-        return 'uint8'
+        return np.dtype('uint8')
 
     @property
     def ndim(self):
