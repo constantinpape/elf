@@ -6,6 +6,7 @@ from .base import SimpleTransformationWrapper
 class NormalizeWrapper(SimpleTransformationWrapper):
     """ Wrapper to normalize tensor to 0, 1.
     """
+    eps = 1.e-6
 
     def __init__(self, volume, dtype='float32'):
         self._dtype = np.dtype(dtype)
@@ -18,7 +19,7 @@ class NormalizeWrapper(SimpleTransformationWrapper):
     def _normalize(self, input_):
         input_ = input_.astype(self._dtype)
         input_ -= input_.min()
-        input_ /= input_.max()
+        input_ /= (input_.max() + self.eps)
         return input_
 
 
