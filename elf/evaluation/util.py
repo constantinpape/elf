@@ -2,7 +2,7 @@ import numpy as np
 import nifty.ground_truth as ngt
 
 
-def contigency_table(seg_a, seg_b):
+def contigency_table(seg_a, seg_b, ignore_a_split=None, ignore_a_merge=None):
     """ Compute the pairs and counts in the contingency table of seg_a and seg_b.
 
     The contingency table counts the number of pixels that are shared between
@@ -14,6 +14,8 @@ def contigency_table(seg_a, seg_b):
     b_ids, b_counts = np.unique(seg_b, return_counts=True)
     a_dict = dict(zip(a_ids, a_counts.astype('float64')))
     b_dict = dict(zip(b_ids, b_counts.astype('float64')))
+
+    # TODO apply ignore_a_split, ignore_a_merge if they are given
 
     # compute the overlaps and overlap counts
     # use nifty gt functionality

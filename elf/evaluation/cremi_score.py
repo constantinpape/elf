@@ -4,7 +4,8 @@ from .rand_index import compute_rand_scores
 from .variation_of_information import compute_vi_scores
 
 
-def cremi_score(segmentation, groundtruth, ignore_seg=None, ignore_gt=None):
+def cremi_score(segmentation, groundtruth, ignore_seg=None, ignore_gt=None,
+                ignore_gt_split=None, ignore_gt_merge=None):
     """ Computes cremi scores between two segmentations
 
     Arguments:
@@ -12,6 +13,8 @@ def cremi_score(segmentation, groundtruth, ignore_seg=None, ignore_gt=None):
         groundtruth [np.ndarray] - groundtruth
         ignore_seg [listlike] - ignore ids for segmentation (default: None)
         ignore_gt [listlike] - ignore ids for groundtruth (default: None)
+        ignore_gt_split [listlike] - ignore groundtruth ids for split contribution (default: None)
+        ignore_gt_merge [listlike] - ignore groundtruth ids for merge contribution (default: None)
     Retuns:
         float - vi-split
         float - vi-merge
@@ -25,12 +28,13 @@ def cremi_score(segmentation, groundtruth, ignore_seg=None, ignore_gt=None):
         segmentation = segmentation[ignore_mask]
         groundtruth = groundtruth[ignore_mask]
     else:
-        # if we don't have a mask, we need to make sure the segmentations are
+        # if we don't have a mask, we need to make sure the segmentations are 1d
         segmentation = segmentation.ravel()
         groundtruth = groundtruth.ravel()
 
     # compute ids, counts and overlaps making up the contigency table
-    a_dict, b_dict, p_ids, p_counts = contigency_table(groundtruth, segmentation)
+    a_dict, b_dict, p_ids, p_counts = contigency_table(groundtruth, segmentation,
+                                                       ignore_gt_split, ignore_gt_merge)
     n_points = segmentation.size
 
     # compute vi scores
