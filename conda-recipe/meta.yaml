@@ -44,4 +44,4 @@ test:
 about:
   home: https://github.com/constantinpape/elf
   license: MIT
-  summary: Utils and convenience functions for large scale bio-image analysis.
+  summary: Utilities and convenience functions for large scale bio-image analysis.
