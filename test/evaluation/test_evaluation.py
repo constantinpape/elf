@@ -11,10 +11,9 @@ try:
 except ImportError:
     nifty = None
 
-try:
-    from cremi_tools.metrics import adapted_rand, voi
-except ImportError:
-    adapted_rand, voi = None, None
+# reference implementations from skimage
+from skimage.metrics import adapted_rand_error as adapted_rand_ref
+from skimage.metrics import variation_of_information as voi_ref
 
 
 class TestMetrics(unittest.TestCase):
@@ -44,14 +43,14 @@ class TestMetrics(unittest.TestCase):
         seg = ds_seg[self.bb]
 
         vi_s, vi_m = variation_of_information(seg, gt, ignore_gt=[0])
-        vi_s_exp, vi_m_exp = voi(seg, gt)
+        vi_s_exp, vi_m_exp = voi_ref(seg, gt)
 
         self.assertAlmostEqual(vi_s, vi_s_exp)
         self.assertAlmostEqual(vi_m, vi_m_exp)
 
     # need to implement download first
     @unittest.skip
-    # @unittest.skipUnless(adapted_rand and z5py and nifty, "Need cremi tools and z5py and nifty")
+    # @unittest.skipUnless(z5py and nifty, "Need cremi tools and z5py and nifty")
     def test_ri(self):
         from elf.evaluation import rand_index
         f = z5py.File(self.path)
@@ -65,13 +64,13 @@ class TestMetrics(unittest.TestCase):
         seg = ds_seg[self.bb]
 
         ari, ri = rand_index(seg, gt, ignore_gt=[0])
-        ari_exp = adapted_rand(seg, gt)
+        ari_exp = adapted_rand_ref(seg, gt)
 
         self.assertAlmostEqual(ari, ari_exp)
 
     # need to implement download first
     @unittest.skip
-    # @unittest.skipUnless(adapted_rand and z5py and nifty, "Need cremi tools and z5py and nifty")
+    # @unittest.skipUnless(z5py and nifty, "Need cremi tools and z5py and nifty")
     def test_cremi_score(self):
         from elf.evaluation import cremi_score
         f = z5py.File(self.path)
@@ -86,8 +85,8 @@ class TestMetrics(unittest.TestCase):
 
         vis, vim, ari, cs = cremi_score(seg, gt, ignore_gt=[0])
 
-        ari_exp = adapted_rand(seg, gt)
-        vis_exp, vim_exp = voi(seg, gt)
+        ari_exp = adapted_rand_ref(seg, gt)
+        vis_exp, vim_exp = voi_ref(seg, gt)
 
         cs_exp = np.sqrt(ari_exp * (vis_exp + vim_exp))
 
@@ -98,7 +97,7 @@ class TestMetrics(unittest.TestCase):
 
     # need to implement download first
     @unittest.skip
-    # @unittest.skipUnless(adapted_rand and z5py and nifty, "Need cremi tools and z5py and nifty")
+    # @unittest.skipUnless(z5py and nifty, "Need cremi tools and z5py and nifty")
     def test_object_vi(self):
         from elf.evaluation import object_vi
         f = z5py.File(self.path)
@@ -125,24 +124,24 @@ class TestMetrics(unittest.TestCase):
             self.assertGreaterEqual(vis, 0)
             self.assertGreaterEqual(vim, 0)
 
-    @unittest.skipUnless(adapted_rand and nifty, "Need cremi_tools and nifty")
+    @unittest.skipUnless(nifty, "Need nifty")
     def test_ri_random_data(self):
         from elf.evaluation import rand_index
         shape = (256, 256)
         x = np.random.randint(0, 100, size=shape)
         y = np.random.randint(0, 100, size=shape)
         ari, ri = rand_index(x, y, ignore_gt=[0])
-        ari_exp = adapted_rand(x, y)
+        ari_exp = adapted_rand_ref(x, y)
         self.assertAlmostEqual(ari, ari_exp)
 
-    @unittest.skipUnless(voi and nifty, "Need cremi_tools and nifty")
+    @unittest.skipUnless(nifty, "Need cremi_tools and nifty")
     def test_vi_random_data(self):
         from elf.evaluation import variation_of_information
         shape = (256, 256)
         x = np.random.randint(0, 100, size=shape)
         y = np.random.randint(0, 100, size=shape)
         vi_s, vi_m = variation_of_information(x, y, ignore_gt=[0])
-        vi_s_exp, vi_m_exp = voi(x, y)
+        vi_s_exp, vi_m_exp = voi_ref(x, y)
         self.assertAlmostEqual(vi_s, vi_s_exp)
         self.assertAlmostEqual(vi_m, vi_m_exp)
 
