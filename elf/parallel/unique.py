@@ -3,15 +3,14 @@ import multiprocessing
 from concurrent import futures
 from tqdm import tqdm
 
-import nifty.tools as nt
-from .common import get_block_shape
+from .common import get_blocking
 from ..util import set_numpy_threads
 set_numpy_threads(1)
 import numpy as np
 
 
 def unique(data, return_counts=False, block_shape=None, n_threads=None,
-           mask=None, verbose=False):
+           mask=None, verbose=False, roi=None):
     """ Compute the unique values of the data.
 
     Arguments:
@@ -22,17 +21,14 @@ def unique(data, return_counts=False, block_shape=None, n_threads=None,
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         np.ndarray - unique values
         np.ndarray - count values (only if return_counts is True)
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(data, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = data.shape
-    blocking = nt.blocking(data.ndim * [0], shape, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
     def _unique(block_id):

@@ -5,10 +5,7 @@ from concurrent import futures
 from numbers import Number
 from tqdm import tqdm
 
-# TODO use python blocking implementation
-import nifty.tools as nt
-
-from .common import get_block_shape
+from .common import get_blocking
 from ..util import set_numpy_threads
 set_numpy_threads(1)
 import numpy as np
@@ -28,7 +25,7 @@ def _compute_broadcast(shapex, shapey):
 
 def isin(x, y, out=None,
          block_shape=None, n_threads=None,
-         mask=None, verbose=False):
+         mask=None, verbose=False, roi=None):
     """ Compute np.isin in parallel.
 
     Arguments:
@@ -41,6 +38,7 @@ def isin(x, y, out=None,
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         array_like - output
     """
@@ -57,11 +55,7 @@ def isin(x, y, out=None,
                                                                             str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(x, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = x.shape
-    blocking = nt.blocking([0] * x.ndim, shape, block_shape)
+    blocking = get_blocking(x, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
     def _isin(block_id):
@@ -94,7 +88,7 @@ def isin(x, y, out=None,
 
 def apply_operation(x, y, operation, out=None,
                     block_shape=None, n_threads=None,
-                    mask=None, verbose=False):
+                    mask=None, verbose=False, roi=None):
     """ Apply operation to two operands in parallel.
 
     Arguments:
@@ -109,6 +103,7 @@ def apply_operation(x, y, operation, out=None,
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         array_like - output
     """
@@ -143,11 +138,7 @@ def apply_operation(x, y, operation, out=None,
                                                                             str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(x, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = x.shape
-    blocking = nt.blocking([0] * x.ndim, shape, block_shape)
+    blocking = get_blocking(x, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
     def _apply_scalar(block_id):
@@ -220,14 +211,16 @@ def _generate_operation(op_name):
             n_threads [int] - number of threads, by default all are used (default: None)
             mask [array_like] - mask to exclude data from the computation (default: None)
             verbose [bool] - verbosity flag (default: False)
+            roi [tuple[slice]] - region of interest for this computation (default: None)
         Returns:
             array_like - output
         """ % op_name
 
-    def op(x, y, out=None, block_shape=None, n_threads=None, mask=None, verbose=False):
+    def op(x, y, out=None, block_shape=None, n_threads=None,
+           mask=None, verbose=False, roi=None):
         return apply_operation(x, y, getattr(np, op_name), block_shape=block_shape,
                                n_threads=n_threads, mask=mask, verbose=verbose,
-                               out=out)
+                               out=out, roi=roi)
 
     op.__doc__ = doc_str
     op.__name__ = op_name

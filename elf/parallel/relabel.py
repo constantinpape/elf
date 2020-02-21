@@ -2,10 +2,10 @@ import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
 from tqdm import tqdm
-
 import nifty.tools as nt
+
 from .unique import unique
-from .common import get_block_shape
+from .common import get_blocking
 from ..util import set_numpy_threads
 set_numpy_threads(1)
 import numpy as np
@@ -13,7 +13,7 @@ import numpy as np
 
 def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
                         block_shape=None, n_threads=None,
-                        mask=None, verbose=False):
+                        mask=None, verbose=False, roi=None):
     """Compute the unique values of the data.
 
     Arguments:
@@ -26,6 +26,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         array_like - the output data
         int - the max id after relabeling
@@ -33,7 +34,8 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(data, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
+    block_shape = blocking.blockShape
 
     unique_values = unique(data, block_shape=block_shape,
                            mask=mask, n_threads=n_threads)
@@ -42,11 +44,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         mapping[0] = 0
     max_id = len(mapping) - 1
 
-    # TODO support roi and use python blocking implementation
-    shape = data.shape
-    blocking = nt.blocking(data.ndim * [0], shape, block_shape)
     n_blocks = blocking.numberOfBlocks
-
     if out is None:
         out = data
     elif data.shape != out.shape:

@@ -7,7 +7,7 @@ except ImportError:
     nifty = None
 
 
-# TODO tests with mask
+# TODO tests with mask and roi
 @unittest.skipUnless(nifty, "Need nifty")
 class TestStats(unittest.TestCase):
     def _test_stat(self, stat_impl, np_stats):

@@ -8,7 +8,7 @@ from skimage.segmentation import relabel_sequential
 
 import nifty.tools as nt
 import nifty.ufd as nufd
-from .common import get_block_shape
+from .common import get_blocking
 
 from elf.util import set_numpy_threads
 set_numpy_threads(1)
@@ -207,7 +207,7 @@ def write_mapping(out, mask, offsets, mapping,
 
 # FIXME this still does not merge over all block boundaries
 def label(data, out, with_background=True, block_shape=None,
-          n_threads=None, mask=None, verbose=False):
+          n_threads=None, mask=None, verbose=False, roi=None):
     """Label the data in parallel by applying blockwise connected component and
     merging the results over block boundaries.
 
@@ -220,6 +220,7 @@ def label(data, out, with_background=True, block_shape=None,
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         array_like - the output data
     """
@@ -229,11 +230,7 @@ def label(data, out, with_background=True, block_shape=None,
                                                                                str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(data, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = data.shape
-    blocking = nt.blocking([0] * data.ndim, shape, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
 
     # 1) compute connected components for all blocks
     out, offsets = cc_blocks(data, out, mask, blocking, with_background,

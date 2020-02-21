@@ -5,13 +5,12 @@ from functools import partial
 from tqdm import tqdm
 
 import numpy as np
-import nifty.tools as nt
 try:
     import fastfilters as ff
 except ImportError:
     import vigra.filters as ff
 
-from .common import get_block_shape
+from .common import get_blocking
 from ..util import sigma_to_halo
 
 
@@ -36,7 +35,7 @@ def apply_filter(data, filter_name, sigma,
                  outer_scale=None, return_channel=None,
                  out=None, block_shape=None,
                  n_threads=None, mask=None,
-                 verbose=False):
+                 verbose=False, roi=None):
     """ Apply filter to data in parallel.
 
     Arguments:
@@ -51,6 +50,7 @@ def apply_filter(data, filter_name, sigma,
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         array_like - filter response
     """
@@ -77,9 +77,7 @@ def apply_filter(data, filter_name, sigma,
         filter_function = partial(filter_function, outerScale=outer_scale)
 
     ndim = data.ndim
-    shape = data.shape
-    block_shape = get_block_shape(data, block_shape)
-    blocking = nt.blocking(ndim * [0], shape, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
 
     order = order_values[filter_name]
     halo = get_halo(sigma, order, ndim, outer_scale)
@@ -161,15 +159,16 @@ def _generate_filter(filter_name):
             n_threads [int] - number of threads, by default all are used (default: None)
             mask [array_like] - mask to exclude data from the computation (default: None)
             verbose [bool] - verbosity flag (default: False)
+            roi [tuple[slice]] - region of interest for this computation (default: None)
         Returns:
             array_like - filter response
         """ % elf_name
 
     def op(data, sigma, out=None, block_shape=None,
-           n_threads=None, mask=None, verbose=False):
+           n_threads=None, mask=None, verbose=False, roi=None):
         return apply_filter(data, filter_name, sigma, outer_scale=None,
                             return_channel=None, out=out, block_shape=block_shape,
-                            n_threads=n_threads, mask=mask, verbose=verbose)
+                            n_threads=n_threads, mask=mask, verbose=verbose, roi=roi)
 
     op.__doc__ = doc_str
     op.__name__ = elf_name
@@ -193,16 +192,17 @@ def _generate_structure_tensor(filter_name):
             n_threads [int] - number of threads, by default all are used (default: None)
             mask [array_like] - mask to exclude data from the computation (default: None)
             verbose [bool] - verbosity flag (default: False)
+            roi [tuple[slice]] - region of interest for this computation (default: None)
         Returns:
             array_like - filter response
         """ % elf_name
 
     def op(data, sigma, outer_scale,
            return_channel=None, out=None, block_shape=None,
-           n_threads=None, mask=None, verbose=False):
+           n_threads=None, mask=None, verbose=False, roi=None):
         return apply_filter(data, filter_name, sigma, outer_scale=outer_scale,
                             return_channel=return_channel, out=out, block_shape=block_shape,
-                            n_threads=n_threads, mask=mask, verbose=verbose)
+                            n_threads=n_threads, mask=mask, verbose=verbose, roi=roi)
 
     op.__doc__ = doc_str
     op.__name__ = elf_name
@@ -225,16 +225,17 @@ def _generate_hessian(filter_name):
             n_threads [int] - number of threads, by default all are used (default: None)
             mask [array_like] - mask to exclude data from the computation (default: None)
             verbose [bool] - verbosity flag (default: False)
+            roi [tuple[slice]] - region of interest for this computation (default: None)
         Returns:
             array_like - filter response
         """ % elf_name
 
     def op(data, sigma, return_channel=None,
            out=None, block_shape=None,
-           n_threads=None, mask=None, verbose=False):
+           n_threads=None, mask=None, verbose=False, roi=None):
         return apply_filter(data, filter_name, sigma, return_channel=return_channel,
                             out=out, block_shape=block_shape,
-                            n_threads=n_threads, mask=mask, verbose=verbose)
+                            n_threads=n_threads, mask=mask, verbose=verbose, roi=roi)
 
     op.__doc__ = doc_str
     op.__name__ = elf_name

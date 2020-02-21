@@ -2,18 +2,15 @@ import multiprocessing
 # would be nice to use dask for all of this instead of concurrent.futures
 # so that this could be used on a cluster as well
 from concurrent import futures
-
-# TODO use python blocking implementation
-import nifty.tools as nt
 from tqdm import tqdm
 
-from .common import get_block_shape
+from .common import get_blocking
 from ..util import set_numpy_threads
 set_numpy_threads(1)
 import numpy as np
 
 
-def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False):
+def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
     """ Compute the mean of the data in parallel.
 
     Arguments:
@@ -23,16 +20,13 @@ def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False):
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         float - mean of the data
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(data, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = data.shape
-    blocking = nt.blocking(data.ndim * [0], shape, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
     def _mean(block_id):
@@ -63,7 +57,7 @@ def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False):
     return np.mean(means)
 
 
-def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=False):
+def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
     """ Compute the mean and the standard deviation of the data in parallel.
 
     Arguments:
@@ -73,17 +67,14 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=Fals
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         float - mean of the data
         float - standard deviation of the data
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(data, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = data.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
     def _mean_and_std(block_id):
@@ -123,7 +114,7 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=Fals
     return mean_val, std_val
 
 
-def std(data, block_shape=None, n_threads=None, mask=None, verbose=False):
+def std(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
     """ Compute the standard deviation of the data in parallel.
 
     Arguments:
@@ -133,13 +124,14 @@ def std(data, block_shape=None, n_threads=None, mask=None, verbose=False):
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         float - standard deviation of the data
     """
-    return mean_and_std(data, block_shape, n_threads, mask, verbose)[1]
+    return mean_and_std(data, block_shape, n_threads, mask, verbose, roi)[1]
 
 
-def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False):
+def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
     """ Compute the minimum and maximum of the data in parallel.
 
     Arguments:
@@ -149,16 +141,13 @@ def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         scalar - minimum value of the data
         scalar - maximum value of the data
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    block_shape = get_block_shape(data, block_shape)
-
-    # TODO support roi and use python blocking implementation
-    shape = data.shape
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
+    blocking = get_blocking(data, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
     def _min_and_max(block_id):
@@ -192,7 +181,7 @@ def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False
     return mins.min(), maxs.max()
 
 
-def min(data, block_shape=None, n_threads=None, mask=None, verbose=False):
+def min(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
     """ Compute the minimum of the data in parallel.
 
     Arguments:
@@ -202,13 +191,14 @@ def min(data, block_shape=None, n_threads=None, mask=None, verbose=False):
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         scalar - minimum value of the data
     """
-    return min_and_max(data, block_shape, n_threads, mask, verbose)[0]
+    return min_and_max(data, block_shape, n_threads, mask, verbose, roi)[0]
 
 
-def max(data, block_shape=None, n_threads=None, mask=None, verbose=False):
+def max(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
     """ Compute the maximum of the data in parallel.
 
     Arguments:
@@ -218,7 +208,8 @@ def max(data, block_shape=None, n_threads=None, mask=None, verbose=False):
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
     Returns:
         scalar - maximum value of the data
     """
-    return min_and_max(data, block_shape, n_threads, mask, verbose)[1]
+    return min_and_max(data, block_shape, n_threads, mask, verbose, roi)[1]

@@ -68,6 +68,24 @@ class TestOperations(unittest.TestCase):
         op(x, y, block_shape=block_shape, mask=mask)
         self.assertTrue(np.allclose(exp, x))
 
+    def _test_op_roi(self, op, op_exp):
+        shape = 3 * (64,)
+        block_shape = 3 * (16,)
+
+        rois = [np.s_[:], np.s_[:32, 32:], np.s_[:47, :], np.s_[:, 13:], np.s_[2:31, 5:59]]
+        for roi in rois:
+            x = np.random.rand(*shape)
+            y = np.random.rand()
+
+            res = x.copy()
+            op(res, y, block_shape=block_shape, roi=roi)
+            exp = op_exp(x[roi], y)
+            self.assertTrue(np.allclose(exp, res[roi]))
+
+            not_roi = np.ones(res.shape, dtype='bool')
+            not_roi[roi] = False
+            self.assertTrue(np.allclose(res[not_roi], x[not_roi]))
+
     def _test_op(self, op1, op2):
         self._test_op_array(op1, op2, True)
         self._test_op_array(op1, op2, False)
@@ -75,6 +93,7 @@ class TestOperations(unittest.TestCase):
         self._test_op_scalar(op1, op2, False)
         self._test_op_broadcast(op1, op2)
         self._test_op_masked(op1, op2)
+        self._test_op_roi(op1, op2)
 
     def test_add(self):
         from elf.parallel import add
