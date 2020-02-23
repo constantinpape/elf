@@ -211,16 +211,13 @@ def transform_subvolume_affine(data, matrix, bb,
             in order to avoid aliasing effects (default: None)
     """
 
-    # TODO extend the transformation types supported in nifty
-    nifty_trafo_types = [np.uint8, np.int8, np.uint16, np.int16, np.float32, np.float64]
-    has_nifty_trafo = ntrafo is not None and np.dtype(data.dtype) in nifty_trafo_types
-    has_nifty_trafo = has_nifty_trafo and (isinstance(data, np.ndarray)
-                                           or is_z5py(data) or is_h5py(data))
     # TODO implement pre-smoothing in nifty
-    has_nifty_trafo = has_nifty_trafo and sigma is None
-
     # TODO more orders in nifty
-    if has_nifty_trafo and order < 2:
+    has_nifty_trafo = (ntrafo is not None) and (isinstance(data, np.ndarray)
+                                                or is_z5py(data) or is_h5py(data))
+    has_nifty_trafo = has_nifty_trafo and sigma is None and order < 2
+
+    if has_nifty_trafo:
         if isinstance(data, np.ndarray):
             return ntrafo.affineTransformation(data, matrix, order, bb, fill_value)
         elif is_z5py(data):
