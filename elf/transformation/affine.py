@@ -215,7 +215,7 @@ def transform_subvolume_affine(data, matrix, bb,
     # TODO more orders in nifty
     has_nifty_trafo = (ntrafo is not None) and (isinstance(data, np.ndarray)
                                                 or is_z5py(data) or is_h5py(data))
-    has_nifty_trafo = has_nifty_trafo and sigma is None and order < 2
+    has_nifty_trafo = has_nifty_trafo and (sigma is None) and (order < 2)
 
     if has_nifty_trafo:
         if isinstance(data, np.ndarray):
