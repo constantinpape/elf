@@ -99,7 +99,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     dt = vigra.filters.distanceTransform(thresholded, pixel_pitch=pixel_pitch)
 
     # compute seeds from maxima of the (smoothed) distance transform
-    if sigma_seeds > 0:
+    if sigma_seeds:
         dt = ff.gaussianSmoothing(dt, sigma_seeds)
     compute_maxima = vigra.analysis.localMaxima if dt.ndim == 2 else vigra.analysis.localMaxima3D
     seeds = compute_maxima(dt, marker=np.nan, allowAtBorder=True, allowPlateaus=True)
@@ -112,7 +112,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     dt = 1. - (dt - dt.min()) / dt.max()
 
     # compute weights from input and distance transform
-    if sigma_weights > 0.:
+    if sigma_weights:
         hmap = alpha * ff.gaussianSmoothing(input_, sigma_weights) + (1. - alpha) * dt
     else:
         hmap = alpha * input_ + (1. - alpha) * dt
