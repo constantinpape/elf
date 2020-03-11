@@ -6,16 +6,25 @@ import nifty.graph.rag as nrag
 import nifty.distributed as ndist
 import nifty.ground_truth as ngt
 
+try:
+    import fastfilters as ff
+except ImportError:
+    import vigra.filters as ff
+
 from .multicut import transform_probabilities_to_costs
 
+
+#
+# Region Adjacency Graph and Features
+#
 
 def compute_rag(segmentation, n_labels=None, n_threads=None):
     """ Compute region adjacency graph of segmentation.
 
     Arguments:
         segmentation [np.ndarray] - the segmentation
-        n_labels [int] - number of  labels in segmentation. If None is give, will be computed from
-            the data. (default: None)
+        n_labels [int] - number of  labels in segmentation.
+            If None is give, will be computed from the data. (default: None)
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -87,34 +96,39 @@ def compute_boundary_mean_and_length(rag, input_, n_threads=None):
 
 
 # TODO
+def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_threads=None,
+                                           filters={'gaussianSmoothing': [],
+                                                    'laplacianOfGaussian': [],
+                                                    'hessianOfGaussianEigenvalues': []}):
+    """ Compute boundary features accumulated over filter responses on input.
+
+    Arguments:
+        rag [RegionAdjacencyGraph] - region adjacency graph
+        input_ [np.ndarray] - input data
+        apply_2d [bool] - whether to apply the filters in 2d for 3d input data (default: bool)
+        n_threads [int] - number of threads (default: None)
+        filters [dict] - the filters to apply, expects a
+            dictionary mapping filter names to sigma values (default: default_Filters)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+
+
+# TODO
 def compute_region_features(rag, input_map, segmentation, n_threads=None):
     """ Compute edge features from input accumulated over segments.
 
     Arguments:
         rag [RegionAdjacencyGraph] - region adjacency graph
-        input_map [np.ndarray] - boundary map.
+        input_ [np.ndarray] - input data.
         segmentation [np.ndarray] - segmentation.
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
 
-def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
-    """ Project label values for graph nodes back to pixels to obtain segmentation.
-
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        node_labels [np.ndarray] - array with node labels
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
-    """
-    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if len(node_labels) != rag.numberOfNodes:
-        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels),
-                                                                         rag.numberOfNodes))
-    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
-                                             numberOfThreads=n_threads)
-    return seg
-
+#
+# Lifted Features
+#
 
 def feats_to_costs_default(lifted_labels, lifted_features):
     # we assume that we only have different classes for a given lifted
@@ -265,6 +279,27 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     return lifted_uvs, lifted_costs
 
 
+#
+# Misc
+#
+
+def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
+    """ Project label values for graph nodes back to pixels to obtain segmentation.
+
+    Arguments:
+        rag [RegionAdjacencyGraph] - region adjacency graph
+        node_labels [np.ndarray] - array with node labels
+        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    if len(node_labels) != rag.numberOfNodes:
+        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels),
+                                                                         rag.numberOfNodes))
+    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
+                                             numberOfThreads=n_threads)
+    return seg
+
+
 def compute_z_edge_mask(rag, watershed):
     """ Compute edge mask of in-between plane edges for flat superpixels.
 
@@ -277,3 +312,9 @@ def compute_z_edge_mask(rag, watershed):
     uv_ids = rag.uvIds()
     z_edge_mask = node_z_coords[uv_ids[:, 0]] != node_z_coords[uv_ids[:, 1]]
     return z_edge_mask
+
+
+# TODO
+#
+# Learning
+#
