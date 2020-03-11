@@ -25,6 +25,12 @@ def watershed(input_, seeds, size_filter=0, exclude=None):
         np.ndarray - watershed segmentation
         int - max id of watershed segmentation
     """
+
+    if input_.dtype != 'uint8' or seeds.dtype != 'uint32':
+        # Vigra watershedsNew only supports input_ of type uint8 and seeds of type uint32.
+        raise Exception("Expected input_, seeds of numpy array dtype uint8, uint32, but got {}, {} instead."
+                        .format(input_.dtype, seeds.dtype))
+
     ws, max_id = vigra.analysis.watershedsNew(input_, seeds=seeds)
     if size_filter > 0:
         ws, max_id = apply_size_filter(ws, input_, size_filter,
@@ -116,6 +122,8 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
         hmap = alpha * ff.gaussianSmoothing(input_, sigma_weights) + (1. - alpha) * dt
     else:
         hmap = alpha * input_ + (1. - alpha) * dt
+
+    hmap = hmap.astype('uint8') # change back to uint8, so as to work with Vigra watershedsNew
 
     # compute watershed
     ws, max_id = watershed(hmap, seeds, size_filter=min_size)
