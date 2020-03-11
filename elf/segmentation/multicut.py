@@ -69,6 +69,58 @@ def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
             costs = _weight_populations(costs, edge_sizes, edge_populations, weighting_exponent)
     return costs
 
+
+def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
+                       beta=.5, weighting_scheme=None, weighting_exponent=1.):
+    """ Compute edge costs from probabilities with a pre-defined weighting scheme.
+
+    Arguments:
+        probs [np.ndarray] - Input probabilities.
+        edge_sizes [np.ndarray] - sizes of edges for weighting (default: None)
+        z_edge_mask [np.ndarray] - edge mask for inter-slice edges,
+            only necessary for weighting schemes z or xyz (default: None)
+        beta [float] - boundary bias (default: .5)
+        weighting_scheme [str] - scheme for weighting the edge costs based on size
+            of the edges (default: NOne)
+        weighting_exponent [float] - exponent used for weighting (default: 1.)
+    """
+    schemes = (None, 'all', 'none', 'xyz', 'z')
+    if weighting_scheme not in schemes:
+        schemes_str = ', '.join([str(scheme) for scheme in schemes])
+        raise ValueError("Weighting scheme must be one of %s, got %s" % (schemes_str, str(weighting_scheme)))
+
+    if weighting_scheme is None or weighting_scheme == 'none':
+        edge_pop = edge_sizes_ = None
+
+    elif weighting_scheme == 'all':
+        if edge_sizes is None:
+            raise ValueError("Need edge sizes for weighting scheme all")
+        if len(edge_sizes) != len(probs):
+            raise ValueError("Invalid edge sizes")
+        edge_sizes_ = edge_sizes
+        edge_pop = None
+
+    elif weighting_scheme == 'xyz':
+        if edge_sizes is None or z_edge_mask is None:
+            raise ValueError("Need edge sizes and z edge mask for weighting scheme xyz")
+        if len(edge_sizes) != len(probs) or len(z_edge_mask) != len(probs):
+            raise ValueError("Invalid edge sizes or z edge mask")
+        edge_pop = [z_edge_mask, np.logical_not(z_edge_mask)]
+        edge_sizes_ = edge_sizes
+
+    elif weighting_scheme == 'z':
+        edge_pop = [z_edge_mask, np.logical_not(z_edge_mask)]
+        edge_sizes_ = edge_sizes.copy()
+        edge_sizes_[edge_pop[1]] = 1.
+        if len(edge_sizes) != len(probs) or len(z_edge_mask) != len(probs):
+            raise ValueError("Invalid edge sizes or z edge mask")
+        if edge_sizes is None or z_edge_mask is None:
+            raise ValueError("Need edge sizes and z edge mask for weighting scheme z")
+
+    return transform_probabilities_to_costs(probs, beta=beta, edge_sizes=edge_sizes_,
+                                            edge_populations=edge_pop, weighting_exponent=weighting_exponent)
+
+
 #
 # TODO
 # - support setting logging visitors
