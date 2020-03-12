@@ -422,9 +422,3 @@ def compute_z_edge_mask(rag, watershed):
     uv_ids = rag.uvIds()
     z_edge_mask = node_z_coords[uv_ids[:, 0]] != node_z_coords[uv_ids[:, 1]]
     return z_edge_mask
-
-
-# TODO
-#
-# Learning
-#
