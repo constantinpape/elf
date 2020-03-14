@@ -192,7 +192,8 @@ def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_thread
 
 
 def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
-    """ Compute edge features from input accumulated over segments.
+    """ Compute edge features from input map accumulated over segmentation
+    and mapped to edges.
 
     Arguments:
         uv_ids [np.ndarray] - edge uv ids
