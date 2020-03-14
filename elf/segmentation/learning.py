@@ -14,8 +14,10 @@ def compute_edge_labels(rag, gt, ignore_label=None, n_threads=None):
             to ignore in learning (default: None)
         n_threads [int] - number of threads (default: None)
     """
-    node_labels = nrag.gridRagAccumulateLabels(gt)
-    uv_ids = rag.uv_ids()
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+
+    node_labels = nrag.gridRagAccumulateLabels(rag, gt, n_threads)
+    uv_ids = rag.uvIds()
 
     edge_labels = (node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]).astype('uint8')
 
@@ -36,6 +38,7 @@ def learn_edge_random_forest(features, labels, edge_mask=None, n_threads=None,
         features [np.ndarray] - edge features
         labels [np.ndarray] - edge labels
         edge_mask [np.ndarray] - mask of edges to ignore in training (default: None)
+        n_threads [int] - number of threads (default: None)
         rf_kwargs [kwargs] - keyword arguments for sklearn.ensemble.RandomForestClassifier
     """
     if len(features) != len(labels):
@@ -65,6 +68,7 @@ def learn_random_forests_for_xyz_edges(features, labels, z_edges,
         labels [np.ndarray] - edge labels
         z_edges [np.ndarray] - mask for z edges
         edge_mask [np.ndarray] - mask of edges to ignore in training (default: None)
+        n_threads [int] - number of threads (default: None)
         rf_kwargs [kwargs] - keyword arguments for sklearn.ensemble.RandomForestClassifier
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -80,3 +84,43 @@ def learn_random_forests_for_xyz_edges(features, labels, z_edges,
                                     n_threads=n_threads, **rf_kwargs)
 
     return rf_xy, rf_z
+
+
+def predict_edge_random_forest(rf, features, n_threads=None):
+    """ Predict edge probablities with random forest.
+
+    Arguments:
+        rf [RandomForestClassifier] - the random forest
+        features [np.ndarray] - edge features
+        n_threads [int] - number of threads (default: None)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    prev_njobs = rf.n_jobs
+    rf.n_jobs = n_threads
+
+    edge_probs = rf.predict_proba(features)[:, 1]
+    assert len(edge_probs) == len(features)
+
+    rf.n_jobs = prev_njobs
+    return edge_probs
+
+
+def predict_edge_random_forests_for_xyz_edges(rf_xy, rf_z, features,
+                                              z_edge_mask, n_threads=None):
+    """ Predict edge probablities with random forests for xy-and-z edges separately.
+
+    Arguments:
+        rf_xy [RandomForestClassifier] - the random forest trained for xy edges
+        rf_z [RandomForestClassifier] - the random forest trained for z edges
+        features [np.ndarray] - edge features
+        z_edges [np.ndarray] - mask for z edges
+        n_threads [int] - number of threads (default: None)
+    """
+    edge_probs = np.zeros(len(features))
+
+    xy_edge_mask = np.logical_not(z_edge_mask)
+    edge_probs[xy_edge_mask] = predict_edge_random_forest(rf_xy, features[xy_edge_mask], n_threads)
+
+    edge_probs[z_edge_mask] = predict_edge_random_forest(rf_z, features[z_edge_mask], n_threads)
+
+    return edge_probs
