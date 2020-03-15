@@ -14,17 +14,16 @@ DEFAULT_RF_KWARGS = {'ignore_label': None, 'n_estimators': 200, 'max_depth': 10}
 
 
 # TODO:
-# - implement simple multicut workflow
+# - add callbacks to customize features, costs etc. to workflows for more customization
 # - lmc workflows
 # - multicut_workflow_from_config(config_file)
-# - add callbacks to customize features, costs etc. to workflows for more customization
 
 
-def _compute_watershed(boundaries, use_2dws, ws_kwargs, n_threads):
+def _compute_watershed(boundaries, use_2dws, mask, ws_kwargs, n_threads):
     if use_2dws:
-        return elf_ws.stacked_watershed(boundaries, n_threads=n_threads, **ws_kwargs)[0]
+        return elf_ws.stacked_watershed(boundaries, mask=mask, n_threads=n_threads, **ws_kwargs)[0]
     else:
-        return elf_ws.distance_transform_watershed(boundaries, **ws_kwargs)[0]
+        return elf_ws.distance_transform_watershed(boundaries, mask=mask, **ws_kwargs)[0]
 
 
 def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_threads):
@@ -81,18 +80,36 @@ def _compute_features_and_labels(raw, boundaries, watershed, labels,
     return features, edge_labels, z_edges
 
 
+def _get_solver(multicut_solver):
+    if isinstance(multicut_solver, str):
+        solver = elf_mc.get_multicut_solver(multicut_solver)
+    else:
+        if not callable(multicut_solver):
+            raise ValueError("Invalid multicut solver")
+        solver = multicut_solver
+    return solver
+
+
+def _mask_edges(rag, edge_costs):
+    uv_ids = rag.uvIds()
+    ignore_edges = (uv_ids == 0).any(axis=1)
+    edge_costs[ignore_edges] = - np.abs(edge_costs).max()
+    return edge_costs
+
+
+# TODO support mask for training
 def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
                   feature_names=FEATURE_NAMES, ws_kwargs=DEFAULT_WS_KWARGS,
                   learning_kwargs=DEFAULT_RF_KWARGS, n_threads=None):
     """ Train random forest classifier for edges.
 
     Arguments:
-        raw [np.ndarray] - raw data
-        boundaries [np.ndarray] - boundary maps
-        labels [np.ndarray] - groundtruth segmentation
+        raw [np.ndarray or list[np.ndarray]] - raw data or list of raw data arrays
+        boundaries [np.ndarray or list[np.ndarray]] - boundary maps or list of boundary maps
+        labels [np.ndarray or list[np.ndarray]] - groundtruth segmentation
         use_2dws [bool] - whether to run watersheds in 2d and stack them
             or if the watersheds passed are 2d and stacked
-        watershed [np.ndarray] - watershed segmentation.
+        watershed [np.ndarray or list[np.ndarray]] - watershed segmentation.
             will be computed if None is passed (default: None)
         feature_names [list] - names of features that will be computed (default: all available)
         ws_kwargs [dict] - keyword arguments for watershed function
@@ -109,10 +126,12 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
     if isinstance(raw, np.ndarray):
         if (not isinstance(boundaries, np.ndarray)) or (not isinstance(labels, np.ndarray)):
             raise ValueError("Expect raw data, boundaries and labels to be either all numpy arrays or lists")
+        # if mask is not None and not isinstance(mask, np.ndarray):
+        #     raise ValueError("Invalid mask")
 
         # compute the watersheds segmentation if it was not passed
         if watershed is None:
-            watershed = _compute_watershed(boundaries, use_2dws, ws_kwargs, n_threads)
+            watershed = _compute_watershed(boundaries, use_2dws, None, ws_kwargs, n_threads)
         features, edge_labels, z_edges = _compute_features_and_labels(raw, boundaries, watershed, labels,
                                                                       use_2dws, feature_names,
                                                                       ignore_label, n_threads)
@@ -123,6 +142,8 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
             raise ValueError("Expect same number of raw data, boundary and label arrays")
         if watershed is not None and len(watershed) != len(raw):
             raise ValueError("Expect same number of watershed arrays as raw data")
+        # if mask is not None and not len(mask) == len(raw):
+        #     raise ValueError("Expect same number of mask arrays as raw data")
 
         features = []
         edge_labels = []
@@ -131,7 +152,8 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
         for train_id, (this_raw, this_boundaries, this_labels) in enumerate(zip(raw, boundaries, labels)):
             # compute the watersheds segmentation if it was not passed
             if watershed is None:
-                this_watershed = _compute_watershed(this_boundaries, use_2dws, ws_kwargs, n_threads)
+                # this_mask = None if mask is None else mask[train_id]
+                this_watershed = _compute_watershed(this_boundaries, use_2dws, None, ws_kwargs, n_threads)
             else:
                 this_watershed = watershed[train_id]
 
@@ -165,7 +187,7 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
 
 
 def multicut_segmentation(raw, boundaries, rf,
-                          use_2dws, multicut_solver, watershed=None,
+                          use_2dws, multicut_solver, watershed=None, mask=None,
                           feature_names=FEATURE_NAMES, weighting_scheme=None,
                           ws_kwargs=DEFAULT_WS_KWARGS, solver_kwargs={},
                           beta=0.5, n_threads=None, return_intermediates=False):
@@ -182,6 +204,7 @@ def multicut_segmentation(raw, boundaries, rf,
             or custom solver function
         watershed [np.ndarray] - watershed segmentation.
             will be computed if None is passed (default: None)
+        mask [np.ndarray] - mask to ignore in segmentation (default: None)
         feature_names [list] - names of features that will be computed (default: all available)
         weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
         ws_kwargs [dict] - keyword arguments for watershed function
@@ -192,16 +215,11 @@ def multicut_segmentation(raw, boundaries, rf,
     """
 
     # get the multicut solver
-    if isinstance(multicut_solver, str):
-        solver = elf_mc.get_multicut_solver(multicut_solver)
-    else:
-        if not callable(multicut_solver):
-            raise ValueError("Invalid multicut solver")
-        solver = multicut_solver
+    solver = _get_solver(multicut_solver)
 
     # compute watersheds if none were given
     if watershed is None:
-        watershed = _compute_watershed(boundaries, use_2dws, ws_kwargs, n_threads)
+        watershed = _compute_watershed(boundaries, use_2dws, mask, ws_kwargs, n_threads)
 
     # compute rag and features
     rag, features = _compute_features(raw, boundaries, watershed,
@@ -224,6 +242,8 @@ def multicut_segmentation(raw, boundaries, rf,
     edge_sizes = elf_feats.compute_boundary_mean_and_length(rag, raw, n_threads)[:, 1]
     costs = elf_mc.compute_edge_costs(edge_probs, edge_sizes=edge_sizes, beta=beta,
                                       z_edge_mask=z_edges, weighting_scheme=weighting_scheme)
+    if mask is not None:
+        costs = _mask_edges(rag, costs)
 
     # compute multicut and project to pixels
     # we pass the watershed to the solver as well, because it is needed for
@@ -245,7 +265,7 @@ def multicut_segmentation(raw, boundaries, rf,
 
 def multicut_workflow(train_raw, train_boundaries, train_labels,
                       raw, boundaries, use_2dws, multicut_solver,
-                      train_watershed=None, watershed=None,
+                      train_watershed=None, watershed=None, mask=None,
                       feature_names=FEATURE_NAMES, weighting_scheme=None,
                       ws_kwargs=DEFAULT_WS_KWARGS, learning_kwargs=DEFAULT_RF_KWARGS,
                       solver_kwargs={}, beta=0.5, n_threads=None):
@@ -272,6 +292,7 @@ def multicut_workflow(train_raw, train_boundaries, train_labels,
             will be computed if None is passed (default: None)
         watershed [np.ndarray] - watershed segmentation for the data to be segmented.
             will be computed if None is passed (default: None)
+        mask [np.ndarray] - mask to ignore in segmentation (default: None)
         feature_names [list] - names of features that will be computed (default: all available)
         weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
         ws_kwargs [dict] - keyword arguments for watershed function
@@ -289,24 +310,99 @@ def multicut_workflow(train_raw, train_boundaries, train_labels,
     # run multicut to obtain segmenation for the data to be segmented
     seg = multicut_segmentation(raw, boundaries, rf,
                                 use_2dws, multicut_solver,
-                                watershed=watershed, feature_names=feature_names,
+                                watershed=watershed, mask=mask, feature_names=feature_names,
                                 weighting_scheme=weighting_scheme, ws_kwargs=ws_kwargs,
                                 solver_kwargs=solver_kwargs, beta=beta, n_threads=n_threads)
     return seg
 
 
-# ref: https://github.com/constantinpape/mu-net/blob/master/mu_net/utils/segmentation.py#L157
-def simple_multicut_workflow(input_, watershed=None, use_2dws=False,
-                             ws_kwargs=DEFAULT_WS_KWARGS, n_threads=None):
+def simple_multicut_workflow(input_, use_2dws, multicut_solver, watershed=None, mask=None,
+                             weighting_scheme=None, ws_kwargs=DEFAULT_WS_KWARGS,
+                             solver_kwargs={}, beta=0.5, offsets=None, n_threads=None,
+                             return_intermediates=False):
     """ Run simplified multicut segmentation workflow from affinity or boundary maps.
 
     Adapted from "Multicut brings automated neurite segmentation closer to human performance":
     https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/217205318/beier_17_multicut.pdf
 
     Arguments:
-        input_ [np.ndarray] -
-        watershed [np.ndarray] -
-        use_2dws [bool] -
-        ws_kwargs [dict] -
-        n_threads [int] -
+        input_ [np.ndarray] - input data, either boundary or affinity map
+        use_2dws [bool] - whether to run watersheds in 2d and stack them
+            or if the watersheds passed are 2d and stacked
+        multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
+            or custom solver function
+        watershed [np.ndarray] - watershed over-segmentation, if None is passed,
+            the overr-segmentation witll be computted (default: None)
+        mask [np.ndarray] - binary mask to exclude from the segmentation;
+            values that are False will be excluded (default: None)
+        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
+        ws_kwargs [dict] - keyword arguments for the watershed function (default: None)
+        solver_kwargs [dict] - keyword arguments for multicut solver (default: {})
+        beta [float] - boundary bias (default: 0.5)
+        offsets [list] - pixel offsets for affintities, by default assume nearest neighbor offsets (default: None)
+        n_threads [int] - number of threads (default: None)
+        return_intermediates [bool] - whether to also return intermediate results (default: False)
     """
+    # get the multicut solver
+    solver = _get_solver(multicut_solver)
+
+    # check if input is affinities or boundaries and determine the spatial shape
+    have_affs = input_.ndim == 4
+    spatial_shape = input_.shape[1:] if have_affs else input_.shape
+    if have_affs:
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]] if offsets is None else offsets
+        if input_.shape[0] != len(offsets):
+            raise ValueError("Incosistent number of offsets and affinity channels: %i, %i" % (len(offsets),
+                                                                                              input_.shape[0]))
+    if mask is not None:
+        if mask.shape != spatial_shape or mask.dtype != np.dtype('bool'):
+            raise ValueError("Invalid mask was passed")
+
+    # compute watersheds if they were not passed
+    if watershed is None:
+        if have_affs:
+            bmap = np.max(input_[1:3], axis=0) if use_2dws else np.max(input_[:3], axis=0)
+        else:
+            bmap = input_
+        watershed = _compute_watershed(bmap, use_2dws, mask, ws_kwargs, n_threads)
+        assert watershed.shape == spatial_shape
+    else:
+        if watershed.shape != spatial_shape:
+            raise ValueError("Invalid shape of watersheds: got %s, expected %s" % str(watershed.shape,
+                                                                                      spatial_shape))
+
+    # compute rag and edge costs
+    rag = elf_feats.compute_rag(watershed, n_threads=n_threads)
+    if have_affs:
+        edge_probs = elf_feats.compute_affinity_features(rag, input_, offsets, n_threads=n_threads)
+    else:
+        edge_probs = elf_feats.compute_boundary_mean_and_length(rag, input_, n_threads=n_threads)
+
+    if use_2dws:
+        z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
+    else:
+        z_edges = None
+
+    edge_probs, edge_sizes = edge_probs[:, 0], edge_probs[:, -1]
+    edge_costs = elf_mc.compute_edge_costs(edge_probs, edge_sizes=edge_sizes, beta=beta,
+                                           weighting_scheme=weighting_scheme, z_edge_mask=z_edges)
+
+    if mask is not None:
+        edge_costs = _mask_edges(rag, edge_costs)
+
+    # solve the multicut problem and project back to segmentation
+    # we pass the watershed to the solver as well, because it is needed for
+    # the blockwise-multicut solver
+    node_labels = solver(rag, edge_costs, n_threads=n_threads,
+                         segmentation=watershed, **solver_kwargs)
+    seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
+
+    if return_intermediates:
+        return {'watershed': watershed,
+                'rag': rag,
+                'probs': edge_probs,
+                'costs': edge_costs,
+                'node_labels': node_labels,
+                'segmentation': seg}
+    else:
+        return seg

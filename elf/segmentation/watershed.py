@@ -69,7 +69,8 @@ def non_maximum_suppression(dt, seeds):
 def distance_transform_watershed(input_, threshold, sigma_seeds,
                                  sigma_weights=2., min_size=100,
                                  alpha=.9, pixel_pitch=None,
-                                 apply_nonmax_suppression=False):
+                                 apply_nonmax_suppression=False,
+                                 mask=None):
     """ Compute watershed segmentation based on distance transform seeds.
 
     Following the procedure outlined in "Multicut brings automated neurite segmentation closer to human performance":
@@ -86,6 +87,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
         pixel_pitch [listlike[int]] - anisotropy factor used to compute the distance transform (default: None)
         apply_nonmax_suppression [bool] - whetther to apply non-maxmimum suppression to filter out seeds.
             Needs nifty. (default: False)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
 
     Returns:
         np.ndarray - watershed segmentation
@@ -93,14 +95,23 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     """
     if apply_nonmax_suppression and nonMaximumDistanceSuppression is None:
         raise ValueError("Non-maximum suppression is only available with nifty.")
+    if mask is not None and (mask.shape != input_.shape or mask.dtype != np.dtype('bool')):
+        raise ValueError("Invalid mask")
 
     # threshold the input and compute distance transform
     thresholded = (input_ > threshold).astype('uint32')
+
     dt = vigra.filters.distanceTransform(thresholded, pixel_pitch=pixel_pitch)
+
+    # shield of the masked area if given
+    if mask is not None:
+        inv_mask = np.logical_not(mask)
+        dt[inv_mask] = 0.
 
     # compute seeds from maxima of the (smoothed) distance transform
     if sigma_seeds:
         dt = ff.gaussianSmoothing(dt, sigma_seeds)
+
     compute_maxima = vigra.analysis.localMaxima if dt.ndim == 2 else vigra.analysis.localMaxima3D
     seeds = compute_maxima(dt, marker=np.nan, allowAtBorder=True, allowPlateaus=True)
     seeds = np.isnan(seeds)
@@ -119,16 +130,21 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
 
     # compute watershed
     ws, max_id = watershed(hmap, seeds, size_filter=min_size)
+
+    if mask is not None:
+        ws[inv_mask] = 0
+
     return ws, max_id
 
 
 def stacked_watershed(input_, ws_function=distance_transform_watershed,
-                      n_threads=None, **ws_kwargs):
+                      mask=None, n_threads=None, **ws_kwargs):
     """ Run 2d watershed stacked along z-axis.
 
     Arguments:
         input_ [np.ndarray] - input height map.
         ws_function [callable] - watershed function (default: distance_transform_watershed)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
         n_threads [int] - number of threads (default: None)
         ws_kwargs - keyworrd arguments for the watershed function
 
@@ -139,8 +155,12 @@ def stacked_watershed(input_, ws_function=distance_transform_watershed,
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     out = np.zeros(input_.shape, dtype='uint64')
 
+    if mask is not None and (mask.shape != input_.shape or mask.dtype != np.dtype('bool')):
+        raise ValueError("Invalid mask")
+
     def _wsz(z):
-        wsz, max_id = ws_function(input_[z], **ws_kwargs)
+        zmask = None if mask is None else mask[z]
+        wsz, max_id = ws_function(input_[z], mask=zmask, **ws_kwargs)
         out[z] = wsz
         return max_id
 
@@ -152,6 +172,17 @@ def stacked_watershed(input_, ws_function=distance_transform_watershed,
     offsets[0] = 0
     offsets = np.cumsum(offsets)
 
-    out += offsets[:, None, None]
+    if mask is None:
+        out += offsets[:, None, None]
+
+    else:
+
+        def _add_offset(z):
+            out[z][mask[z]] += offsets[z]
+
+        with futures.ThreadPoolExecutor(n_threads) as tp:
+            tasks = [tp.submit(_add_offset, z) for z in range(len(input_))]
+            [t.result() for t in tasks]
+
     max_id = int(out[-1].max())
     return out, max_id

@@ -22,7 +22,8 @@ def compute_edge_labels(rag, gt, ignore_label=None, n_threads=None):
     edge_labels = (node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]).astype('uint8')
 
     if ignore_label is not None:
-        edge_mask = np.isin(uv_ids, ignore_label)
+        mapped_uv_ids = node_labels[uv_ids]
+        edge_mask = np.isin(mapped_uv_ids, ignore_label)
         edge_mask = edge_mask.sum(axis=1) == 0
         assert len(edge_labels) == len(edge_mask)
         return edge_labels, edge_mask
