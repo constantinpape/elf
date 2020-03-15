@@ -10,9 +10,9 @@ except ImportError:
     nifty = None
 
 
+@unittest.skipUnless(vigra, "Need vigra for watershed functionality")
 class TestWatershed(unittest.TestCase):
 
-    @unittest.skipUnless(vigra, "Need vigra for watershed functionality")
     def test_size_filter(self):
         from elf.segmentation.watershed import apply_size_filter
         shape = (10, 256, 256)
@@ -24,7 +24,6 @@ class TestWatershed(unittest.TestCase):
         _, counts = np.unique(seg_filtered, return_counts=True)
         self.assertGreaterEqual(size_filter, counts.min())
 
-    @unittest.skipUnless(vigra, "Need vigra for watershed functionality")
     def test_watershed(self):
         from elf.segmentation.watershed import watershed
 
@@ -44,7 +43,6 @@ class TestWatershed(unittest.TestCase):
         seg_ids = set(np.unique(seg))
         self.assertEqual(seg_ids, set(seed_ids))
 
-    @unittest.skipUnless(vigra, "Need vigra for watershed functionality")
     def test_distance_transform_watershed_3d(self):
         from elf.segmentation.watershed import distance_transform_watershed
         shape = (32, 128, 128)
@@ -63,7 +61,22 @@ class TestWatershed(unittest.TestCase):
             self.assertEqual(ws.max(), max_id)
             self.assertNotIn(0, ws)
 
-    @unittest.skipUnless(vigra, "Need vigra for watershed functionality")
+    def test_distance_transform_watershed_masked(self):
+        from elf.segmentation.watershed import distance_transform_watershed
+        shape = (32, 128, 128)
+        inp = np.random.rand(*shape).astype('float32')
+        mask = np.zeros(shape, dtype='bool')
+        mask[8:24, 28:100, 37:93] = 1
+
+        # test for different options
+        ws, max_id = distance_transform_watershed(inp, threshold=.5, mask=mask, sigma_seeds=2.)
+        self.assertEqual(inp.shape, ws.shape)
+        # make sure result is non-trivial
+        self.assertGreater(max_id, 32)
+        self.assertEqual(ws.max(), max_id)
+        self.assertNotIn(0, ws[mask])
+        self.assertTrue((ws[np.logical_not(mask)] == 0).all())
+
     def test_distance_transform_watershed_2d(self):
         from elf.segmentation.watershed import distance_transform_watershed
         shape = (256, 256)
@@ -82,8 +95,7 @@ class TestWatershed(unittest.TestCase):
             self.assertEqual(ws.max(), max_id)
             self.assertNotIn(0, ws)
 
-    @unittest.skipUnless(vigra and nifty,
-                         "Need vigra and nifty for watershed with non-max suppression")
+    @unittest.skipUnless(nifty, "Need nifty for watershed with non-max suppression")
     def test_distance_transform_watershed_suppression(self):
         from elf.segmentation.watershed import distance_transform_watershed
         shape = (256, 256)
@@ -97,7 +109,6 @@ class TestWatershed(unittest.TestCase):
         self.assertEqual(ws.max(), max_id)
         self.assertNotIn(0, ws)
 
-    @unittest.skipUnless(vigra, "Need vigra for watershed functionality")
     def test_stacked_watershed(self):
         from elf.segmentation.watershed import stacked_watershed
         shape = (32, 256, 256)
