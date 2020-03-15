@@ -87,21 +87,37 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
     """ Train random forest classifier for edges.
 
     Arguments:
-        raw [np.ndarray] -
+        raw [np.ndarray] - raw data
+        boundaries [np.ndarray] - boundary maps
+        labels [np.ndarray] - groundtruth segmentation
+        use_2dws [bool] - whether to run watersheds in 2d and stack them
+            or if the watersheds passed are 2d and stacked
+        watershed [np.ndarray] - watershed segmentation.
+            will be computed if None is passed (default: None)
+        feature_names [list] - names of features that will be computed (default: all available)
+        ws_kwargs [dict] - keyword arguments for watershed function
+        learning_kwargs [dict] - keyword arguments for random forest
+        n_threads [int] - number of threads (default: None)
     """
 
+    # we store the ignore label(s) in the random forest kwargs,
+    # but they need to be removed before this is passed to the rf implementation
     rf_kwargs = deepcopy(learning_kwargs)
     ignore_label = rf_kwargs.pop('ignore_label', None)
 
+    # if the raw data is a numpy array, we assume that we have a single training set
     if isinstance(raw, np.ndarray):
         if (not isinstance(boundaries, np.ndarray)) or (not isinstance(labels, np.ndarray)):
             raise ValueError("Expect raw data, boundaries and labels to be either all numpy arrays or lists")
 
+        # compute the watersheds segmentation if it was not passed
         if watershed is None:
             watershed = _compute_watershed(boundaries, use_2dws, ws_kwargs, n_threads)
         features, edge_labels, z_edges = _compute_features_and_labels(raw, boundaries, watershed, labels,
                                                                       use_2dws, feature_names,
                                                                       ignore_label, n_threads)
+    # otherwise, we assume to get listlike data for raw data, boundaries and labels,
+    # corresponding to multiple training data-sets
     else:
         if not (len(raw) == len(boundaries) == len(labels)):
             raise ValueError("Expect same number of raw data, boundary and label arrays")
@@ -111,7 +127,9 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
         features = []
         edge_labels = []
         z_edges = []
+        # compute features and labels for all training data-sets
         for train_id, (this_raw, this_boundaries, this_labels) in enumerate(zip(raw, boundaries, labels)):
+            # compute the watersheds segmentation if it was not passed
             if watershed is None:
                 this_watershed = _compute_watershed(this_boundaries, use_2dws, ws_kwargs, n_threads)
             else:
@@ -123,6 +141,7 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
                                                                                          ignore_label, n_threads)
             features.append(this_features)
             edge_labels.append(this_edge_labels)
+            # we only get z-edges if we have 2d watersheds
             if use_2dws:
                 assert this_z_edges is not None
                 z_edges.append(this_z_edges)
@@ -135,6 +154,7 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None,
     assert len(features) == len(edge_labels), "%i, %i" % (len(features),
                                                           len(edge_labels))
 
+    # train the random forest (2 separate random forests for in-plane and between plane edges for stacked 2d watersheds)
     if use_2dws:
         assert len(features) == len(z_edges)
         rf = elf_learn.learn_random_forests_for_xyz_edges(features, edge_labels, z_edges, n_threads=n_threads,
@@ -153,9 +173,25 @@ def multicut_segmentation(raw, boundaries, rf,
     derived from random forest predictions.
 
     Arguments:
-        raw [np.ndarray] -
+        raw [np.ndarray] - raw data
+        boundaries [np.ndarray] - boundary maps
+        rf [RandomForestClassifier] - edge classifier
+        use_2dws [bool] - whether to run watersheds in 2d and stack them
+            or if the watersheds passed are 2d and stacked
+        multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
+            or custom solver function
+        watershed [np.ndarray] - watershed segmentation.
+            will be computed if None is passed (default: None)
+        feature_names [list] - names of features that will be computed (default: all available)
+        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
+        ws_kwargs [dict] - keyword arguments for watershed function
+        solver_kwargs [dict] - keyword arguments for multicut solver (default: {})
+        beta [float] - boundary bias (default: 0.5)
+        n_threads [int] - number of threads (default: None)
+        return_intermediates [bool] - whether to also return intermediate results (default: False)
     """
 
+    # get the multicut solver
     if isinstance(multicut_solver, str):
         solver = elf_mc.get_multicut_solver(multicut_solver)
     else:
@@ -163,25 +199,33 @@ def multicut_segmentation(raw, boundaries, rf,
             raise ValueError("Invalid multicut solver")
         solver = multicut_solver
 
+    # compute watersheds if none were given
     if watershed is None:
         watershed = _compute_watershed(boundaries, use_2dws, ws_kwargs, n_threads)
 
+    # compute rag and features
     rag, features = _compute_features(raw, boundaries, watershed,
                                       feature_names, use_2dws, n_threads)
 
+    # use random forest to compute edge probabilties.
+    # if we have stacked 2d watersheds, we expect two random forests,
+    # one for the in-plane (xy) and one for the between-plane (z) edges
     if use_2dws:
         rf_xy, rf_z = rf
         z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
         edge_probs = elf_learn.predict_edge_random_forests_for_xyz_edges(rf_xy, rf_z,
-                                                                         features, z_edges, n_threads)
+                                                                         features, z_edges,
+                                                                         n_threads)
     else:
         edge_probs = elf_learn.predict_edge_random_forest(rf, features, n_threads)
         z_edges = None
 
+    # derive the edge costs from random forst probabilities
     edge_sizes = elf_feats.compute_boundary_mean_and_length(rag, raw, n_threads)[:, 1]
     costs = elf_mc.compute_edge_costs(edge_probs, edge_sizes=edge_sizes, beta=beta,
                                       z_edge_mask=z_edges, weighting_scheme=weighting_scheme)
 
+    # compute multicut and project to pixels
     # we pass the watershed to the solver as well, because it is needed for
     # the blockwise-multicut solver
     node_labels = solver(rag, costs, n_threads=n_threads,
@@ -200,7 +244,7 @@ def multicut_segmentation(raw, boundaries, rf,
 
 
 def multicut_workflow(train_raw, train_boundaries, train_labels,
-                      boundaries, raw, use_2dws, multicut_solver,
+                      raw, boundaries, use_2dws, multicut_solver,
                       train_watershed=None, watershed=None,
                       feature_names=FEATURE_NAMES, weighting_scheme=None,
                       ws_kwargs=DEFAULT_WS_KWARGS, learning_kwargs=DEFAULT_RF_KWARGS,
@@ -211,28 +255,38 @@ def multicut_workflow(train_raw, train_boundaries, train_labels,
     https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/217205318/beier_17_multicut.pdf
 
     Arguments:
-        train_raw [np.ndarray or list[np.ndarray]] -
-        train_boundaries [np.ndarray or list[np.ndarray]] -
-        train_labels [np.ndarray or list[np.ndarray]] -
-        boundaries [np.ndarray] -
-        raw [np.ndarray] -
-        use_2dws [bool] -
-        multicut_solver [str or callable] -
-        train_watershed [np.ndarray] -
-        watershed [np.ndarray] -
-        feature_names [listlike] -
-        weighting_scheme [str] -
-        ws_kwargs -
-        rf_kwargs -
-        solver_kwargs -
-        beta -
-        n_threads [int] -
+        train_raw [np.ndarray or list[np.ndarray]] - raw data for training data-sets,
+            can be list if there are multiple training sets
+        train_boundaries [np.ndarray or list[np.ndarray]] - boundary maps for training data-sets,
+            can be list if there are multiple training sets
+        train_labels [np.ndarray or list[np.ndarray]] - segmentation ground-truth for training data-sets,
+            can be list if there are multiple training sets
+        raw [np.ndarray] - raw data of the data-set to be segmented
+        boundaries [np.ndarray] - boundary maps of the data-set to be segmented
+        use_2dws [bool] - whether to run watersheds in 2d and stack them
+            or if the watersheds passed are 2d and stacked
+        multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
+            or custom solver function
+        train_watershed [np.ndarray] - watershed segmentation for the training data-sets
+            can be list if there are multiple training sets,
+            will be computed if None is passed (default: None)
+        watershed [np.ndarray] - watershed segmentation for the data to be segmented.
+            will be computed if None is passed (default: None)
+        feature_names [list] - names of features that will be computed (default: all available)
+        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
+        ws_kwargs [dict] - keyword arguments for watershed function
+        learning_kwargs [dict] - keyword arguments for the random forest
+        solver_kwargs [dict] - keyword arguments for multicut solver (default: {})
+        beta [float] - boundary bias (default: 0.5)
+        n_threads [int] - number of threads (default: None)
     """
+    # train random forest for edge classification based on the training data-sets
     rf = edge_training(train_raw, train_boundaries, train_labels, use_2dws,
                        watershed=train_watershed, feature_names=feature_names,
                        ws_kwargs=ws_kwargs, learning_kwargs=learning_kwargs,
                        n_threads=n_threads)
 
+    # run multicut to obtain segmenation for the data to be segmented
     seg = multicut_segmentation(raw, boundaries, rf,
                                 use_2dws, multicut_solver,
                                 watershed=watershed, feature_names=feature_names,
