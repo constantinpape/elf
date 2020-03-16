@@ -95,8 +95,15 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     """
     if apply_nonmax_suppression and nonMaximumDistanceSuppression is None:
         raise ValueError("Non-maximum suppression is only available with nifty.")
-    if mask is not None and (mask.shape != input_.shape or mask.dtype != np.dtype('bool')):
-        raise ValueError("Invalid mask")
+
+    # check the mask if it was passed
+    if mask is not None:
+        if mask.shape != input_.shape or mask.dtype != np.dtype('bool'):
+            raise ValueError("Invalid mask")
+
+        # return all zeros for empty mask
+        if mask.sum() == 0:
+            return np.zeros_like(mask, dtype='uint32'), 0
 
     # threshold the input and compute distance transform
     thresholded = (input_ > threshold).astype('uint32')
