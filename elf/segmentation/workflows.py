@@ -1,3 +1,5 @@
+import os
+import pickle
 from copy import deepcopy
 import numpy as np
 
@@ -200,18 +202,40 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None, mask=None,
     return rf
 
 
+def _load_rf(rf, use_2dws):
+
+    def _load(rfp):
+        if isinstance(rfp, str):
+            if not os.path.exists(rfp):
+                raise ValueError("Invalid random foerst path %s" % rfp)
+            with open(rfp, 'rb') as f:
+                rfp = pickle.load(f)
+        return rfp
+
+    if use_2dws:
+        if len(rf) != 2:
+            raise ValueError("Expect two RFs")
+        rf_xy, rf_z = rf
+        rf_xy, rf_z = _load(rf_xy), _load(rf_z)
+        return rf_xy, rf_z
+    else:
+        rf = _load(rf)
+        return rf
+
+
 def multicut_segmentation(raw, boundaries, rf,
                           use_2dws, multicut_solver, watershed=None, mask=None,
                           feature_names=FEATURE_NAMES, weighting_scheme=None,
                           ws_kwargs=DEFAULT_WS_KWARGS, solver_kwargs={},
-                          beta=0.5, n_threads=None, return_intermediates=False):
+                          beta=0.5, n_threads=None, return_intermediates=False,
+                          cost_callback=None):
     """ Instance segmentation with multicut with edge costs
     derived from random forest predictions.
 
     Arguments:
         raw [np.ndarray] - raw data
         boundaries [np.ndarray] - boundary maps
-        rf [RandomForestClassifier] - edge classifier
+        rf [RandomForestClassifier or str] - edge classifier, path to pickled rf is also possible
         use_2dws [bool] - whether to run watersheds in 2d and stack them
             or if the watersheds passed are 2d and stacked
         multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
@@ -226,10 +250,18 @@ def multicut_segmentation(raw, boundaries, rf,
         beta [float] - boundary bias (default: 0.5)
         n_threads [int] - number of threads (default: None)
         return_intermediates [bool] - whether to also return intermediate results (default: False)
+        cost_callback [callable] - callback to modify the costs.
+            It will be passed the costs, rag and watershed (default: None)
     """
 
     # get the multicut solver
     solver = _get_solver(multicut_solver)
+
+    # load random forest(s) if they are given as path
+    if use_2dws:
+        rf_xy, rf_z = _load_rf(rf, use_2dws)
+    else:
+        rf = _load_rf(rf, use_2dws)
 
     # compute watersheds if none were given
     if watershed is None:
@@ -243,7 +275,6 @@ def multicut_segmentation(raw, boundaries, rf,
     # if we have stacked 2d watersheds, we expect two random forests,
     # one for the in-plane (xy) and one for the between-plane (z) edges
     if use_2dws:
-        rf_xy, rf_z = rf
         z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
         edge_probs = elf_learn.predict_edge_random_forests_for_xyz_edges(rf_xy, rf_z,
                                                                          features, z_edges,
@@ -254,15 +285,20 @@ def multicut_segmentation(raw, boundaries, rf,
 
     # derive the edge costs from random forst probabilities
     edge_sizes = elf_feats.compute_boundary_mean_and_length(rag, raw, n_threads)[:, 1]
-    costs = elf_mc.compute_edge_costs(edge_probs, edge_sizes=edge_sizes, beta=beta,
-                                      z_edge_mask=z_edges, weighting_scheme=weighting_scheme)
+    edge_costs = elf_mc.compute_edge_costs(edge_probs, edge_sizes=edge_sizes, beta=beta,
+                                           z_edge_mask=z_edges, weighting_scheme=weighting_scheme)
+
+    # apply the cost call back if given
+    # and mask edges connecting to the mask label if mask was given
+    if cost_callback is not None:
+        edge_costs = cost_callback(edge_costs, rag, watershed)
     if mask is not None:
-        costs = _mask_edges(rag, costs)
+        edge_costs = _mask_edges(rag, edge_costs)
 
     # compute multicut and project to pixels
     # we pass the watershed to the solver as well, because it is needed for
     # the blockwise-multicut solver
-    node_labels = solver(rag, costs, n_threads=n_threads,
+    node_labels = solver(rag, edge_costs, n_threads=n_threads,
                          segmentation=watershed, **solver_kwargs)
     seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
 
@@ -270,7 +306,7 @@ def multicut_segmentation(raw, boundaries, rf,
         return {'watershed': watershed,
                 'rag': rag,
                 'features': features,
-                'costs': costs,
+                'edge_costs': edge_costs,
                 'node_labels': node_labels,
                 'segmentation': seg}
     else:
@@ -357,7 +393,8 @@ def simple_multicut_workflow(input_, use_2dws, multicut_solver, watershed=None, 
         offsets [list] - pixel offsets for affintities, by default assume nearest neighbor offsets (default: None)
         n_threads [int] - number of threads (default: None)
         return_intermediates [bool] - whether to also return intermediate results (default: False)
-        cost_callback [callable] - callback to modify the costs, will be passed costs, rag and watershed
+        cost_callback [callable] - callback to modify the costs.
+            It will be passed the costs, rag and watershed (default: None)
     """
     # get the multicut solver
     solver = _get_solver(multicut_solver)
