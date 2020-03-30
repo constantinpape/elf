@@ -3,6 +3,7 @@ import multiprocessing
 # so that this could be used on a cluster as well
 from concurrent import futures
 from numbers import Number
+from functools import partial
 from tqdm import tqdm
 
 from .common import get_blocking
@@ -195,6 +196,79 @@ def apply_operation(x, y, operation, out=None,
     return out
 
 
+def apply_operation_single(x, operation, axis=None, out=None,
+                           block_shape=None, n_threads=None,
+                           mask=None, verbose=False, roi=None):
+    """ Apply operation to single operand in parallel.
+
+    Arguments:
+        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
+        operation [callable] - operation applied to the two operands
+        axis [int] - axis along which to apply the operation (default: Naone)
+        out [array_like] - output, by default the operation
+            is done inplace in the first operand (default: None)
+        block_shape [tuple] - shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available (default: None)
+        n_threads [int] - number of threads, by default all are used (default: None)
+        mask [array_like] - mask to exclude data from the computation (default: None)
+        verbose [bool] - verbosity flag (default: False)
+        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Returns:
+        array_like - output
+    """
+
+    shape = x.shape
+    if axis is not None:
+        operation = partial(operation, axis=axis)
+        shape = tuple(sh for ii, sh in enumerate(shape) if ii != axis)
+
+    # check the mask if given
+    if mask is not None and mask.shape != shape:
+        raise ValueError("Invalid mask shape, got %s, expected %s (= shape of first operand)" % (str(mask.shape),
+                                                                                                 str(shape)))
+    # if no output is given, apply this operation inplace
+    if out is None:
+        out = x
+
+    # check the shape against the output shape
+    if shape != out.shape:
+        raise ValueError("Expect x and out of same shape, got %s and %s" % (str(shape), str(out.shape)))
+
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    blocking = get_blocking(out, block_shape, roi)
+    n_blocks = blocking.numberOfBlocks
+
+    def _apply(block_id):
+        block = blocking.getBlock(block_id)
+        bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+
+        # check if we have a mask and if we do if we
+        # have pixels in the mask
+        if mask is not None:
+            m = mask[bb].astype('bool')
+            if m.sum() == 0:
+                return None
+
+        if axis is None:
+            bb_in = bb
+        else:
+            bb_in = bb[:axis] + (slice(None),) + bb[axis:]
+
+        # load the data and apply the mask if given
+        xx = operation(x[bb_in])
+        if mask is not None:
+            xx[m] = 0
+        out[bb] = xx
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        if verbose:
+            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
+        else:
+            tp.map(_apply, range(n_blocks))
+
+    return out
+
+
 # helper function to autogenerate parallel impls of common numpy operations
 def _generate_operation(op_name):
 
@@ -238,3 +312,7 @@ for op_name in _op_names:
 
 del _generate_operation
 del _op_names
+
+
+# TODO autogenerate parallel implementation for common single operand numpy operations
+# _op_nams = ['mean', 'max', 'min', 'std']
