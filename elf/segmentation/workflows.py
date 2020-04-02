@@ -23,16 +23,27 @@ DEFAULT_RF_KWARGS = {'ignore_label': None, 'n_estimators': 200, 'max_depth': 10}
 
 def _compute_watershed(boundaries, use_2dws, mask, ws_kwargs, n_threads):
     if use_2dws:
-        return elf_ws.stacked_watershed(boundaries, mask=mask, n_threads=n_threads, **ws_kwargs)[0]
+        bd_ = boundaries if isinstance(boundaries, np.ndarray) else boundaries[0]
+        return elf_ws.stacked_watershed(bd_, mask=mask, n_threads=n_threads, **ws_kwargs)[0]
     else:
         return elf_ws.distance_transform_watershed(boundaries, mask=mask, **ws_kwargs)[0]
+
+
+def _compute_xyz_boundary_features(rag, boundaries, watershed, use_2dws, n_threads):
+    bd_xy, bd_z = boundaries
+    z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
+    feats = elf_feats.compute_boundary_features_with_filters(rag, bd_xy, use_2dws, n_threads=n_threads)
+    feats_z = elf_feats.compute_boundary_features_with_filters(rag, bd_z, use_2dws, n_threads=n_threads)
+    feats[z_edges] = feats_z[z_edges]
+    return feats
 
 
 def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_threads):
     if (len(FEATURE_NAMES - set(feature_names)) > 0) or (len(feature_names) == 0):
         raise ValueError("Invalid feature set")
-    if raw.shape != boundaries.shape:
-        raise ValueError("Shapes %s and %s do not match" % (str(raw.shape), str(boundaries.shape)))
+    if isinstance(boundaries, np.ndarray):
+        if raw.shape != boundaries.shape:
+            raise ValueError("Shapes %s and %s do not match" % (str(raw.shape), str(boundaries.shape)))
     if raw.shape != watershed.shape:
         raise ValueError("Shapes %s and %s do not match" % (str(raw.shape), str(watershed.shape)))
 
@@ -44,8 +55,17 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
                                                                  n_threads=n_threads)
         features.append(feats)
     if 'boundary-edge-features' in feature_names:
-        feats = elf_feats.compute_boundary_features_with_filters(rag, boundaries, use_2dws,
-                                                                 n_threads=n_threads)
+        if isinstance(boundaries, np.ndarray):
+            feats = elf_feats.compute_boundary_features_with_filters(rag, boundaries, use_2dws,
+                                                                     n_threads=n_threads)
+        else:
+            if not use_2dws:
+                raise ValueError("Separate boundary maps for xy and z edges are only available if use_2dws is True")
+            if len(boundaries) != 2 or\
+               (not isinstance(boundaries[0], np.ndarray)) or\
+               (not isinstance(boundaries[1], np.ndarray)):
+                raise ValueError("Invalid boundary maps")
+            feats = _compute_xyz_boundary_features(rag, boundaries, watershed, use_2dws, n_threads)
         features.append(feats)
     if 'raw-region-features' in feature_names:
         feats = elf_feats.compute_region_features(rag.uvIds(), raw, watershed.astype('uint32'),
