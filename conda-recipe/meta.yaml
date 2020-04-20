@@ -40,6 +40,7 @@ test:
     - elf
     - elf.io
     - elf.transformation
+    - elf.segmentation
 
 about:
   home: https://github.com/constantinpape/elf

@@ -24,13 +24,13 @@ before_install:
 install:
   # we need the cpape channel because nifty is not on conda-forge yet.
   # remove it once we have nifty on conda
-  - conda build -c conda-forge -c defaults -c cpape --python=3.7 conda-recipe
+  - conda build -c cpape -c conda-forge --python=3.7 conda-recipe
 
 before_script:
-  - conda create -n test-env -c conda-forge -c defaults -c cpape --use-local python=3.7 elf
+  - conda create -n test-env -c cpape -c conda-forge --use-local python=3.7 elf
   - conda activate test-env
   # we still need to install zarr and pyn5, because they are not included by conda
-  - conda install -c conda-forge -c defaults zarr
+  - conda install -c conda-forge zarr
   - pip install pyn5
 
 script:
