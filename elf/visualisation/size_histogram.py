@@ -2,9 +2,50 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# TODO enable pre size-filtering
-def plot_size_histogram(segmentation, n_bins=16, histogram_bins=1, bin_for_threshold=None):
-    seg_sizes = np.unique(segmentation, return_counts=True)[1]
+def size_histogram_from_segmentation(segmentation, n_bins=16, histogram_bins=[1], bin_for_threshold=None,
+                                     min_size=None, max_size=None, ignore_background=True):
+    """ Plot size histogram for the objects in the segmentation to find
+    a threshold for size filtering.
+
+    Arguments:
+        segmentation [np.ndarray] - the input segmentation
+        n_bins [int] - number of bins per histogram (default: 16)
+        histogram_bins [list[int]] - subsequent histogram bins to plot (default: [1])
+        bin_for_threshold [int] - bin in the last histogram to use for size threshold,
+            if None, all histograms will be plotted (default: None)
+        min_size [int] - minimal size considered for the histograms (default: None)
+        max_size [int] - maximal size considered for the histograms (default: None)
+        ignore_background [bool] - whether to ignore the background label (=0) (default: True)
+    """
+    seg_ids, seg_sizes = np.unique(segmentation, return_counts=True)
+    if ignore_background and seg_ids[0] == 0:
+        seg_sizes = seg_sizes[1:]
+    plot_size_histogram(seg_sizes, n_bins=n_bins, histogram_bins=histogram_bins,
+                        bin_for_threshold=bin_for_threshold, min_size=min_size, max_size=max_size)
+
+
+def plot_size_histogram(seg_sizes, n_bins=16, histogram_bins=1, bin_for_threshold=None,
+                        min_size=None, max_size=None):
+    """ Plot size histogram for the (segmentation object) sizes to find
+    a threshold for size filtering.
+
+    Arguments:
+        seg_sizes [np.ndarray] - the segmentation object sizes
+        n_bins [int] - number of bins per histogram (default: 16)
+        histogram_bins [list[int]] - subsequent histogram bins to plot (default: [1])
+        bin_for_threshold [int] - bin in the last histogram to use for size threshold,
+            if None, all histograms will be plotted (default: None)
+        min_size [int] - minimal size considered for the histograms (default: None)
+        max_size [int] - maximal size considered for the histograms (default: None)
+    """
+
+    if (min_size is not None) or (max_size is not None):
+        size_mask = np.ones(seg_sizes.shape, dtype='bool')
+        if min_size is not None:
+            size_mask[seg_sizes < min_size] = False
+        if max_size is not None:
+            size_mask[seg_sizes > max_size] = False
+        seg_sizes = seg_sizes[size_mask]
     seg_sizes = np.sort(seg_sizes)
 
     if isinstance(histogram_bins, int):
