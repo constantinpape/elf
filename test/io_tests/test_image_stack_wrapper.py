@@ -1,0 +1,55 @@
+import os
+import unittest
+from shutil import rmtree
+
+import numpy as np
+import imageio
+
+
+# TODO need a knossos example file
+class TestImageStackWrapper(unittest.TestCase):
+    tmp_dir = './tmp'
+    pattern = '*.tiff'
+    shape = (16, 128, 128)
+
+    def setUp(self):
+        os.makedirs(self.tmp_dir)
+        self.data = np.random.randint(0, 128, dtype='uint8', size=self.shape)
+        for z in range(self.data.shape[0]):
+            name = 'z%03i.tiff' % z
+            path = os.path.join(self.tmp_dir, name)
+            imageio.imwrite(path, self.data[z])
+
+    def tearDown(self):
+        try:
+            rmtree(self.tmp_dir)
+        except OSError:
+            pass
+
+    def _check_ds(self, ds):
+
+        self.assertEqual(ds.shape, self.data.shape)
+        self.assertEqual(ds.dtype, self.data.dtype)
+        self.assertEqual(ds.size, self.data.size)
+        self.assertEqual(ds.ndim, self.data.ndim)
+
+        bbs = [np.s_[:], np.s_[1:5, 8:14, 6:12]]
+        for bb in bbs:
+            out = ds[bb]
+            exp = self.data[bb]
+            self.assertTrue(np.array_equal(out, exp))
+
+    def test_dataset(self):
+        from elf.io.image_stack_wrapper import ImageStackDataset
+        ds = ImageStackDataset.from_pattern(self.tmp_dir, self.pattern)
+        self._check_ds(ds)
+
+    def test_file(self):
+        from elf.io.image_stack_wrapper import ImageStackFile
+        f = ImageStackFile(self.tmp_dir)
+        ds = f[self.pattern]
+        self._check_ds(ds)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -38,7 +38,7 @@ class LabelMultisetWrapper:
         # snap roi to grid
         chunk_ids = chunks_overlapping_roi(roi, self.chunks)
 
-        # init data (dtype is hard-coded to uint8)
+        # init data (dtype is hard-coded to uint64)
         roi_shape = tuple(rr.stop - rr.start for rr in roi)
         data = np.zeros(roi_shape, dtype='uint64')
 
