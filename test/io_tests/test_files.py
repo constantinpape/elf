@@ -4,6 +4,7 @@ from unittest.mock import patch
 from shutil import rmtree
 
 import numpy as np
+import imageio
 from elf.io.extensions import h5py, z5py, pyn5, zarr, zarr_open, FILE_CONSTRUCTORS
 
 
@@ -94,7 +95,39 @@ class TestBackendPreference(unittest.TestCase):
         self.assertTrue(issubclass(FILE_CONSTRUCTORS[".zr"], z5py.File))
 
 
-# todo: test loading N5 files using zarr-python
+class TestImageStack(unittest.TestCase):
+    tmp_dir = "./tmp"
+    pattern = '*.tiff'
+    shape = (16, 128, 128)
+
+    def tearDown(self):
+        try:
+            rmtree(self.tmp_dir)
+        except OSError:
+            pass
+
+    def setUp(self):
+        os.makedirs(self.tmp_dir)
+        self.data = np.random.randint(0, 128, dtype='uint8', size=self.shape)
+        for z in range(self.data.shape[0]):
+            name = 'z%03i.tiff' % z
+            path = os.path.join(self.tmp_dir, name)
+            imageio.imwrite(path, self.data[z])
+
+    def test_open_image_stack(self):
+        from elf.io import open_file
+        from elf.io.image_stack_wrapper import ImageStackDataset, ImageStackFile
+
+        f = open_file(self.tmp_dir)
+        self.assertIsInstance(f, ImageStackFile)
+
+        ds = f[self.pattern]
+        self.assertIsInstance(ds, ImageStackDataset)
+
+
+# TODO:
+# test loading N5 files using zarr-python
+# test loading knossos file
 
 if __name__ == '__main__':
     unittest.main()
