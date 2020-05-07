@@ -49,6 +49,11 @@ class ImageStackFile(Mapping):
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
+    # dummy attrs to be compatible with h5py/z5py/zarr API
+    @property
+    def attrs(self):
+        return {}
+
 
 class ImageStackDataset:
 
@@ -122,3 +127,8 @@ class ImageStackDataset:
     def __getitem__(self, key):
         roi, to_squeeze = normalize_index(key, self.shape)
         return squeeze_singletons(self._load_roi(roi), to_squeeze)
+
+    # dummy attrs to be compatible with h5py/z5py/zarr API
+    @property
+    def attrs(self):
+        return {}
