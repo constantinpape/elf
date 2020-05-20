@@ -5,8 +5,12 @@ from shutil import rmtree
 import numpy as np
 import imageio
 
+try:
+    import tifffile
+except ImportError:
+    tifffile = None
 
-# TODO need a knossos example file
+
 class TestImageStackWrapper(unittest.TestCase):
     tmp_dir = './tmp'
     pattern = '*.tiff'
@@ -42,6 +46,12 @@ class TestImageStackWrapper(unittest.TestCase):
     def test_dataset(self):
         from elf.io.image_stack_wrapper import ImageStackDataset
         ds = ImageStackDataset.from_pattern(self.tmp_dir, self.pattern)
+        self._check_ds(ds)
+
+    @unittest.skipIf(tifffile is None, "Need tifffile")
+    def test_dataset_tif(self):
+        from elf.io.image_stack_wrapper import TifStackDataset
+        ds = TifStackDataset.from_pattern(self.tmp_dir, self.pattern)
         self._check_ds(ds)
 
     def test_file(self):

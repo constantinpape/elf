@@ -6,10 +6,17 @@ from glob import glob
 import numpy as np
 import imageio
 
+try:
+    import tifffile
+except ImportError:
+    tifffile = None
+
 from ..util import normalize_index, squeeze_singletons
 
 
 class ImageStackFile(Mapping):
+    tif_exts = ('.tif', '.tiff')
+
     def __init__(self, path, mode='r'):
         self.path = path
         self.file_name = os.path.split(self.path)[1]
@@ -19,9 +26,13 @@ class ImageStackFile(Mapping):
         files = glob(os.path.join(self.path, key))
         if len(files) == 0:
             raise ValueError(f"Invalid file pattern {key}")
-        return ImageStackDataset(files, sort_files=True)
+        ext = os.path.splitext(files[0])[1]
+        if ext in self.tif_exts and tifffile is not None:
+            return TifStackDataset(files, sort_files=True)
+        else:
+            return ImageStackDataset(files, sort_files=True)
 
-    # this could be done more sophisticated to find mor complex patterns
+    # this could be done more sophisticated to find more complex patterns
     def get_all_patterns(self):
         all_files = glob(os.path.join(self.path, '*'))
         extensions = list(set(os.path.splitext(ff)[1] for ff in all_files))
@@ -57,6 +68,11 @@ class ImageStackFile(Mapping):
 
 class ImageStackDataset:
 
+    def get_im_shape_and_dtype(self, files):
+        im0 = imageio.imread(files[0])
+        assert im0.ndim == 2
+        return im0.shape, im0.dtype
+
     def initialize(self, files, sort_files=True):
         if sort_files:
             files.sort()
@@ -64,13 +80,11 @@ class ImageStackDataset:
 
         # get the shapes and dtype
         n_slices = len(files)
-        im0 = imageio.imread(files[0])
-        assert im0.ndim == 2
+        self.im_shape, dtype = self.get_im_shape_and_dtype(files)
 
-        self.im_shape = im0.shape
         self._shape = (n_slices,) + self.im_shape
         self._chunks = (1,) + self.im_shape
-        self._dtype = im0.dtype
+        self._dtype = dtype
         self._ndim = 3
         self._size = np.prod(list(self._shape))
 
@@ -132,3 +146,34 @@ class ImageStackDataset:
     @property
     def attrs(self):
         return {}
+
+
+class TifStackDataset(ImageStackDataset):
+    def get_im_shape_and_dtype(self, files):
+        im0 = tifffile.memmap(files[0], mode='r')
+        im_shape = im0.shape
+        im_shapes = [tifffile.memmap(ff, mode='r').shape for ff in files[1:]]
+        if any(sh != im_shape for sh in im_shapes):
+            raise ValueError("Incompatible shapes for Image Stack")
+        return im_shape, im0.dtype
+
+    def _load_roi(self, roi):
+        # init data
+        roi_shape = tuple(rr.stop - rr.start for rr in roi)
+        data = np.zeros(roi_shape, dtype=self.dtype)
+
+        z0 = roi[0].start
+        im_roi = roi[1:]
+
+        def _load_and_write_image(z):
+            z_abs = z + z0
+            im = tifffile.memmap(self.files[z_abs], mode='r')
+            assert im.shape == self.im_shape
+            data[z] = im[im_roi]
+
+        # load the slices and write them into the output data
+        with futures.ThreadPoolExecutor(self.n_threads) as tp:
+            tasks = [tp.submit(_load_and_write_image, z) for z in range(roi_shape[0])]
+            [t.result() for t in tasks]
+
+        return data
