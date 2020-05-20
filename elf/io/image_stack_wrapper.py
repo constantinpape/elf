@@ -15,8 +15,6 @@ from ..util import normalize_index, squeeze_singletons
 
 
 class ImageStackFile(Mapping):
-    tif_exts = ('.tif', '.tiff')
-
     def __init__(self, path, mode='r'):
         self.path = path
         self.file_name = os.path.split(self.path)[1]
@@ -26,8 +24,7 @@ class ImageStackFile(Mapping):
         files = glob(os.path.join(self.path, key))
         if len(files) == 0:
             raise ValueError(f"Invalid file pattern {key}")
-        ext = os.path.splitext(files[0])[1]
-        if ext in self.tif_exts and tifffile is not None:
+        if TifStackDataset.is_tif_dataset(files):
             return TifStackDataset(files, sort_files=True)
         else:
             return ImageStackDataset(files, sort_files=True)
@@ -149,6 +146,22 @@ class ImageStackDataset:
 
 
 class TifStackDataset(ImageStackDataset):
+    tif_exts = ('.tif', '.tiff')
+
+    @staticmethod
+    def is_tif_dataset(files):
+        f0 = files[0]
+        ext = os.path.splitext(f0)[1]
+        if tifffile is None:
+            return False
+        if ext.lower() not in TifStackDataset.tif_exts:
+            return False
+        try:
+            tifffile.memmap(f0)
+        except ValueError:
+            return False
+        return True
+
     def get_im_shape_and_dtype(self, files):
         im0 = tifffile.memmap(files[0], mode='r')
         im_shape = im0.shape
