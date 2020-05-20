@@ -62,10 +62,11 @@ def write_swc(output_path, nodes, edges, resolution=None, invert_coords=False):
 
     Arguments:
         output_path [str]: output_path for swc file
-        skel_vol [np.ndarray]: binary volume containing the skeleton
+        nodes [np.ndarray]: the coordinates of the skeleton trace
+        edges [np.ndarray]: the edges between skeleton nodes
         resolution [list or float]: pixel resolution (default: None)
         invert_coords [bool]: whether to invert the coordinates
-            This may be useful because swc expects xyz, but input is zyx (default: False)
+            This may be useful because swc expects xyz, but numpy convention is zyx (default: False)
     """
     # map coords to resolution and invert if necessary
     if resolution is not None:
@@ -73,24 +74,24 @@ def write_swc(output_path, nodes, edges, resolution=None, invert_coords=False):
             resolution = 3 * [resolution]
         assert len(resolution) == 3, str(len(resolution))
         nodes *= np.array(resolution)
-    if invert_nodes:
+    if invert_coords:
         nodes = nodes[:, ::-1]
 
     n_nodes = nodes.shape[0]
     graph = nifty.graph.undirectedGraph(n_nodes)
     graph.insertEdges(edges)
+    # swc format per node
+    # node-id
+    # type (hard-coded to 0 = undefined here)
+    # coordinates
+    # radius (hard-coded to 0.0 here)
+    # parent id
 
-    # TODO if this becomes a bottle-neck think about moving to numba, cython or c++
+    # TODO implement in numba (can it handle nifty? otherwise use different graph impl)
     with open(output_path, 'w') as f:
-        # swc: node-id
-        #      type (hard-coded to 0 = undefined)
-        #      coordinates
-        #      radius (hard-coded to 0.0)
-        #      parent id
         for node_id in range(n_nodes):
 
-            # TODO I am not 100 % sure about this
-            ngbs = [adj.first for adj in graph.nodeAdjacency(nodeId)]
+            ngbs = [adj.first for adj in graph.nodeAdjacency(node_id)]
 
             # only a single neighbor -> terminal node and no parent
             # also, for some reasons ngbs can be empty

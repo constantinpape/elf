@@ -7,11 +7,6 @@ from xml.dom import minidom
 #
 # based on:
 # https://github.com/knossos-project/knossos_utils/blob/master/knossos_utils/skeleton.py
-# Parser for custom n5 skeleton format
-# TODO
-# adjust to in-memory skeleton format returned by `skeletonize`
-# base on this instead:
-# https://github.com/ariadne-service/treeconvert
 #
 
 
@@ -59,6 +54,25 @@ def read_coords_from_nml(nml):
     return skeleton_coordinates
 
 
+def read_edges_from_nml(nml):
+    annotation_elems = nml.getElementsByTagName("thing")
+    skeleton_edges = {}
+
+    # TODO parse the skeleton id and use as key instead of linear index
+    for skel_id, annotation_elem in enumerate(annotation_elems):
+
+        edge_elems = annotation_elem.getElementsByTagName("edge")
+        edges = []
+
+        for edge_elem in edge_elems:
+            src_id, trgt_id = parse_attributes(edge_elem, [["source", int], ["target", int]])
+            edges.append([src_id, trgt_id])
+
+        skeleton_edges[skel_id] = edges
+
+    return skeleton_edges
+
+
 # TODO read and return tree structure, comments etc.
 def parse_nml(nml_str):
     # TODO figure this out
@@ -71,7 +85,8 @@ def parse_nml(nml_str):
     #     # file_scaling = [1, 1, 1]
     #     pass
     coord_dict = read_coords_from_nml(nml_str)
-    return coord_dict
+    edge_dict = read_edges_from_nml(nml_str)
+    return coord_dict, edge_dict
 
 
 # TODO return additional annotations etc
@@ -83,7 +98,7 @@ def read_nml(input_path):
     For details on the nml format see .
 
     Arguments:
-        input_path [str]: path to swc file
+        input_path [str]: path to nml/nmx file
     """
     # from knossos zip
     if input_path.endswith('k.zip'):
