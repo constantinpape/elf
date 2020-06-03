@@ -1,4 +1,5 @@
 import multiprocessing
+from concurrent import futures
 
 import numpy as np
 import vigra
@@ -6,16 +7,25 @@ import nifty.graph.rag as nrag
 import nifty.distributed as ndist
 import nifty.ground_truth as ngt
 
+try:
+    import fastfilters as ff
+except ImportError:
+    import vigra.filters as ff
+
 from .multicut import transform_probabilities_to_costs
 
+
+#
+# Region Adjacency Graph and Features
+#
 
 def compute_rag(segmentation, n_labels=None, n_threads=None):
     """ Compute region adjacency graph of segmentation.
 
     Arguments:
         segmentation [np.ndarray] - the segmentation
-        n_labels [int] - number of  labels in segmentation. If None is give, will be computed from
-            the data. (default: None)
+        n_labels [int] - number of  labels in segmentation.
+            If None is give, will be computed from the data. (default: None)
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -86,35 +96,150 @@ def compute_boundary_mean_and_length(rag, input_, n_threads=None):
     return features
 
 
-# TODO
-def compute_region_features(rag, input_map, segmentation, n_threads=None):
-    """ Compute edge features from input accumulated over segments.
+# TODO generalize and move to elf.features.parallel
+def _filter_2d(input_, filter_name, sigma, n_threads):
+    filter_fu = getattr(ff, filter_name)
+
+    def _fz(inp):
+        response = filter_fu(inp, sigma)
+        # we add a channel last axis for 2d filter responses
+        if response.ndim == 2:
+            response = response[None, ..., None]
+        elif response.ndim == 3:
+            response = response[None]
+        else:
+            raise RuntimeError("Invalid filter response")
+        return response
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        tasks = [tp.submit(_fz, input_[z]) for z in range(input_.shape[0])]
+        response = [t.result() for t in tasks]
+
+    response = np.concatenate(response, axis=0)
+    return response
+
+
+def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_threads=None,
+                                           filters={'gaussianSmoothing': [1.6, 4.2, 8.3],
+                                                    'laplacianOfGaussian': [1.6, 4.2, 8.3],
+                                                    'hessianOfGaussianEigenvalues': [1.6, 4.2, 8.3]}):
+    """ Compute boundary features accumulated over filter responses on input.
 
     Arguments:
         rag [RegionAdjacencyGraph] - region adjacency graph
-        input_map [np.ndarray] - boundary map.
+        input_ [np.ndarray] - input data
+        apply_2d [bool] - whether to apply the filters in 2d for 3d input data (default: bool)
+        n_threads [int] - number of threads (default: None)
+        filters [dict] - the filters to apply, expects a
+            dictionary mapping filter names to sigma values (default: default_Filters)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    features = []
+
+    # apply 2d: we compute filters and derived features in parallel per filter
+    if apply_2d:
+
+        def _compute_2d(filter_name, sigma):
+            response = _filter_2d(input_, filter_name, sigma, n_threads)
+            assert response.ndim == 4
+            n_channels = response.shape[-1]
+            features = []
+            for chan in range(n_channels):
+                chan_data = response[..., chan]
+                feats = compute_boundary_features(rag, chan_data,
+                                                  chan_data.min(), chan_data.max(), n_threads)
+                features.append(feats)
+
+            features = np.concatenate(features, axis=1)
+            assert len(features) == rag.numberOfEdges
+            return features
+
+        features = [_compute_2d(filter_name, sigma)
+                    for filter_name, sigmas in filters.items() for sigma in sigmas]
+
+    # apply 3d: we parallelize over the whole filter + feature computation
+    # this can be very memory intensive, and it would be better to parallelize inside
+    # of the loop, but 3d parallel filters in elf.parallel.filters are not working properly yet
+    else:
+
+        def _compute_3d(filter_name, sigma):
+            filter_fu = getattr(ff, filter_name)
+            response = filter_fu(input_, sigma)
+            if response.ndim == 3:
+                response = response[..., None]
+
+            n_channels = response.shape[-1]
+            features = []
+
+            for chan in range(n_channels):
+                chan_data = response[..., chan]
+                feats = compute_boundary_features(rag, chan_data,
+                                                  chan_data.min(), chan_data.max(),
+                                                  n_threads=1)
+                features.append(feats)
+            features = np.concatenate(features, axis=1)
+            assert len(features) == rag.numberOfEdges
+            return features
+
+        with futures.ThreadPoolExecutor(n_threads) as tp:
+            tasks = [tp.submit(_compute_3d, filter_name, sigma)
+                     for filter_name, sigmas in filters.items() for sigma in sigmas]
+            features = [t.result() for t in tasks]
+
+    features = np.concatenate(features, axis=1)
+    assert len(features) == rag.numberOfEdges
+    return features
+
+
+def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
+    """ Compute edge features from input map accumulated over segmentation
+    and mapped to edges.
+
+    Arguments:
+        uv_ids [np.ndarray] - edge uv ids
+        input_ [np.ndarray] - input data.
         segmentation [np.ndarray] - segmentation.
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
+    # compute the node features
+    stat_feature_names = ["Count", "Kurtosis", "Maximum", "Minimum", "Quantiles",
+                          "RegionRadii", "Skewness", "Sum", "Variance"]
+    coord_feature_names = ["Weighted<RegionCenter>", "RegionCenter"]
+    feature_names = stat_feature_names + coord_feature_names
+    node_features = vigra.analysis.extractRegionFeatures(input_map, segmentation,
+                                                         features=feature_names)
 
-def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
-    """ Project label values for graph nodes back to pixels to obtain segmentation.
+    # get the image statistics based features, that are combined via [min, max, sum, absdiff]
+    stat_features = [node_features[fname] for fname in stat_feature_names]
+    stat_features = np.concatenate([feat[:, None] if feat.ndim == 1 else feat
+                                    for feat in stat_features], axis=1)
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        node_labels [np.ndarray] - array with node labels
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
-    """
-    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if len(node_labels) != rag.numberOfNodes:
-        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels),
-                                                                         rag.numberOfNodes))
-    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
-                                             numberOfThreads=n_threads)
-    return seg
+    # get the coordinate based features, that are combined via euclidean distance
+    coord_features = [node_features[fname] for fname in coord_feature_names]
+    coord_features = np.concatenate([feat[:, None] if feat.ndim == 1 else feat
+                                     for feat in coord_features], axis=1)
 
+    u, v = uv_ids[:, 0], uv_ids[:, 1]
+
+    # combine the stat features for all edges
+    feats_u, feats_v = stat_features[u], stat_features[v]
+    features = [np.minimum(feats_u, feats_v), np.maximum(feats_u, feats_v),
+                np.abs(feats_u - feats_v), feats_u + feats_v]
+
+    # combine the coord features for all edges
+    feats_u, feats_v = coord_features[u], coord_features[v]
+    features.append((feats_u - feats_v) ** 2)
+
+    features = np.nan_to_num(np.concatenate(features, axis=1))
+    assert len(features) == len(uv_ids)
+    return features
+
+
+#
+# Lifted Features
+#
 
 def feats_to_costs_default(lifted_labels, lifted_features):
     # we assume that we only have different classes for a given lifted
@@ -263,6 +388,27 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     lifted_costs[~same_mask] = different_segment_cost
 
     return lifted_uvs, lifted_costs
+
+
+#
+# Misc
+#
+
+def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
+    """ Project label values for graph nodes back to pixels to obtain segmentation.
+
+    Arguments:
+        rag [RegionAdjacencyGraph] - region adjacency graph
+        node_labels [np.ndarray] - array with node labels
+        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    if len(node_labels) != rag.numberOfNodes:
+        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels),
+                                                                         rag.numberOfNodes))
+    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
+                                             numberOfThreads=n_threads)
+    return seg
 
 
 def compute_z_edge_mask(rag, watershed):

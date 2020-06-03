@@ -1,5 +1,31 @@
 import numpy as np
 from scipy.ndimage import convolve
+from scipy.ndimage.morphology import distance_transform_edt
+
+
+def normalize_input(input_, eps=1e-6):
+    """ Cast input to float and normalize to range [0, 1]
+
+    Arguments:
+        input_ [np.ndarray] - input tensor to be normalized
+        eps [float] - epsilon for numerical stability (default: 1e-6)
+    """
+    input_ = input_.astype('float32')
+    input_ -= input_.min()
+    input_ /= (input_.max() + eps)
+    return input_
+
+
+def smooth_edges(edges, gain=1.):
+    """ Smooth edges, e.g. from 'seg_to_edges'
+    by applying negative exponential distance transform.
+
+    Arguments:
+        edges [np.ndarray] - tensor with edges; expects edges to be 1
+        gain [float] - gain factor in the exponent (default: 1.)
+    """
+    distances = distance_transform_edt(1 - edges)
+    return np.exp(-gain * distances)
 
 
 def seg_to_edges(segmentation, only_in_plane_edges=False):

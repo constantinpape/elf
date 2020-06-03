@@ -3,6 +3,7 @@ import functools
 import numpy as np
 
 from .knossos_wrapper import KnossosFile, KnossosDataset
+from .image_stack_wrapper import ImageStackFile, ImageStackDataset
 
 
 __all__ = [
@@ -97,6 +98,14 @@ except ImportError:
     zarr = None
     zarr_open = None
 
+
+def folder_based(path, mode='a'):
+    try:
+        return KnossosFile(path, mode)
+    except RuntimeError:
+        return ImageStackFile(path, mode)
+
+
 # Are there any typical knossos extensions?
-# add knossos (no extension)
-register_filetype(KnossosFile, '', KnossosFile, KnossosDataset)
+# add folder based wrappers (no extension)
+register_filetype(folder_based, '', (ImageStackFile, KnossosFile), (ImageStackDataset, KnossosDataset))

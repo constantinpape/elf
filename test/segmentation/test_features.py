@@ -10,6 +10,7 @@ except ImportError:
     nifty = None
 
 
+@unittest.skipUnless(vigra and nifty, "Need vigra and nifty")
 class TestFeatures(unittest.TestCase):
 
     def make_seg(self, shape):
@@ -23,7 +24,35 @@ class TestFeatures(unittest.TestCase):
                 current_id += 1
         return seg.reshape(shape)
 
-    @unittest.skipUnless(vigra and nifty, "Need vigra and nifty")
+    def test_region_features(self):
+        from elf.segmentation.features import compute_rag, compute_region_features
+
+        shape = (32, 128, 128)
+        inp = np.random.rand(*shape).astype('float32')
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        uv_ids = rag.uvIds()
+
+        feats = compute_region_features(uv_ids, inp, seg)
+        self.assertEqual(len(uv_ids), len(feats))
+        self.assertFalse(np.allclose(feats, 0))
+
+    def test_boundary_features_with_filters(self):
+        from elf.segmentation.features import compute_rag, compute_boundary_features_with_filters
+
+        shape = (64, 128, 128)
+        inp = np.random.rand(*shape).astype('float32')
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+
+        feats = compute_boundary_features_with_filters(rag, inp)
+        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertFalse(np.allclose(feats, 0))
+
+        feats = compute_boundary_features_with_filters(rag, inp, apply_2d=True)
+        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertFalse(np.allclose(feats, 0))
+
     def test_lifted_problem_from_probabilities(self):
         from elf.segmentation.features import (compute_rag,
                                                lifted_problem_from_probabilities)
@@ -40,7 +69,6 @@ class TestFeatures(unittest.TestCase):
                                                                      assignment_threshold, graph_depth)
         self.assertEqual(len(lifted_uvs), len(lifted_costs))
 
-    @unittest.skipUnless(vigra and nifty, "Need vigra and nifty")
     def test_lifted_problem_from_segmentation(self):
         from elf.segmentation.features import (compute_rag,
                                                lifted_problem_from_segmentation)

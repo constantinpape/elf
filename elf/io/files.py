@@ -38,7 +38,6 @@ def open_file(path, mode='a', ext=None):
     return constructor(path, mode=mode)
 
 
-# TODO group and dataset checks for zarr-python
 def is_group(node):
     """ Check if argument is an h5py or z5py group
     """

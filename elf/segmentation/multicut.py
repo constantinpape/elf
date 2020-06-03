@@ -87,7 +87,8 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
     schemes = (None, 'all', 'none', 'xyz', 'z')
     if weighting_scheme not in schemes:
         schemes_str = ', '.join([str(scheme) for scheme in schemes])
-        raise ValueError("Weighting scheme must be one of %s, got %s" % (schemes_str, str(weighting_scheme)))
+        raise ValueError("Weighting scheme must be one of %s, got %s" % (schemes_str,
+                                                                         str(weighting_scheme)))
 
     if weighting_scheme is None or weighting_scheme == 'none':
         edge_pop = edge_sizes_ = None
@@ -118,7 +119,8 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
             raise ValueError("Need edge sizes and z edge mask for weighting scheme z")
 
     return transform_probabilities_to_costs(probs, beta=beta, edge_sizes=edge_sizes_,
-                                            edge_populations=edge_pop, weighting_exponent=weighting_exponent)
+                                            edge_populations=edge_pop,
+                                            weighting_exponent=weighting_exponent)
 
 
 #
