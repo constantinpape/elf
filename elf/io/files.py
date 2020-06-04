@@ -4,6 +4,7 @@ from .extensions import (
     h5py, z5py, pyn5, zarr,
 )
 from .knossos_wrapper import KnossosFile, KnossosDataset
+from .mrc_wrapper import MRCFile, MRCDataset
 
 
 def supported_extensions():
@@ -71,6 +72,12 @@ def is_pyn5(node):
 
 
 def is_knossos(node):
-    """ Check if this is a KnossosWrapper object
+    """ Check if this is a KnossosWrapper object.
     """
     return isinstance(node, (KnossosFile, KnossosDataset))
+
+
+def is_mrc(node):
+    """ Check if this is a MRCWrapper object.
+    """
+    return isinstance(node, (MRCFile, MRCDataset))

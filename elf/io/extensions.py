@@ -2,8 +2,9 @@ import functools
 
 import numpy as np
 
-from .knossos_wrapper import KnossosFile, KnossosDataset
 from .image_stack_wrapper import ImageStackFile, ImageStackDataset
+from .knossos_wrapper import KnossosFile, KnossosDataset
+from .mrc_wrapper import MRCFile, MRCDataset
 
 
 __all__ = [
@@ -57,13 +58,19 @@ try:
 except ImportError:
     z5py = None
 
-
 try:
     # will not override z5py
     import pyn5
     register_filetype(pyn5.File, N5_EXTS, pyn5.Group, pyn5.Dataset)
 except ImportError:
     pyn5 = None
+
+# add mrc extensions if we have mrcfile
+try:
+    import mrcfile
+    register_filetype(MRCFile, [".mrc"], MRCFile, MRCDataset)
+except ImportError:
+    mrcfile = None
 
 
 def identity(arg):
@@ -108,4 +115,6 @@ def folder_based(path, mode='a'):
 
 # Are there any typical knossos extensions?
 # add folder based wrappers (no extension)
-register_filetype(folder_based, '', (ImageStackFile, KnossosFile), (ImageStackDataset, KnossosDataset))
+register_filetype(folder_based, '',
+                  (ImageStackFile, KnossosFile),
+                  (ImageStackDataset, KnossosDataset))
