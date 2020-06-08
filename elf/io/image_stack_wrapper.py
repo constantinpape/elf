@@ -20,11 +20,21 @@ class ImageStackFile(Mapping):
         self.file_name = os.path.split(self.path)[1]
 
     def __getitem__(self, key):
+        # if the key is empty, we assume to have an image stack (=3d image volume in one file)
+        if key == '':
+            if not os.path.isfile(self.path):
+                raise ValueError(f"{self.path} needs to be a file to be loaded as image stack")
+
+            if TifStackDataset.is_tif_stack(self.path):
+                return TifStackDataset.from_stack(self.path)
+            else:
+                return ImageStackDataset.from_stack(self.path)
+
         # key must be a valid pattern
         files = glob(os.path.join(self.path, key))
         if len(files) == 0:
             raise ValueError(f"Invalid file pattern {key}")
-        if TifStackDataset.is_tif_dataset(files):
+        if TifStackDataset.is_tif_slices(files):
             return TifStackDataset(files, sort_files=True)
         else:
             return ImageStackDataset(files, sort_files=True)
@@ -70,7 +80,7 @@ class ImageStackDataset:
         assert im0.ndim == 2
         return im0.shape, im0.dtype
 
-    def initialize(self, files, sort_files=True):
+    def initialize_from_slices(self, files, sort_files=True):
         if sort_files:
             files.sort()
         self.files = files
@@ -85,13 +95,32 @@ class ImageStackDataset:
         self._ndim = 3
         self._size = np.prod(list(self._shape))
 
+    def initialize_from_stack(self, files):
+        self.files = files
+        self._volume = self._read_volume()
+
+        self._shape = self._volume.shape
+        # chunks are arbitrary
+        self._chunks = None
+        self._dtype = self._volume.dtype
+        self._ndim = 3
+        self._size = np.prod(list(self._shape))
+
     @classmethod
     def from_pattern(cls, folder, pattern, n_threads=1):
         files = glob(os.path.join(folder, pattern))
         return cls(files, n_threads=n_threads, sort_files=True)
 
-    def __init__(self, files, n_threads=1, sort_files=True):
-        self.initialize(files, sort_files=sort_files)
+    @classmethod
+    def from_stack(cls, stack_path, n_threads=1):
+        return cls(stack_path, n_threads=n_threads, is_stack=True)
+
+    def __init__(self, files, n_threads=1, sort_files=True, is_stack=False):
+        if is_stack:
+            self.initialize_from_stack(files)
+        else:
+            self.initialize_from_slices(files, sort_files=sort_files)
+        self.is_stack = is_stack
         self.n_threads = n_threads
 
     @property
@@ -114,7 +143,16 @@ class ImageStackDataset:
     def size(self):
         return self._size
 
-    def _load_roi(self, roi):
+    def _read_image(self, index):
+        return imageio.imread(self.files[index])
+
+    def _read_volume(self):
+        return imageio.volread(self.files)
+
+    def _load_roi_from_stack(self, roi):
+        return self._volume[roi]
+
+    def _load_roi_from_slices(self, roi):
         # init data
         roi_shape = tuple(rr.stop - rr.start for rr in roi)
         data = np.zeros(roi_shape, dtype=self.dtype)
@@ -124,7 +162,7 @@ class ImageStackDataset:
 
         def _load_and_write_image(z):
             z_abs = z + z0
-            im = imageio.imread(self.files[z_abs])
+            im = self._read_image(z_abs)
             assert im.shape == self.im_shape
             data[z] = im[im_roi]
 
@@ -137,7 +175,11 @@ class ImageStackDataset:
 
     def __getitem__(self, key):
         roi, to_squeeze = normalize_index(key, self.shape)
-        return squeeze_singletons(self._load_roi(roi), to_squeeze)
+        if self.is_stack:
+            data = self._load_roi_from_stack(roi)
+        else:
+            data = self._load_roi_from_slices(roi)
+        return squeeze_singletons(data, to_squeeze)
 
     # dummy attrs to be compatible with h5py/z5py/zarr API
     @property
@@ -149,11 +191,12 @@ class TifStackDataset(ImageStackDataset):
     tif_exts = ('.tif', '.tiff')
 
     @staticmethod
-    def is_tif_dataset(files):
-        f0 = files[0]
-        ext = os.path.splitext(f0)[1]
+    def is_tif_slices(files):
         if tifffile is None:
             return False
+
+        f0 = files[0]
+        ext = os.path.splitext(f0)[1]
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
@@ -162,6 +205,25 @@ class TifStackDataset(ImageStackDataset):
             return False
         return True
 
+    @staticmethod
+    def is_tif_stack(path):
+        if tifffile is None:
+            return False
+        ext = os.path.splitext(path)
+        if ext.lower() not in TifStackDataset.tif_exts:
+            return False
+        try:
+            tifffile.memmap(path)
+        except ValueError:
+            return False
+        return True
+
+    def _read_image(self, index):
+        return tifffile.memmap(self.files[index])
+
+    def _read_volume(self):
+        return tifffile.memmap(self.files)
+
     def get_im_shape_and_dtype(self, files):
         im0 = tifffile.memmap(files[0], mode='r')
         im_shape = im0.shape
@@ -169,24 +231,3 @@ class TifStackDataset(ImageStackDataset):
         if any(sh != im_shape for sh in im_shapes):
             raise ValueError("Incompatible shapes for Image Stack")
         return im_shape, im0.dtype
-
-    def _load_roi(self, roi):
-        # init data
-        roi_shape = tuple(rr.stop - rr.start for rr in roi)
-        data = np.zeros(roi_shape, dtype=self.dtype)
-
-        z0 = roi[0].start
-        im_roi = roi[1:]
-
-        def _load_and_write_image(z):
-            z_abs = z + z0
-            im = tifffile.memmap(self.files[z_abs], mode='r')
-            assert im.shape == self.im_shape
-            data[z] = im[im_roi]
-
-        # load the slices and write them into the output data
-        with futures.ThreadPoolExecutor(self.n_threads) as tp:
-            tasks = [tp.submit(_load_and_write_image, z) for z in range(roi_shape[0])]
-            [t.result() for t in tasks]
-
-        return data
