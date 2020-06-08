@@ -8,8 +8,10 @@ dependencies:
     - h5py
     - mrcfile
     - nifty
+    - pandas
     - python 3.7
     - pip
     - scikit-image
+    - tqdm
     - vigra
     - z5py
