@@ -29,6 +29,10 @@ class MRCDataset:
     def __getitem__(self, key):
         return self._data[key]
 
+    @property
+    def size(self):
+        return self._data.size
+
     # dummy attrs to be compatible with h5py/z5py/zarr API
     @property
     def attrs(self):
@@ -44,7 +48,7 @@ class MRCFile(Mapping):
         if mrcfile is None:
             raise AttributeError("mrcfile is not available")
         try:
-            self._f = mrcfile.memmap(self.path, self.mode)
+            self._f = mrcfile.mmap(self.path, self.mode)
         except ValueError:
             self._f = mrcfile.open(self.path, self.mode)
 
