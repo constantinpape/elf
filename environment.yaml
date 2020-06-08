@@ -1,0 +1,15 @@
+channels:
+    - conda-forge
+    - cpape
+name:
+    elf-dev
+dependencies:
+    - imageio
+    - h5py
+    - mrcfile
+    - nifty
+    - python 3.7
+    - pip
+    - scikit-image
+    - vigra
+    - z5py
