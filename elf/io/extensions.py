@@ -115,6 +115,6 @@ def folder_based(path, mode='a'):
 
 # Are there any typical knossos extensions?
 # add folder based wrappers (no extension)
-register_filetype(folder_based, '',
+register_filetype(folder_based, ['', '.tif', '.tiff'],
                   (ImageStackFile, KnossosFile),
                   (ImageStackDataset, KnossosDataset))
