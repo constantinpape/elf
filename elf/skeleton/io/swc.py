@@ -91,7 +91,7 @@ def write_swc(output_path, nodes, edges, resolution=None, invert_coords=False):
     with open(output_path, 'w') as f:
         for node_id in range(n_nodes):
 
-            ngbs = [adj.first for adj in graph.nodeAdjacency(node_id)]
+            ngbs = [adj[0] for adj in graph.nodeAdjacency(node_id)]
 
             # only a single neighbor -> terminal node and no parent
             # also, for some reasons ngbs can be empty
