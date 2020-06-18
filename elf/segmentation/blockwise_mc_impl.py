@@ -34,14 +34,18 @@ def solve_subproblems(graph, costs, segmentation,
         sub_costs = costs[inner_edges]
         assert len(sub_costs) == sub_graph.numberOfEdges
 
-        # solve multicut for the sub-graph
-        sub_result = solver(sub_graph, sub_costs)
-        assert len(sub_result) == len(node_ids), "%i, %i" % (len(sub_result), len(node_ids))
+        # solve multicut for the sub-graph; onlt cut the outer edges if we don't have edges in this block
+        if len(sub_costs) > 0:
+            sub_result = solver(sub_graph, sub_costs)
+            assert len(sub_result) == len(node_ids), "%i, %i" % (len(sub_result), len(node_ids))
 
-        sub_edgeresult = sub_result[sub_uvs[:, 0]] != sub_result[sub_uvs[:, 1]]
-        assert len(sub_edgeresult) == len(inner_edges)
-        cut_edge_ids = inner_edges[sub_edgeresult]
-        cut_edge_ids = np.concatenate([cut_edge_ids, outer_edges])
+            sub_edgeresult = sub_result[sub_uvs[:, 0]] != sub_result[sub_uvs[:, 1]]
+            assert len(sub_edgeresult) == len(inner_edges)
+            cut_edge_ids = inner_edges[sub_edgeresult]
+            cut_edge_ids = np.concatenate([cut_edge_ids, outer_edges])
+        else:
+            cut_edge_ids = outer_edges
+
         return cut_edge_ids
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
