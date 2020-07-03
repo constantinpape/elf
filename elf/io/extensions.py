@@ -2,6 +2,7 @@ import functools
 
 import numpy as np
 
+from .czi_wrapper import CZIFile, CZIDataset
 from .image_stack_wrapper import ImageStackFile, ImageStackDataset
 from .knossos_wrapper import KnossosFile, KnossosDataset
 from .mrc_wrapper import MRCFile, MRCDataset
@@ -71,6 +72,13 @@ try:
     register_filetype(MRCFile, [".mrc"], MRCFile, MRCDataset)
 except ImportError:
     mrcfile = None
+
+# add czi extensions if we have czifile
+try:
+    import czifile
+    register_filetype(CZIFile, [".czi"], CZIFile, CZIDataset)
+except ImportError:
+    czifile = None
 
 
 def identity(arg):
