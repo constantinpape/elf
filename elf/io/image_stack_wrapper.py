@@ -58,6 +58,9 @@ class ImageStackFile(Mapping):
         return counter
 
     def __contains__(self, name):
+        # if the key is empty, we assume to have an image stack (=3d image volume in one file)
+        if name == '':
+            return os.path.isfile(self.path)
         files = glob(os.path.join(self.path, name))
         return len(files) > 0
 
@@ -209,7 +212,7 @@ class TifStackDataset(ImageStackDataset):
     def is_tif_stack(path):
         if tifffile is None:
             return False
-        ext = os.path.splitext(path)
+        ext = os.path.splitext(path)[1]
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
