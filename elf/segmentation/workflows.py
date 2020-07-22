@@ -285,9 +285,11 @@ def multicut_segmentation(raw, boundaries, rf,
 
     # compute watersheds if none were given
     if watershed is None:
+        print("Compute watershed ...")
         watershed = _compute_watershed(boundaries, use_2dws, mask, ws_kwargs, n_threads)
 
     # compute rag and features
+    print("Compute rag and features ...")
     rag, features = _compute_features(raw, boundaries, watershed,
                                       feature_names, use_2dws, n_threads)
 
@@ -295,16 +297,20 @@ def multicut_segmentation(raw, boundaries, rf,
     # if we have stacked 2d watersheds, we expect two random forests,
     # one for the in-plane (xy) and one for the between-plane (z) edges
     if use_2dws:
+        print("Predict edges for 2d watershed ...")
         z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
         edge_probs = elf_learn.predict_edge_random_forests_for_xyz_edges(rf_xy, rf_z,
                                                                          features, z_edges,
                                                                          n_threads)
     else:
+        print("Predict edges for 3d watershed ...")
         edge_probs = elf_learn.predict_edge_random_forest(rf, features, n_threads)
         z_edges = None
 
     # derive the edge costs from random forst probabilities
+    print("Compute edge sizes ...")
     edge_sizes = elf_feats.compute_boundary_mean_and_length(rag, raw, n_threads)[:, 1]
+    print("Compute edge costs ...")
     edge_costs = elf_mc.compute_edge_costs(edge_probs, edge_sizes=edge_sizes, beta=beta,
                                            z_edge_mask=z_edges, weighting_scheme=weighting_scheme)
 
@@ -318,8 +324,10 @@ def multicut_segmentation(raw, boundaries, rf,
     # compute multicut and project to pixels
     # we pass the watershed to the solver as well, because it is needed for
     # the blockwise-multicut solver
+    print("Run multicut solver ...")
     node_labels = solver(rag, edge_costs, n_threads=n_threads,
                          segmentation=watershed, **solver_kwargs)
+    print("Project to volume ...")
     seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
 
     if return_intermediates:

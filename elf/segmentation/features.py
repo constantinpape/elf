@@ -178,7 +178,7 @@ def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_thread
                                                   n_threads=1)
                 features.append(feats)
             features = np.concatenate(features, axis=1)
-            assert len(features) == rag.numberOfEdges
+            assert len(features) == rag.numberOfEdges, f"{len(features), {rag.numberOfEdges}}"
             return features
 
         with futures.ThreadPoolExecutor(n_threads) as tp:

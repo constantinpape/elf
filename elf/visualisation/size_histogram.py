@@ -21,7 +21,8 @@ def size_histogram_from_segmentation(segmentation, n_bins=16, histogram_bins=[1]
     if ignore_background and seg_ids[0] == 0:
         seg_sizes = seg_sizes[1:]
     plot_size_histogram(seg_sizes, n_bins=n_bins, histogram_bins=histogram_bins,
-                        bin_for_threshold=bin_for_threshold, min_size=min_size, max_size=max_size)
+                        bin_for_threshold=bin_for_threshold, min_size=min_size,
+                        max_size=max_size)
 
 
 def plot_size_histogram(seg_sizes, n_bins=16, histogram_bins=1, bin_for_threshold=None,
