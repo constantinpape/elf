@@ -11,15 +11,15 @@ class AffineVolume(WrapperBase):
 
     Arguments:
         volume: volume to which to apply the affine.
-        output_shape: output shape, deduced from data by default (default: None)
-        affine_matrix: matrix defining the affine transformation
-        scale: scale factor
-        rotation: rotation in degrees
-        shear: shear in degrees
-        translation: translation in pixel
-        order: order of interpolation (supports 0 up to 5)
+        shape: output shape, deduced from data by default (default: None)
+        affine_matrix: matrix defining the affine transformation (default: None)
+        scale: scale factor (default: None)
+        rotation: rotation in degrees (default: None)
+        shear: shear in degrees (default: None)
+        translation: translation in pixel (default: None)
+        order: order of interpolation (supports 0 up to 5) (default: 0)
         fill_value: fill value for invalid regions (default: 0)
-        sigma_anti_aliasing: sigma used for smoothing
+        sigma_anti_aliasing: sigma used for smoothing (default: None)
     """
     def __init__(self, volume, shape=None, affine_matrix=None,
                  scale=None, rotation=None, shear=None, translation=None,
