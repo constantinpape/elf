@@ -27,13 +27,20 @@ requirements:
     - pip
   run:
     - python >=3.6
+    - imageio
+    - nifty
+    - scikit-image
+    - scikit-learn
+    - skan
+    - vigra
+    - z5py
     # setup.py is source for dependencies. Add/remove there.
-    {% for dep in data['install_requires'] %}
-    - {{ dep.lower() }}
-    {% endfor %}
-    {% for dep in data['extras_require']['conda_all'] %}
-    - {{ dep.lower() }}
-    {% endfor %}
+    #{% for dep in data['install_requires'] %}
+    #- {{ dep.lower() }}
+    #{% endfor %}
+    #{% for dep in data['extras_require']['conda_all'] %}
+    #- {{ dep.lower() }}
+    #{% endfor %}
 
 test:
   imports:
