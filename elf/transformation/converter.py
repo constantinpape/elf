@@ -188,10 +188,10 @@ def _convert_elastix_trafo(trafo_file):
     return matrix
 
 
-def _combine_elastix_trafos(trafos, resolution, scale_factor):
+def _combine_elastix_trafos_bdv(trafos, resolution, scale_factor):
 
     # transformation to scale from voxel space to millimeter (which is the fixed physical unit in elastix)
-    vox_to_mm = affine_matrix_3d(scale=[scale_factor] * 3)
+    vox_to_mm = affine_matrix_3d(scale=3 * [scale_factor])
 
     # transformation to scale from millimiter to the physicial unit we use
     # usually we use micrometer and then scale_factor = 10^3
@@ -209,20 +209,7 @@ def _combine_elastix_trafos(trafos, resolution, scale_factor):
     return matrix
 
 
-def elastix_to_bdv(trafo_file, resolution, scale_factor=1e3, load_initial_trafos=True):
-    """ Convert elastix transformation in text file to bdv transformation.
-
-    Arguments:
-        trafo_file [str] - the file defining the elastix transformation
-        resolution [list[float]] - resolution of the data in physical units
-        scale_factor [float] - scale factor of physical units compared to millimeter, which is
-            the default unit for elastix tranformations. By default, assume that physical
-            units is in micrometer, which corresponds to a scale of 10^-3 (default: 1e3)
-        load_initial_trafos [bool] - whether to load the initial transformations (default: True)
-    Returns:
-        list - parameter vector for bdv transformation
-    """
-
+def _get_elastix_trafo_files(trafo_file, load_initial_trafos):
     trafo_type = elastix_parser.get_transformation_type(trafo_file)
     if trafo_type is None or trafo_type not in elastix_parser.AFFINE_COMPATIBLE:
         msg = f"Transormation type in {trafo_file}: {trafo_type} is not compatible with affine transformation"
@@ -247,22 +234,40 @@ def elastix_to_bdv(trafo_file, resolution, scale_factor=1e3, load_initial_trafos
                        "is not compatible with affine transformation")
                 raise ValueError(msg)
 
-    # reverse the order of transformations and load the transformations
-    # in bdv matrix format
-    trafo_files = trafo_files[::-1]
+    # reverse the order of transformations
+    return trafo_files[::-1]
+
+
+def elastix_to_bdv(trafo_file, resolution, scale_factor=1e3, load_initial_trafos=True):
+    """ Convert elastix transformation in text file to bdv transformation.
+
+    Arguments:
+        trafo_file [str] - the file defining the elastix transformation
+        resolution [list[float]] - resolution of the data in physical units
+        scale_factor [float] - scale factor of physical units compared to millimeter, which is
+            the default unit for elastix tranformations. By default, assume that physical
+            units is in micrometer, which corresponds to a scale of 10^3 (default: 1e3)
+        load_initial_trafos [bool] - whether to load the initial transformations (default: True)
+    Returns:
+        list - parameter vector for bdv transformation
+    """
+
+    # get elastix trafos in bdv matrix format
+    trafo_files = _get_elastix_trafo_files(trafo_file, load_initial_trafos)
     trafos = [_convert_elastix_trafo(trafo) for trafo in trafo_files]
 
     # combine the transformations and apply the scaling transformations to
     # change from the elastix space (measured in millimeter)
     # to the bdv space (which maps the physical unit (usually micrometer) to voxels)
-    trafo = _combine_elastix_trafos(trafos, resolution, scale_factor)
+    # NOTE we need to reverse the resolution here to switch from ZYX to XYZ axis convention
+    trafo = _combine_elastix_trafos_bdv(trafos, resolution[::-1], scale_factor)
 
     # return the transformation as parameter vector instead of affine matrix
     trafo = matrix_to_parameters(trafo)
     return trafo
 
 
-def elastix_to_native(trafo_file, load_initial_trafos=True):
+def elastix_to_native(trafo_file, resolution, scale_factor=1e3, load_initial_trafos=True):
     """ Convert elastix transformation in text file to native transformation.
 
     Arguments:
@@ -271,21 +276,12 @@ def elastix_to_native(trafo_file, load_initial_trafos=True):
     Returns:
         np.ndarray - 4x4 affine matrix in native format
     """
-    # the native transformation is always computed in voxel space
-    resolution = [1., 1., 1.]
-
-    # get the resolution from elastix (in millimeter) to compute the correct scale factor
-    res_elastix = elastix_parser.get_resolution(trafo_file)
-    scale_factor = resolution[0] / res_elastix[0]
-
-    # TODO support anisotropy, but need to figure out axis conventions ...
-    if any(re / res != scale_factor for re, res in zip(resolution, res_elastix)):
-        raise NotImplementedError
-
-    # compute the transformation in bdv space and then convert to native
-    trafo = elastix_to_bdv(trafo_file, resolution, scale_factor=scale_factor,
-                           load_initial_trafos=load_initial_trafos)
-    return bdv_to_native(trafo, invert=True)
+    # get elastix trafo in bdv parameter format format
+    trafo = elastix_to_bdv(trafo_file, resolution,
+                           scale_factor, load_initial_trafos)
+    # convert to native format
+    trafo = bdv_to_native(trafo, resolution, invert=True)
+    return trafo
 
 
 #
@@ -333,12 +329,15 @@ def bdv_to_native(trafo, resolution=None, invert=True):
     matrix[:3, 3] = shift
     matrix[3, 3] = 1
 
-    # TODO include scaling transformation from physical space to voxel space
-    if resolution is not None:
-        raise NotImplementedError
-
+    # invert the matrix, because the transformation directions of bdv and
+    # the native format are opposite. can be deactivated for debugging purposes.
     if invert:
         matrix = np.linalg.inv(matrix)
+
+    # scale from physical resolution to voxels
+    if resolution is not None:
+        scale = affine_matrix_3d(scale=resolution)
+        matrix = matrix @ scale
 
     return matrix
 

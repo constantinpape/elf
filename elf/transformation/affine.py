@@ -140,7 +140,6 @@ def transform_coordinate(coord, matrix):
     return tuple(sum(coord[jj] * matrix[ii, jj] for jj in range(ndim)) + matrix[ii, -1] for ii in range(ndim))
 
 
-# TODO use general purpose transform_roi from transform_impl
 def transform_roi_with_affine(roi_start, roi_stop, matrix):
     """ Transform a roi under the affine transformation defined by
     affine matrix.
@@ -180,7 +179,8 @@ def rotation_from_matrix(matrix):
 
 
 def transform_subvolume_affine(data, matrix, bb,
-                               order=0, fill_value=0, sigma=None):
+                               order=0, fill_value=0, sigma=None,
+                               use_python_fallback_impl=False):
     """ Apply affine transformation to subvolume.
 
     Arguments:
@@ -207,6 +207,12 @@ def transform_subvolume_affine(data, matrix, bb,
         elif is_h5py(data):
             return ntrafo.affineTransformationH5(data, matrix, order, bb, fill_value, sigma)
     else:
+        if not use_python_fallback_impl:
+            msg = (
+                "Could not find c++ implementation for affine transformation"
+                "set 'use_python_fallback_impl' to True to compute the transformation via slow python fallback"
+            )
+            raise RuntimeError(msg)
         warnings.warn("Could not find c++ implementation for affine transformation, using slow python implementation.")
         trafo = partial(transform_coordinate, matrix=matrix)
         return transform_subvolume(data, trafo, bb,
