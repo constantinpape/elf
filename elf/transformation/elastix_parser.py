@@ -75,7 +75,7 @@ def get_initial_transform_file(transform_file):
             if line.startswith('(InitialTransformParametersFileName'):
                 file_name = line.rstrip('\n')[2:-2].split()[1]
 
-    if file_name is None:
+    if file_name is None or file_name == "\"NoInitialTransform":
         return None
 
     alt_file_name = os.path.join(os.path.split(transform_file)[0],

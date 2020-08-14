@@ -64,7 +64,6 @@ class AffineVolume(WrapperBase):
         # normalize the index
         index, to_squeeze = normalize_index(index, self.shape)
 
-        # TODO do we need the matrix or the inverse matrix ?
         # apply affine for the subvolume
         out = transform_subvolume_affine(self._volume, self.matrix, index,
                                          self.order, self.fill_value,
