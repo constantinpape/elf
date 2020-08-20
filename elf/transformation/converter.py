@@ -138,7 +138,7 @@ def elastix_parameter_to_bdv_matrix(trafo, trafo_type):
 
     if trafo_type == 'AffineTransform':
         matrix = _elastix_affine_to_bdv(trafo)
-    elif trafo_type == 'EulerTransfrom':
+    elif trafo_type == 'EulerTransform':
         matrix = _elastix_euler_to_bdv(trafo)
     elif trafo_type == 'SimilarityTransform':
         matrix = _elastix_similarity_to_bdv(trafo)
@@ -282,6 +282,35 @@ def elastix_to_native(trafo_file, resolution, scale_factor=1e3, load_initial_tra
     # convert to native format
     trafo = bdv_to_native(trafo, resolution, invert=True)
     return trafo
+
+
+def _native_to_elastix_trafo(trafo, resolution=None):
+    """ Convert native transformation matrix to elastix transformantion parameter.
+    """
+    params = 12 * [0]
+
+    params[0] = trafo[2, 2]
+    params[1] = trafo[2, 1]
+    params[2] = trafo[2, 0]
+
+    params[3] = trafo[1, 2]
+    params[4] = trafo[1, 1]
+    params[5] = trafo[1, 0]
+
+    params[6] = trafo[0, 2]
+    params[7] = trafo[0, 1]
+    params[8] = trafo[0, 0]
+
+    if resolution is None:
+        params[9] = trafo[2, 3]
+        params[10] = trafo[1, 3]
+        params[11] = trafo[0, 3]
+    else:
+        params[9] = trafo[2, 3] * resolution[2]
+        params[10] = trafo[1, 3] * resolution[1]
+        params[11] = trafo[0, 3] * resolution[0]
+
+    return params
 
 
 #
