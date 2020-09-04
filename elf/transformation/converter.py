@@ -50,7 +50,7 @@ def parameters_to_matrix(trafo):
     Assumes parameter vector layed out as
     [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
     """
-    assert len(trafo) == 12
+    assert len(trafo) == 12, len(trafo)
 
     sub_matrix = np.zeros((3, 3), dtype='float64')
     sub_matrix[0, 0] = trafo[0]

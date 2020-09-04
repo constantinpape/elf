@@ -1,3 +1,4 @@
+from .copy_dataset import copy_dataset
 from .operations import (apply_operation, add, divide, multiply, subtract,
                          greater, greater_equal, less, less_equal,
                          minimum, maximum, isin)
