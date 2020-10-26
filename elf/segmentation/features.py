@@ -4,8 +4,11 @@ from concurrent import futures
 import numpy as np
 import vigra
 import nifty.graph.rag as nrag
-import nifty.distributed as ndist
 import nifty.ground_truth as ngt
+try:
+    import nifty.distributed as ndist
+except ImportError:
+    ndist = None
 
 try:
     import fastfilters as ff
@@ -279,6 +282,7 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
             (default: "different")
         n_threads [int] - number of threads used for the calculation (default: None)
     """
+    assert ndist is not None, "Need nifty.distributed package"
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     # validate inputs
