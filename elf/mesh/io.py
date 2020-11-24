@@ -39,7 +39,10 @@ def read_obj(path):
             # face
             elif line.startswith('f'):
                 faces.append([int(ll.split('/')[0]) for ll in line.split()[1:]])
-                face_normals.append([int(ll.split('/')[2]) for ll in line.split()[1:]])
+                try:
+                    face_normals.append([int(ll.split('/')[2]) for ll in line.split()[1:]])
+                except IndexError:
+                    pass
 
     return (np.array(verts), np.array(faces),
             np.array(normals), np.array(face_normals))
