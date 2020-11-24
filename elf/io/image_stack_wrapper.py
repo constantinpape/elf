@@ -31,9 +31,10 @@ class ImageStackFile(Mapping):
                 return ImageStackDataset.from_stack(self.path)
 
         # key must be a valid pattern
-        files = glob(os.path.join(self.path, key))
+        pattern = os.path.join(self.path, key)
+        files = glob(pattern)
         if len(files) == 0:
-            raise ValueError(f"Invalid file pattern {key}")
+            raise ValueError(f"Invalid file pattern {pattern}")
         if TifStackDataset.is_tif_slices(files):
             return TifStackDataset(files, sort_files=True)
         else:
@@ -203,7 +204,7 @@ class TifStackDataset(ImageStackDataset):
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
-            tifffile.memmap(f0)
+            tifffile.memmap(f0, mode='r')
         except ValueError:
             return False
         return True
@@ -216,16 +217,16 @@ class TifStackDataset(ImageStackDataset):
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
-            tifffile.memmap(path)
+            tifffile.memmap(path, mode='r')
         except ValueError:
             return False
         return True
 
     def _read_image(self, index):
-        return tifffile.memmap(self.files[index])
+        return tifffile.memmap(self.files[index], mode='r')
 
     def _read_volume(self):
-        return tifffile.memmap(self.files)
+        return tifffile.memmap(self.files, mode='r')
 
     def get_im_shape_and_dtype(self, files):
         im0 = tifffile.memmap(files[0], mode='r')

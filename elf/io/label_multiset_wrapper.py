@@ -34,6 +34,10 @@ class LabelMultisetWrapper:
     def size(self):
         return self._dataset.size
 
+    @property
+    def attrs(self):
+        return self._dataset.attrs
+
     def _load_roi(self, roi):
         # snap roi to grid
         chunk_ids = chunks_overlapping_roi(roi, self.chunks)
