@@ -1,7 +1,9 @@
 import numpy as np
 import nifty.graph.agglo as nagglo
+from vigra.analysis import relabelConsecutive
 from .features import (compute_rag, compute_affinity_features,
                        compute_boundary_mean_and_length, project_node_labels_to_pixels)
+from .watershed import apply_size_filter
 
 
 def mala_clustering(graph, edge_features, edge_sizes, threshold, return_object=False):
@@ -77,48 +79,81 @@ def compute_graph_and_features(segmentation, input_map, offsets=None, n_threads=
     return graph, edge_weights, edge_sizes
 
 
-def cluster_segmentation(segmentation, input_map,
-                         threshold=None, n_stop=None, size_regularizer=1.,
+def _cluster_segmentation_impl(segmentation, input_map, cluster_function,
+                               offsets=None, n_threads=None, min_segment_size=0,
+                               **cluster_kwargs):
+    graph, edge_weights, edge_sizes = compute_graph_and_features(segmentation, input_map,
+                                                                 offsets=offsets, n_threads=n_threads)
+    clusters = cluster_function(graph=graph,
+                                edge_features=edge_weights,
+                                edge_sizes=edge_sizes,
+                                **cluster_kwargs)
+    clusters = relabelConsecutive(clusters, start_label=1, keep_zeros=False)[0].astype('uint32')
+    seg = project_node_labels_to_pixels(graph, clusters)
+    if min_segment_size > 0:
+        inp = input_map if offsets is None else input_map[0]
+        seg = apply_size_filter(seg, inp, min_segment_size)[0]
+        seg = relabelConsecutive(seg, start_label=1, keep_zeros=False)[0]
+    return seg
+
+
+def cluster_segmentation(segmentation, input_map, n_stop, size_regularizer=1.,
                          offsets=None, n_threads=None):
-    """ Run clustering to merge segments provided a heightmap or affinity map.
+    """ Run agglomerative clustering to merge segments provided a heightmap or affinity map.
 
     Computes a graph and edge weights (derived from the height map)
     and then agglomeratively clusters the graph to merge segments.
-    Exactly one of the parameters threshold or n_stop needs to be given.
-    If threshold is given, the accumulated edge weights of clusters is used as stopping criterion
-    and clustering stops when all edge weights are above the threshold.
-    If n_stop is given, clustering stops when the number of clusters is below n_stop.
+    Clustering stops when the number of clusters is below n_stop.
+
+    Arguments:
+        segmentation [np.ndarray] - the input segmentation
+        input_map [np.ndarray] - the input used to derive the edge weigths.
+            Can either be boundary probabilities or affinities.
+        n_stop [int or float] - number (or fraction) of clusters used as stopping criterion
+        size_regularizer [float] - size regularizer for agglomerative clustering (default: 1.)
+        offsets [list[list[int]]] - (default: None)
+        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    """
+    _, node_sizes = np.unique(segmentation, return_counts=True)
+    if n_stop < 1:
+        assert isinstance(n_stop, float)
+        n_stop = int(n_stop * len(node_sizes))
+    seg = _cluster_segmentation_impl(segmentation, input_map,
+                                     cluster_function=agglomerative_clustering,
+                                     offsets=offsets,
+                                     n_threads=n_threads,
+                                     min_segment_size=0,
+                                     node_sizes=node_sizes,
+                                     n_stop=n_stop,
+                                     size_regularizer=size_regularizer)
+    return seg
+
+
+def cluster_segmentation_mala(segmentation, input_map, threshold, min_segment_size=0,
+                              offsets=None, n_threads=None):
+    """ Run agglomerative clustering to merge segments provided a heightmap or affinity map.
+
+    Computes a graph and edge weights (derived from the height map)
+    and then agglomeratively clusters the graph to merge segments.
+    The accumulated edge weights of clusters are used as stopping criterion
+    and clustering stops when all edge weights are above or equal threshold.
 
     Arguments:
         segmentation [np.ndarray] - the input segmentation
         input_map [np.ndarray] - the input used to derive the edge weigths.
             Can either be boundary probabilities or affinities.
         threshold [float] - threshold used as stopping criterion (default: None)
-        n_stop [int or float] - number (or fraction) of clusters used as stopping criterion (default: None)
-        size_regularizer [float] - size regularizer for agglomerative clustering (default: 1.)
+        min_segment_size [int] - minimal size of segments in the segmentation result (default: 0)
         offsets [list[list[int]]] - (default: None)
         n_threads [int] - number of threads used, set to cpu count by default. (default: None)
     """
-    if (threshold is None) == (n_stop is None):
-        raise ValueError("Exactly one of the parameters 'threshold' or 'n_stop' needs to be given")
-
-    graph, edge_weights, edge_sizes = compute_graph_and_features(segmentation, input_map,
-                                                                 offsets=offsets, n_threads=n_threads)
-
-    # run clustering
-    if n_stop is None:  # mala clustering
-        clusters = mala_clustering(graph, edge_weights, edge_sizes, threshold)
-
-    else:  # agglomerative clustering
-        _, node_sizes = np.unique(segmentation, return_counts=True)
-        if n_stop < 1:
-            assert isinstance(n_stop, float)
-            n_stop = int(n_stop * len(node_sizes))
-        clusters = agglomerative_clustering(graph, edge_weights,
-                                            node_sizes, edge_sizes,
-                                            n_stop, size_regularizer)
-
-    return project_node_labels_to_pixels(graph, clusters)
+    seg = _cluster_segmentation_impl(segmentation, input_map,
+                                     cluster_function=mala_clustering,
+                                     offsets=offsets,
+                                     n_threads=n_threads,
+                                     min_segment_size=min_segment_size,
+                                     threshold=threshold)
+    return seg
 
 
 def compute_linkage_matrix(clustering, normalize_distances=False):
