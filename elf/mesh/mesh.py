@@ -29,7 +29,7 @@ def marching_cubes(obj, smoothing_iterations=0,
     """
     resolution = (1., 1., 1.) if resolution is None else resolution
     if len(resolution) != 3:
-        raise ValueError("Invalid resolution argument")
+        raise ValueError(f"Invalid resolution argument: {resolution}")
     resolution = tuple(resolution)
 
     if use_ilastik:
