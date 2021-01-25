@@ -4,16 +4,20 @@ channels:
 name:
     elf-dev
 dependencies:
+    - affogato  # TODO put on conda forge so that we can get rid of cpape dependency
     - imageio
     - h5py
     - mrcfile
-    - nifty
+    - nifty  # TODO remove nifty from cpape channel once it's on conda forge
     - numba <=0.50  # need to pin this due to skan
     - pandas
-    - python 3.7
+    - python
     - pip
     - scikit-image
     - skan
     - tqdm
     - vigra
+    - zarr
     - z5py
+    - pip:
+        - pyn5
