@@ -71,6 +71,8 @@ class TestAffine(unittest.TestCase):
     def test_affine_subvolume_2d_h5(self):
         self._test_affine_subvolume_2d_chunked('tmp.h5')
 
+    # presmoothing is currently not implemented in c++
+    @unittest.expectedFailure
     def test_presmoothing(self):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(2, 2), rotation=(45,))
