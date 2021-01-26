@@ -9,7 +9,6 @@ except ImportError:
     blockwise_mc_impl = None
 
 
-# FIXME don't change the affinities in-place
 def mutex_watershed(affs, offsets, strides,
                     randomize_strides=False, mask=None,
                     noise_level=0):
@@ -17,6 +16,7 @@ def mutex_watershed(affs, offsets, strides,
 
     Introduced in "The Mutex Watershed and its Objective: Efficient, Parameter-Free Image Partitioning":
     https://arxiv.org/pdf/1904.12654.pdf
+    This function changes the affinities inplace. To avoid this, pass a copy of the affinities.
 
     Arguments:
         affs [np.ndarray] - input affinity map
@@ -46,7 +46,7 @@ def compute_grid_graph(shape, mask=None, seeds=None):
     if mask is not None:
         grid_graph.set_mask(mask)
     if seeds is not None:
-        grid_graph.set_seeds(seeds)
+        grid_graph.update_seeds(seeds)
     return grid_graph
 
 
@@ -58,6 +58,7 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
 
     Introduced in "The Mutex Watershed and its Objective: Efficient, Parameter-Free Image Partitioning":
     https://arxiv.org/pdf/1904.12654.pdf
+    This function changes the affinities inplace. To avoid this, pass a copy of the affinities.
 
     Arguments:
         affs [np.ndarray] - input affinity map
@@ -80,18 +81,18 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
     grid_graph = compute_grid_graph(shape, mask, seeds)
 
     # compute nn and mutex nh
-    grid_graph.intra_seed_weight = 1  # set intra-seed weight to maximal attractive
     if seed_state is not None:
         attractive_edges, attractive_weights = seed_state['attractive']
         grid_graph.set_seed_state(attractive_edges, attractive_weights)
-    uvs, weights = grid_graph.compute_nh_and_weights(np.require(affs[:ndim], requirements='C'),
+    grid_graph.add_attractive_seed_edges = True
+    uvs, weights = grid_graph.compute_nh_and_weights(1. - np.require(affs[:ndim], requirements='C'),
                                                      offsets[:ndim])
 
-    grid_graph.intra_seed_weight = 0  # set intral-seed weight to minimal repulsive
     if seed_state is not None:
         repulsive_edges, repulsive_weights = seed_state['repulsive']
         grid_graph.clear_seed_state()
         grid_graph.set_seed_state(repulsive_edges, repulsive_weights)
+    grid_graph.add_attractive_seed_edges = False
     mutex_uvs, mutex_weights = grid_graph.compute_nh_and_weights(np.require(affs[ndim:],
                                                                             requirements='C'),
                                                                  offsets[ndim:], strides,
