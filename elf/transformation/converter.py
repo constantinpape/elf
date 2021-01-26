@@ -1,6 +1,6 @@
 import numpy as np
 from . import elastix_parser
-from .affine import affine_matrix_3d
+from .affine import affine_matrix_2d, affine_matrix_3d
 
 # Converter functions to translate in between different representations of affine transformations.
 # Currently supports the following representations:
@@ -18,7 +18,6 @@ from .affine import affine_matrix_3d
 #            transformation is given in backward direction
 
 # TODO
-# - implement converter for 2d as well
 # - support converting transformations to elastix
 
 
@@ -37,10 +36,17 @@ def matrix_to_parameters(matrix):
     """ Affine matrix to parameter vector.
 
     Returns parameter vector layed out as
-    [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
+    2d:
+        [a00, a01, a02, a10, a11, a12]
+    3d:
+        [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
     """
-    assert matrix.shape == (4, 4)
-    trafo = matrix[0].tolist() + matrix[1].tolist() + matrix[2].tolist()
+    if matrix.shape[0] == 4:
+        assert matrix.shape == (4, 4)
+        trafo = matrix[0].tolist() + matrix[1].tolist() + matrix[2].tolist()
+    else:
+        assert matrix.shape == (3, 3)
+        trafo = matrix[0].tolist() + matrix[1].tolist()
     return trafo
 
 
@@ -48,29 +54,49 @@ def parameters_to_matrix(trafo):
     """ Parameter vector to affine matrix.
 
     Assumes parameter vector layed out as
-    [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
+    2d:
+        [a00, a01, a02, a10, a11, a12]
+    3d:
+        [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
     """
-    assert len(trafo) == 12, len(trafo)
+    if len(trafo) == 12:
+        sub_matrix = np.zeros((3, 3), dtype='float64')
+        sub_matrix[0, 0] = trafo[0]
+        sub_matrix[0, 1] = trafo[1]
+        sub_matrix[0, 2] = trafo[2]
 
-    sub_matrix = np.zeros((3, 3), dtype='float64')
-    sub_matrix[0, 0] = trafo[0]
-    sub_matrix[0, 1] = trafo[1]
-    sub_matrix[0, 2] = trafo[2]
+        sub_matrix[1, 0] = trafo[4]
+        sub_matrix[1, 1] = trafo[5]
+        sub_matrix[1, 2] = trafo[6]
 
-    sub_matrix[1, 0] = trafo[4]
-    sub_matrix[1, 1] = trafo[5]
-    sub_matrix[1, 2] = trafo[6]
+        sub_matrix[2, 0] = trafo[8]
+        sub_matrix[2, 1] = trafo[9]
+        sub_matrix[2, 2] = trafo[10]
 
-    sub_matrix[2, 0] = trafo[8]
-    sub_matrix[2, 1] = trafo[9]
-    sub_matrix[2, 2] = trafo[10]
+        shift = [trafo[3], trafo[7], trafo[11]]
 
-    shift = [trafo[3], trafo[7], trafo[11]]
+        matrix = np.zeros((4, 4))
+        matrix[:3, :3] = sub_matrix
+        matrix[:3, 3] = shift
+        matrix[3, 3] = 1
 
-    matrix = np.zeros((4, 4))
-    matrix[:3, :3] = sub_matrix
-    matrix[:3, 3] = shift
-    matrix[3, 3] = 1
+    elif len(trafo) == 6:
+        sub_matrix = np.zeros((2, 2), dtype='float64')
+        sub_matrix[0, 0] = trafo[0]
+        sub_matrix[0, 1] = trafo[1]
+
+        sub_matrix[1, 0] = trafo[3]
+        sub_matrix[1, 1] = trafo[4]
+
+        shift = [trafo[2], trafo[5]]
+
+        matrix = np.zeros((3, 3))
+        matrix[:2, :2] = sub_matrix
+        matrix[:2, 2] = shift
+        matrix[2, 2] = 1
+
+    else:
+        raise ValueError(f"Invalid number of parameters {len(trafo)}")
 
     return matrix
 
@@ -80,52 +106,90 @@ def parameters_to_matrix(trafo):
 #
 
 def _elastix_affine_to_bdv(trafo):
-    assert len(trafo) == 12
+    if len(trafo) == 12:  # 3d transformation
+        sub_matrix = np.zeros((3, 3), dtype='float64')
+        sub_matrix[0, 0] = trafo[0]
+        sub_matrix[0, 1] = trafo[1]
+        sub_matrix[0, 2] = trafo[2]
 
-    sub_matrix = np.zeros((3, 3), dtype='float64')
-    sub_matrix[0, 0] = trafo[0]
-    sub_matrix[0, 1] = trafo[1]
-    sub_matrix[0, 2] = trafo[2]
+        sub_matrix[1, 0] = trafo[3]
+        sub_matrix[1, 1] = trafo[4]
+        sub_matrix[1, 2] = trafo[5]
 
-    sub_matrix[1, 0] = trafo[3]
-    sub_matrix[1, 1] = trafo[4]
-    sub_matrix[1, 2] = trafo[5]
+        sub_matrix[2, 0] = trafo[6]
+        sub_matrix[2, 1] = trafo[7]
+        sub_matrix[2, 2] = trafo[8]
 
-    sub_matrix[2, 0] = trafo[6]
-    sub_matrix[2, 1] = trafo[7]
-    sub_matrix[2, 2] = trafo[8]
+        shift = [trafo[9], trafo[10], trafo[11]]
 
-    shift = [trafo[9], trafo[10], trafo[11]]
+        matrix = np.zeros((4, 4))
+        matrix[:3, :3] = sub_matrix
+        matrix[:3, 3] = shift
+        matrix[3, 3] = 1
 
-    matrix = np.zeros((4, 4))
-    matrix[:3, :3] = sub_matrix
-    matrix[:3, 3] = shift
-    matrix[3, 3] = 1
+    elif len(trafo) == 6:  # 2d transformation
+        sub_matrix = np.zeros((2, 2), dtype='float64')
+        sub_matrix[0, 0] = trafo[0]
+        sub_matrix[0, 1] = trafo[1]
+
+        sub_matrix[1, 0] = trafo[2]
+        sub_matrix[1, 1] = trafo[3]
+
+        shift = [trafo[4], trafo[5]]
+
+        matrix = np.zeros((3, 3))
+        matrix[:2, :2] = sub_matrix
+        matrix[:2, 2] = shift
+        matrix[2, 2] = 1
+
+    else:
+        raise ValueError(f"Invalid number of parameters for affine transformation: {len(trafo)}")
 
     return matrix
 
 
 def _elastix_euler_to_bdv(trafo):
-    assert len(trafo) == 6
-    matrix = affine_matrix_3d(rotation=trafo[:3],
-                              translation=trafo[3:],
-                              angles_in_degree=False)
+    nparam = len(trafo)
+    if nparam == 6:
+        matrix = affine_matrix_3d(rotation=trafo[:3],
+                                  translation=trafo[3:],
+                                  angles_in_degree=False)
+    elif nparam == 3:
+        matrix = affine_matrix_2d(rotation=trafo[0],
+                                  translation=trafo[1:],
+                                  angles_in_degree=False)
+    else:
+        raise ValueError(f"Invalid number of parameters for euler transform: {nparam}")
     return matrix
 
 
 def _elastix_similarity_to_bdv(trafo):
-    assert len(trafo) == 7
-    scale = 3 * [trafo[-1]]
-    matrix = affine_matrix_3d(scale=scale,
-                              rotation=trafo[:3],
-                              translation=trafo[3:6],
-                              angles_in_degree=False)
+    nparam = len(trafo)
+    if nparam == 7:
+        scale = 3 * [trafo[-1]]
+        matrix = affine_matrix_3d(scale=scale,
+                                  rotation=trafo[:3],
+                                  translation=trafo[3:6],
+                                  angles_in_degree=False)
+    elif nparam == 4:
+        scale = 2 * [trafo[0]]
+        matrix = affine_matrix_2d(scale=scale,
+                                  rotation=trafo[1],
+                                  translation=trafo[2:],
+                                  angles_in_degree=False)
+    else:
+        raise ValueError(f"Invalid number of parameters for similarity transform: {nparam}")
     return matrix
 
 
 def _elastix_translation_to_bdv(trafo):
-    assert len(trafo) == 3
-    matrix = affine_matrix_3d(translation=trafo)
+    nparam = len(trafo)
+    if nparam == 3:
+        matrix = affine_matrix_3d(translation=trafo)
+    elif nparam == 2:
+        matrix = affine_matrix_2d(translation=trafo)
+    else:
+        raise ValueError(f"Invalid number of parameters for similarity transform: {nparam}")
     return matrix
 
 
@@ -157,46 +221,82 @@ def _convert_elastix_trafo(trafo_file):
     trafo = elastix_parser.get_transformation(trafo_file)
     trafo_type = elastix_parser.get_transformation_type(trafo_file)
 
-    # we make all calculations in bdv convention and only change to the python convention in the end
+    def convert2d(trafo):
+        # initialize the resulting affine matrix with the identity
+        matrix = affine_matrix_2d()
 
-    # go fron the transformation vector to affine matrix. we can just use the
+        # load the rotation center from the elastix transformation definition
+        rot_center = elastix_parser.get_rotation_center(trafo_file)
+        if rot_center is not None:
+            rot_center_neg = [-ce for ce in rot_center]
+
+            # translate to the rotation center
+            translate_to_rot = affine_matrix_2d(translation=rot_center_neg)
+            matrix = translate_to_rot @ matrix
+
+        # apply rotation and scale
+        rot_and_scale = trafo.copy()
+        rot_and_scale[2, :2] = 0
+        matrix = rot_and_scale @ matrix
+
+        # translate back from the rotation center
+        if rot_center is not None:
+            translate_from_rot = affine_matrix_2d(translation=rot_center)
+            matrix = translate_from_rot @ matrix
+        return matrix
+
+    def convert3d(trafo):
+        # initialize the resulting affine matrix with the identity
+        matrix = affine_matrix_3d()
+
+        # load the rotation center from the elastix transformation definition
+        rot_center = elastix_parser.get_rotation_center(trafo_file)
+        if rot_center is not None:
+            rot_center_neg = [-ce for ce in rot_center]
+
+            # translate to the rotation center
+            translate_to_rot = affine_matrix_3d(translation=rot_center_neg)
+            matrix = translate_to_rot @ matrix
+
+        # apply rotation and scale
+        rot_and_scale = trafo.copy()
+        rot_and_scale[3, :3] = 0
+        matrix = rot_and_scale @ matrix
+
+        # translate back from the rotation center
+        if rot_center is not None:
+            translate_from_rot = affine_matrix_3d(translation=rot_center)
+            matrix = translate_from_rot @ matrix
+        return matrix
+
+    # go fron the transformation vector to affine matrix. we can use the
     # bdv functionality, because both bdv and elastix have the same axis convention
     trafo = elastix_parameter_to_bdv_matrix(trafo, trafo_type)
 
-    # initialize the resulting affine matrix with the identity
-    matrix = affine_matrix_3d()
-
-    # load the rotation center from the elastix transformation definition
-    rot_center = elastix_parser.get_rotation_center(trafo_file)
-    if rot_center is not None:
-        rot_center_neg = [-ce for ce in rot_center]
-
-        # translate to the rotation center
-        translate_to_rot = affine_matrix_3d(translation=rot_center_neg)
-        matrix = translate_to_rot @ matrix
-
-    # apply rotation and scale
-    rot_and_scale = trafo.copy()
-    rot_and_scale[3, :3] = 0
-    matrix = rot_and_scale @ matrix
-
-    # translate back from the rotation center
-    if rot_center is not None:
-        translate_from_rot = affine_matrix_3d(translation=rot_center)
-        matrix = translate_from_rot @ matrix
-
-    return matrix
+    # convert in 2d or 3d
+    if trafo.shape[0] == 3:
+        return convert2d(trafo)
+    else:
+        return convert3d(trafo)
 
 
 def _combine_elastix_trafos_bdv(trafos, resolution, scale_factor):
+    is_2d = trafos[0].shape[0] == 3
 
-    # transformation to scale from voxel space to millimeter (which is the fixed physical unit in elastix)
-    vox_to_mm = affine_matrix_3d(scale=3 * [scale_factor])
+    # transformation to scale from voxel space to millimeter
+    # (which is the fixed physical unit in elastix)
+    if is_2d:  # 2d case
+        vox_to_mm = affine_matrix_2d(scale=2 * [scale_factor])
+    else:  # 3d case
+        vox_to_mm = affine_matrix_3d(scale=3 * [scale_factor])
 
     # transformation to scale from millimiter to the physicial unit we use
     # usually we use micrometer and then scale_factor = 10^3
     # for nanometer it would be 10^6 etc.
-    mm_to_unit = affine_matrix_3d(scale=[res / scale_factor for res in resolution])
+    if is_2d:  # 2d case
+        mm_to_unit = affine_matrix_2d(scale=[res / scale_factor for res in resolution])
+    else:  # 3d case
+        mm_to_unit = affine_matrix_3d(scale=[res / scale_factor for res in resolution])
 
     # combine the scaling transfomraions and the actual elastix transformations
     matrix = vox_to_mm
@@ -334,29 +434,47 @@ def bdv_to_native(trafo, resolution=None, invert=True):
         invert [bool] - invert the resulting affine matrix.
             This is necessary to apply the affine matrix directly in elf (default: True)
     Returns:
-        np.ndarray - 4x4 affine matrix
+        np.ndarray - 3x3 or 4x4 affine matrix
     """
-    assert len(trafo) == 12
 
-    sub_matrix = np.zeros((3, 3), dtype='float64')
-    sub_matrix[0, 0] = trafo[10]
-    sub_matrix[0, 1] = trafo[9]
-    sub_matrix[0, 2] = trafo[8]
+    if len(trafo) == 12:  # 3d case
+        sub_matrix = np.zeros((3, 3), dtype='float64')
+        sub_matrix[0, 0] = trafo[10]
+        sub_matrix[0, 1] = trafo[9]
+        sub_matrix[0, 2] = trafo[8]
 
-    sub_matrix[1, 0] = trafo[6]
-    sub_matrix[1, 1] = trafo[5]
-    sub_matrix[1, 2] = trafo[4]
+        sub_matrix[1, 0] = trafo[6]
+        sub_matrix[1, 1] = trafo[5]
+        sub_matrix[1, 2] = trafo[4]
 
-    sub_matrix[2, 0] = trafo[2]
-    sub_matrix[2, 1] = trafo[1]
-    sub_matrix[2, 2] = trafo[0]
+        sub_matrix[2, 0] = trafo[2]
+        sub_matrix[2, 1] = trafo[1]
+        sub_matrix[2, 2] = trafo[0]
 
-    shift = [trafo[11], trafo[7], trafo[3]]
+        shift = [trafo[11], trafo[7], trafo[3]]
 
-    matrix = np.zeros((4, 4))
-    matrix[:3, :3] = sub_matrix
-    matrix[:3, 3] = shift
-    matrix[3, 3] = 1
+        matrix = np.zeros((4, 4))
+        matrix[:3, :3] = sub_matrix
+        matrix[:3, 3] = shift
+        matrix[3, 3] = 1
+
+    elif len(trafo) == 6:  # 2d case
+        sub_matrix = np.zeros((2, 2), dtype='float64')
+        sub_matrix[0, 0] = trafo[4]
+        sub_matrix[0, 1] = trafo[3]
+
+        sub_matrix[1, 0] = trafo[1]
+        sub_matrix[1, 1] = trafo[0]
+
+        shift = [trafo[5], trafo[2]]
+
+        matrix = np.zeros((3, 3))
+        matrix[:2, :2] = sub_matrix
+        matrix[:2, 2] = shift
+        matrix[2, 2] = 1
+
+    else:
+        raise ValueError(f"Invalid number of parameters {len(trafo)}")
 
     # invert the matrix, because the transformation directions of bdv and
     # the native format are opposite. can be deactivated for debugging purposes.
@@ -365,7 +483,8 @@ def bdv_to_native(trafo, resolution=None, invert=True):
 
     # scale from physical resolution to voxels
     if resolution is not None:
-        scale = affine_matrix_3d(scale=resolution)
+        scale = affine_matrix_3d(scale=resolution) if len(trafo) == 12\
+            else affine_matrix_2d(scale=resolution)
         matrix = matrix @ scale
 
     return matrix
@@ -388,7 +507,7 @@ def native_to_bdv(matrix, resolution=None, invert=True):
         invert [bool] - invert the resulting affine matrix.
             This is necessary to apply the affine matrix directly in elf (default: True)
     Returns:
-        np.ndarray - 4x4 affine matrix in native format
+        Vector with transformation parameters
     """
     # TODO include scaling transformation from physical space to voxel space
     if resolution is not None:
@@ -397,7 +516,11 @@ def native_to_bdv(matrix, resolution=None, invert=True):
     if invert:
         matrix = np.linalg.inv(matrix)
 
-    trafo = [matrix[2, 2], matrix[2, 1], matrix[2, 0], matrix[2, 3],
-             matrix[1, 2], matrix[1, 1], matrix[1, 0], matrix[1, 3],
-             matrix[0, 2], matrix[0, 1], matrix[0, 0], matrix[0, 3]]
+    if matrix.shape[0] == 4:
+        trafo = [matrix[2, 2], matrix[2, 1], matrix[2, 0], matrix[2, 3],
+                 matrix[1, 2], matrix[1, 1], matrix[1, 0], matrix[1, 3],
+                 matrix[0, 2], matrix[0, 1], matrix[0, 0], matrix[0, 3]]
+    else:
+        trafo = [matrix[1, 1], matrix[1, 0], matrix[1, 2],
+                 matrix[0, 1], matrix[0, 0], matrix[0, 2]]
     return trafo

@@ -28,6 +28,8 @@ class TestMutexWatershed(unittest.TestCase):
         # make sure the segmentation is not trivial
         self.assertGreater(len(np.unique(seg)), 10)
 
+    # TODO remove expected failure once affogato is up-to-date
+    @unittest.expectedFailure  # the affogato version on conda is not up-to date
     def test_mutex_watershed_with_seeds(self):
         from elf.segmentation.mutex_watershed import mutex_watershed_with_seeds
         shape = (10, 256, 256)

@@ -1,10 +1,10 @@
 import os
 
 ELASTIX_TRAFO_TYPES = {
-    'TranslationTransform': 3,
-    'EulerTransform': 6,
-    'SimilarityTransform': 7,
-    'AffineTransform': 12,
+    'TranslationTransform': [3, 2],
+    'EulerTransform': [6, 3],
+    'SimilarityTransform': [7, 4],
+    'AffineTransform': [12, 6],
     'BSplineTransform': None
 }
 AFFINE_COMPATIBLE = ['TranslationTransform',
@@ -35,7 +35,7 @@ def get_transformation_type(transform_file):
         return None
     else:
         n_params_exp = ELASTIX_TRAFO_TYPES[trafo_type]
-        if n_params_exp is not None and n_params_exp != n_params:
+        if n_params_exp is not None and n_params not in n_params_exp:
             return None
         else:
             return trafo_type
@@ -56,7 +56,7 @@ def get_transformation(transform_file):
                 params = line.rstrip('\n')[1:-1].split()
                 params = [float(param) for param in params[1:]]
                 n_params = len(params)
-                if exp_n_params is not None and n_params != exp_n_params:
+                if exp_n_params is not None and n_params not in exp_n_params:
                     raise ValueError(f"Invalid transformation file {transform_file}")
 
     if params is None:

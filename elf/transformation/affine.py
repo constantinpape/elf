@@ -16,10 +16,10 @@ def update_parameters(scale, rotation, shear, translation, dim):
     if scale is None:
         scale = [1.] * dim
     if rotation is None:
-        rotation = [0.] if dim == 2 else [0.] * 3
+        rotation = 0. if dim == 2 else [0.] * 3
     if shear is None:
         # TODO how many shear angles do we have in 3d ?
-        shear = [0.] * (dim - 1)
+        shear = 0. if dim == 2 else [0.] * 3
     if translation is None:
         translation = [0.] * dim
     return scale, rotation, shear, translation
@@ -38,11 +38,11 @@ def affine_matrix_2d(scale=None, rotation=None, shear=None, translation=None,
     sx, sy = scale
 
     if angles_in_degree:
-        phi = np.deg2rad(rotation)[0]
-        shear_angle = np.deg2rad(shear)[0]
+        phi = np.deg2rad(rotation)
+        shear_angle = np.deg2rad(shear)
     else:
-        phi = rotation[0]
-        shear_angle = shear[0]
+        phi = rotation
+        shear_angle = shear
 
     # TODO this formular is taken from skimage, however I am very skeptical about
     # the shear, see
