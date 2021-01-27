@@ -1,6 +1,25 @@
+import nifty.ground_truth as ngt
 import numpy as np
 from scipy.ndimage import convolve
 from scipy.ndimage.morphology import distance_transform_edt
+
+
+def compute_maximum_label_overlap(seg_a, seg_b, ignore_zeros=False):
+    """ For each node in seg_a, compute the node in seg_b with
+    the biggest overalp.
+    """
+    ids_a = np.unique(seg_a)
+    overlaps = np.zeros(int(ids_a.max() + 1), dtype=seg_b.dtype)
+
+    ovlp = ngt.overlap(seg_a, seg_b)
+    ovlp = [ovlp.overlapArrays(id_a, True)[0] for id_a in ids_a]
+    if ignore_zeros:
+        ovlp = np.array([ovl[1] if (ovl[0] == 0 and len(ovl) > 1) else ovl[0] for ovl in ovlp])
+    else:
+        ovlp = np.array([ovl[0] for ovl in ovlp])
+
+    overlaps[ids_a] = ovlp
+    return overlaps
 
 
 def normalize_input(input_, eps=1e-6):
