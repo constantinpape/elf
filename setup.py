@@ -1,5 +1,4 @@
 import runpy
-import itertools
 from setuptools import setup, find_packages
 
 __version__ = runpy.run_path("elf/__version__.py")["__version__"]
@@ -45,8 +44,4 @@ setup(
     extras_require=extras,
     url="https://github.com/constantinpape/elf",
     license="MIT"
-    # we will probably have scripts at some point, so I am leaving this for reference
-    # entry_points={
-    #     "console_scripts": ["view_container = heimdall.scripts.view_container:main"]
-    # },
 )

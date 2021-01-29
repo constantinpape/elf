@@ -34,13 +34,6 @@ requirements:
     - skan
     - vigra
     - z5py
-    # setup.py is source for dependencies. Add/remove there.
-    #{% for dep in data['install_requires'] %}
-    #- {{ dep.lower() }}
-    #{% endfor %}
-    #{% for dep in data['extras_require']['conda_all'] %}
-    #- {{ dep.lower() }}
-    #{% endfor %}
 
 test:
   imports:
@@ -48,6 +41,10 @@ test:
     - elf.io
     - elf.transformation
     - elf.segmentation
+  source_files:
+    - test/**/*.py
+  commands:
+    - python -m unittest discover -s test -v
 
 about:
   home: https://github.com/constantinpape/elf
