@@ -21,7 +21,10 @@ class ResizedVolume(WrapperBase):
         order [int]: order used for interpolation
     """
     def __init__(self, volume, shape, order=0):
-        assert len(shape) == volume.ndim == 3, "Only 3d supported"
+        if len(shape) != volume.ndim:
+            raise ValueError(f"Expect volume and shape to have same dimensionality, got {len(shape)}, {volume.ndim}")
+        if volume.ndim not in (2, 3):
+            raise ValueError(f"Expect 2d or 3d input data, got {volume.ndim}")
         super().__init__(volume)
         self._shape = shape
 
