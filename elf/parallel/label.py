@@ -144,8 +144,10 @@ def merge_blocks(data, out, mask, offsets,
         else:
             merge_labels = tp.map(_merge_block_faces, range(n_blocks))
     merge_labels = [res for res in merge_labels if res is not None]
-    merge_labels = np.concatenate(merge_labels, axis=0)
+    if len(merge_labels) == 0:
+        return np.arange(max_id + 1, dtype=out.dtype)
 
+    merge_labels = np.concatenate(merge_labels, axis=0)
     # merge labels via union find
     old_labels = np.arange(max_id + 1, dtype=out.dtype)
     ufd = nufd.boost_ufd(old_labels)

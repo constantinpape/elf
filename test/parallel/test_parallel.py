@@ -58,7 +58,7 @@ class TestParallel(unittest.TestCase):
         from elf.evaluation import rand_index
         shape = 3 * (32,)
         block_shape = 3 * (16,)
-        x = np.random.randint(1, 1000, size=shape).astype('uint32')
+        x = np.random.randint(1, 20, size=shape).astype('uint32')
 
         res = np.zeros_like(x)
         res = label(x, res, block_shape=block_shape, with_background=False)
@@ -66,14 +66,14 @@ class TestParallel(unittest.TestCase):
 
         # there is a tiny differnce in ri, maybe some border artifacts?
         _, ri = rand_index(res, exp)
-        self.assertAlmostEqual(ri, 1., places=5)
+        self.assertAlmostEqual(ri, 1., places=3)
 
     def test_label_with_background(self):
         from elf.parallel import label
         from elf.evaluation import rand_index
         shape = 3 * (32,)
         block_shape = 3 * (16,)
-        x = np.random.randint(0, 1000, size=shape).astype('uint32')
+        x = np.random.randint(0, 20, size=shape).astype('uint32')
 
         res = np.zeros_like(x)
         res = label(x, res, block_shape=block_shape, with_background=True)
@@ -81,7 +81,7 @@ class TestParallel(unittest.TestCase):
 
         # there is a tiny differnce in ri, maybe some border artifacts?
         _, ri = rand_index(res, exp)
-        self.assertAlmostEqual(ri, 1., places=5)
+        self.assertAlmostEqual(ri, 1., places=3)
 
 
 if __name__ == '__main__':

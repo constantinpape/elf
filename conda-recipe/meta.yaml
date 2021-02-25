@@ -28,12 +28,17 @@ requirements:
   run:
     - python >=3.6
     - imageio
+    - h5py
+    - mrcfile
     - nifty
+    - numba <=0.50  # need to pin this due to skan
+    - pandas
     - scikit-image
     - scikit-learn
     - skan
+    - tqdm
     - vigra
-    - z5py
+    - z5py >=2.0.8
 
 test:
   imports:
@@ -43,6 +48,7 @@ test:
     - elf.segmentation
   source_files:
     - test/**/*.py
+    - data/**
   commands:
     - python -m unittest discover -s test -v
 
