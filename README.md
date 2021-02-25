@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/constantinpape/elf.svg?branch=master)](https://travis-ci.com/constantinpape/elf)
+[![Build Status](https://github.com/constantinpape/elf/workflows/build/badge.svg)](https://github.com/constantinpape/elf/actions)
 
 # elf
 
@@ -13,12 +13,14 @@ This repository implements common functionality for (large-scale) bio-medical im
 
 and more.
 
-It is used by several down-stream dependencies:
-[cluster_tools](https://github.com/constantinpape/cluster_tools), [heimdall](https://github.com/constantinpape/heimdall),
-[skeletor](https://github.com/constantinpape/skeletor), [paintera_tools](https://github.com/constantinpape/paintera_tools), [pybdv](https://github.com/constantinpape/pybdv) and [ilastik](https://github.com/ilastik/ilastik).
+See `examples` for some usage examples..
+For processing large data on a cluster, check out [cluster_tools](https://github.com/constantinpape/cluster_tools).
 
-Of course, the functionality implemented here can also be used stand-alone, see the `examples`.
-For workflows implemented for big data runnable on a compute cluster, check out [cluster_tools](https://github.com/constantinpape/cluster_tools).
+It is used by several down-stream dependencies:
+- [cluster_tools](https://github.com/constantinpape/cluster_tools)
+- [paintera_tools](https://github.com/constantinpape/paintera_tools)
+- [pybdv](https://github.com/constantinpape/pybdv)
+- [ilastik](https://github.com/ilastik/ilastik).
 
 ## Installation
 

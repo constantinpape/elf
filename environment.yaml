@@ -1,6 +1,5 @@
 channels:
     - conda-forge
-    - cpape  # TODO get rid of cpape channel in the longrun
 name:
     elf-dev
 dependencies:
@@ -10,7 +9,6 @@ dependencies:
     - nifty
     - numba <=0.50  # need to pin this due to skan
     - pandas
-    - python 3.7
     - pip
     - scikit-image
     - skan
