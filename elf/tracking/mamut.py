@@ -45,10 +45,10 @@ def extract_tracks_as_volume(path, timepoint, shape, voxel_size, binary=False):
     all_spots = root.find('Model').find('AllSpots')
 
     # get all spots for a given time frame
-    spots = next((s for s in all_spots if s.attrib['frame'] == timepoint), None)
+    spots = next((s for s in all_spots if int(s.attrib['frame']) == timepoint), None)
 
     if spots is None:
-        raise RuntimeError('Could not find spots for time frame: ', timepoint)
+        raise RuntimeError('Could not find spots for time frame:', timepoint)
 
     # get pixel coordinates
     pixel_coordinates = np.array([_to_zyx_coordinates(
@@ -69,7 +69,7 @@ def extract_tracks_as_volume(path, timepoint, shape, voxel_size, binary=False):
         return spot_mask
 
     # extract volume with track ids
-    spot_ids = [spot.attrib['Spot ID'] for spot in spots]
+    spot_ids = [spot.attrib['ID'] for spot in spots]
     track_volume = np.zeros(shape, dtype='uint32')
 
     tracks = _extract_tracks(root)
