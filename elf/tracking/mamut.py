@@ -20,7 +20,8 @@ def _extract_tracks(root, flatten_spots=True):
     tracks = {}
     for track in all_tracks:
         track_id = int(track.attrib['TRACK_ID'])
-        spots = [[edge.attrib['SPOT_SOURCE_ID'], edge.attrib['SPOT_TARGET_ID']] for edge in track.findall('Edge')]
+        spots = [[int(edge.attrib['SPOT_SOURCE_ID']),
+                  int(edge.attrib['SPOT_TARGET_ID'])] for edge in track.findall('Edge')]
         if flatten_spots:
             spots = [spot for edge_spots in spots for spot in edge_spots]
         tracks[track_id] = spots
@@ -55,9 +56,6 @@ def extract_tracks_as_volume(path, timepoint, shape, voxel_size, binary=False):
         [spot.attrib['POSITION_Z'], spot.attrib['POSITION_Y'], spot.attrib['POSITION_X']],
         np.array([vsize for vsize in voxel_size])
     ) for spot in spots])
-
-    # TODO how do we save the track id ???
-    # save spots to nuclei file
     z = pixel_coordinates[:, 0]
     y = pixel_coordinates[:, 1]
     x = pixel_coordinates[:, 2]
@@ -69,12 +67,12 @@ def extract_tracks_as_volume(path, timepoint, shape, voxel_size, binary=False):
         return spot_mask
 
     # extract volume with track ids
-    spot_ids = [spot.attrib['ID'] for spot in spots]
+    spot_ids = [int(spot.attrib['ID']) for spot in spots]
     track_volume = np.zeros(shape, dtype='uint32')
 
     tracks = _extract_tracks(root)
     spots_to_tracks = {spot: track for track, spots in tracks.items() for spot in spots}
-    track_ids = np.array([spots_to_tracks[spot_id] for spot_id in spot_ids])
+    track_ids = np.array([spots_to_tracks.get(spot_id, 0) for spot_id in spot_ids])
 
     track_volume[z, y, x] = track_ids
 
