@@ -1,5 +1,3 @@
-from functools import partial
-
 import numpy as np
 import vigra
 
@@ -29,6 +27,7 @@ class ResizedVolume(WrapperBase):
         self._shape = shape
 
         self._scale = [sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)]
+        self.order = order
 
         if np.dtype(self.dtype) == np.bool:
             self.min, self.max = 0, 1
@@ -39,8 +38,6 @@ class ResizedVolume(WrapperBase):
             except ValueError:
                 self.min = np.finfo(np.dtype(self.dtype)).min
                 self.max = np.finfo(np.dtype(self.dtype)).max
-
-        self.interpol_function = partial(vigra.sampling.resize, order=order)
 
     @property
     def shape(self):
@@ -62,7 +59,7 @@ class ResizedVolume(WrapperBase):
             shape = tuple(sh for is_single, sh in zip(singletons, shape) if not is_single)
             have_squeezed = True
 
-        data = self.interpol_function(data.astype('float32'), shape=shape)
+        data = vigra.sampling.resize(data.astype('float32'), shape=shape, order=self.order)
         np.clip(data, self.min, self.max, out=data)
 
         if have_squeezed:
