@@ -430,7 +430,7 @@ def bdv_to_native(trafo, resolution=None, invert=True):
     Arguments:
         trafo [listlike] - parameter vector of the bdv transformation
         resolution [listlike] - physical resolution of the data in bdv.
-            If given, the transformation will be scaled to voxel sapec (default: None)
+            If given, the transformation will be scaled to voxel space (default: None)
         invert [bool] - invert the resulting affine matrix.
             This is necessary to apply the affine matrix directly in elf (default: True)
     Returns:
