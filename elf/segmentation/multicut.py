@@ -1,11 +1,8 @@
-from concurrent import futures
 from functools import partial
 
 import numpy as np
 import nifty
-import nifty.ufd as nufd
 import nifty.graph.opt.multicut as nmc
-from vigra.analysis import relabelConsecutive
 
 from .blockwise_mc_impl import blockwise_mc_impl
 
@@ -136,8 +133,6 @@ def get_multicut_solver(name, **kwargs):
     solvers = {'kernighan-lin': partial(multicut_kernighan_lin, **kwargs),
                'greedy-additive': partial(multicut_gaec, **kwargs),
                'decomposition': partial(multicut_decomposition, **kwargs),
-               'decomposition-gaec': partial(multicut_decomposition,
-                                             internal_solver='greedy-additive', **kwargs),
                'fusion-moves': partial(multicut_fusion_moves, **kwargs),
                'blockwise-multicut': partial(blockwise_multicut, **kwargs)}
     try:
@@ -145,6 +140,18 @@ def get_multicut_solver(name, **kwargs):
     except KeyError:
         raise KeyError("Solver %s is not supported" % name)
     return solver
+
+
+def _get_solver_factory(objective, internal_solver, warmstart=True):
+    if internal_solver == 'kernighan-lin':
+        sub_solver = objective.kernighanLinFactory(warmStartGreedy=warmstart)
+    elif internal_solver == 'greedy-additive':
+        sub_solver = objective.greedyAdditiveFactory()
+    elif internal_solver in ('fusion-move', 'decomposition'):
+        raise NotImplementedError(f"Using {internal_solver} as internal solver is currently not supported.")
+    else:
+        raise ValueError(f"{internal_solver} cannot be used as internal solver.")
+    return sub_solver
 
 
 def blockwise_multicut(graph, costs, segmentation,
@@ -216,11 +223,13 @@ def multicut_gaec(graph, costs, time_limit=None, **kwargs):
         return solver.optimize(visitor=visitor)
 
 
-# TODO move impl to nifty (Thorsten already has impl ?!)
 def multicut_decomposition(graph, costs, time_limit=None,
                            n_threads=1, internal_solver='kernighan-lin',
                            **kwargs):
     """ Solve multicut problem with decomposition solver.
+
+    Introduced in "Break and Conquer: Efficient Correlation Clustering for Image Segmentation":
+    https://link.springer.com/chapter/10.1007/978-3-642-39140-8_9
 
     Arguments:
         graph [nifty.graph] - graph of multicut problem
@@ -230,91 +239,20 @@ def multicut_decomposition(graph, costs, time_limit=None,
         internal_solver [str] - name of solver used for connected components
             (default: 'kernighan-lin')
     """
-
-    # get the agglomerator
-    solver = get_multicut_solver(internal_solver)
-
-    # merge attractive edges with ufd to
-    # obtain natural connected components
-    merge_edges = costs > 0
-    ufd = nufd.ufd(graph.numberOfNodes)
-    uv_ids = graph.uvIds()
-    ufd.merge(uv_ids[merge_edges])
-    cc_labels = ufd.elementLabeling()
-
-    # relabel component ids consecutively
-    cc_labels, max_id, _ = relabelConsecutive(cc_labels, start_label=0,
-                                              keep_zeros=False)
-
-    # solve a component sub-problem
-    def solve_component(component_id):
-
-        # extract the nodes in this component
-        sub_nodes = np.where(cc_labels == component_id)[0].astype('uint64')
-        # if we only have a single node, return trivial labeling
-        if len(sub_nodes) == 1:
-            return sub_nodes, np.array([0], dtype='uint64'), 1
-
-        # extract the subgraph corresponding to this component
-        inner_edges, _ = graph.extractSubgraphFromNodes(sub_nodes)
-        sub_uvs = uv_ids[inner_edges]
-        assert len(inner_edges) == len(sub_uvs), "%i, %i" % (len(inner_edges), len(sub_uvs))
-
-        # relabel sub-nodes and associated uv-ids
-        sub_nodes_relabeled, max_local, node_mapping = relabelConsecutive(sub_nodes,
-                                                                          start_label=0,
-                                                                          keep_zeros=False)
-        sub_uvs = nifty.tools.takeDict(node_mapping, sub_uvs)
-
-        # build the graph
-        sub_graph = nifty.graph.undirectedGraph(max_local + 1)
-        sub_graph.insertEdges(sub_uvs)
-
-        # solve local multicut
-        sub_costs = costs[inner_edges]
-        assert len(sub_costs) == sub_graph.numberOfEdges, "%i, %i" % (len(sub_costs),
-                                                                      sub_graph.numberOfEdges)
-        sub_labels = solver(sub_graph, sub_costs, time_limit=time_limit)
-        # relabel the solution
-        sub_labels, max_seg_local, _ = relabelConsecutive(sub_labels, start_label=0,
-                                                          keep_zeros=False)
-        assert len(sub_labels) == len(sub_nodes), "%i, %i" % (len(sub_labels), len(sub_nodes))
-        return sub_nodes, sub_labels, max_seg_local + 1
-
-    # solve all components in parallel
-    with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(solve_component, component_id)
-                 for component_id in range(max_id + 1)]
-        results = [t.result() for t in tasks]
-
-    sub_nodes = [res[0] for res in results]
-    sub_results = [res[1] for res in results]
-    offsets = np.array([res[2] for res in results], dtype='uint64')
-
-    # make proper offsets for the component results
-    offsets = np.roll(offsets, 1)
-    offsets[0] = 0
-    offsets = np.cumsum(offsets)
-
-    # insert sub-results into the components
-    node_labels = np.zeros_like(cc_labels, dtype='uint64')
-
-    def insert_solution(component_id):
-        nodes = sub_nodes[component_id]
-        node_labels[nodes] = (sub_results[component_id] + offsets[component_id])
-
-    with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(insert_solution, component_id)
-                 for component_id in range(max_id + 1)]
-        [t.result() for t in tasks]
-
-    return node_labels
+    objective = _to_objective(graph, costs)
+    solver_factory = _get_solver_factory(objective, internal_solver)
+    solver = objective.multicutDecomposerFactory(
+        submodelFactory=solver_factory,
+        fallthroughFactory=solver_factory,
+        numberOfThreads=n_threads
+    ).create(objective)
+    return solver.optimize()
 
 
 # TODO enable warmstart with gaec / kl
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                           internal_solver='kernighan-lin', seed_fraction=.05,
-                          num_it=1000, num_it_stop=25):
+                          num_it=1000, num_it_stop=25, sigma=2.):
     """ Solve multicut problem with fusion moves solver.
 
     Introduced in "Fusion moves for correlation clustering":
@@ -331,17 +269,12 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
             (default: .05)
         num_it [int] - maximal number of iterations (default: 1000)
         num_it_stop [int] - stop if no improvement after num_it_stop (default: 1000)
+        sigma [float] - smoothing factor for weights in proposal generator (default: 2.)
     """
-    assert internal_solver in ('kernighan-lin', 'greedy-additive')
     objective = _to_objective(graph, costs)
-
-    if internal_solver == 'kernighan-lin':
-        sub_solver = objective.greedyAdditiveFactory()
-    else:
-        sub_solver = objective.kernighanLinFactory(warmStartGreedy=True)
-
+    sub_solver = _get_solver_factory(objective, internal_solver)
     sub_solver = objective.fusionMoveSettings(mcFactory=sub_solver)
-    proposal_gen = objective.watershedCcProposals(sigma=2., numberOfSeeds=seed_fraction)
+    proposal_gen = objective.watershedCcProposals(sigma=sigma, numberOfSeeds=seed_fraction)
 
     solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
                                                 proposalGenerator=proposal_gen,
