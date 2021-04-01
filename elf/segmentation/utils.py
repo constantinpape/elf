@@ -8,7 +8,7 @@ from scipy.ndimage import convolve
 from scipy.ndimage.morphology import distance_transform_edt
 
 
-# Aff large problems?
+# add large problems?
 def load_multicut_problem(sample, size, path=None):
     """ Load example multicut problems.
 

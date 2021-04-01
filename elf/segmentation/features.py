@@ -3,6 +3,7 @@ from concurrent import futures
 
 import numpy as np
 import vigra
+import nifty
 import nifty.graph.rag as nrag
 import nifty.ground_truth as ngt
 try:
@@ -237,6 +238,43 @@ def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
 
     features = np.nan_to_num(np.concatenate(features, axis=1))
     assert len(features) == len(uv_ids)
+    return features
+
+
+# TODO implement long range functionality
+#
+# Grid Graph and Features
+#
+def compute_grid_graph(image):
+    """ Compute grid graph for the image.
+    """
+    grid_graph = nifty.graph.undirectedGridGraph(image.shape)
+    return grid_graph
+
+
+def compute_grid_graph_features(grid_graph, image, mode):
+    """ Compute edge features from image for the given grid_graph.
+
+    Parameters:
+        grid_graph [grid-graph] - the grid graph
+        image [np.ndarray] - the image, the features are derived from
+        mode [str] - feature accumulation method
+    """
+    gndim = len(grid_graph.shape)
+
+    if image.ndim == gndim:
+        modes = ('l1', 'l2', 'min', 'max', 'sum', 'prod', 'interpixel')
+        if mode not in modes:
+            raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
+        features = grid_graph.imageToEdgeMap(image, mode)
+    elif image.ndim == gndim + 1:
+        modes = ('l1', 'l2', 'cosine')
+        if mode not in modes:
+            raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
+        features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
+    else:
+        msg = f"Invalid image dimension {image.ndim}, expect one of {gndim} or {gndim + 1}"
+        raise ValueError(msg)
     return features
 
 
