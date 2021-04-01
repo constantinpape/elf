@@ -1,23 +1,19 @@
 import os
-import urllib.request
 
 import unittest
 import numpy as np
 import nifty
 import nifty.graph.opt.multicut as nmc
+from elf.segmentation.utils import load_multicut_problem
 
 
 class TestMulticut(unittest.TestCase):
     upper_bound = -76900
-    problem_url = 'https://oc.embl.de/index.php/s/yVKwyQ8VoPXYkft/download'
     problem_path = './tmp_mc_problem.txt'
 
     @classmethod
     def setUpClass(cls):
-        with urllib.request.urlopen(cls.problem_url) as f:
-            problem = f.read().decode('utf-8')
-        with open(cls.problem_path, 'w') as f:
-            f.write(problem)
+        load_multicut_problem('A', 'small', path=cls.problem_path)
 
     @classmethod
     def tearDownClass(cls):
@@ -25,16 +21,6 @@ class TestMulticut(unittest.TestCase):
             os.remove(cls.problem_path)
         except OSError:
             pass
-
-    @staticmethod
-    def load_problem(path):
-        problem = np.genfromtxt(path)
-        uv_ids = problem[:, :2].astype('uint64')
-        n_nodes = int(uv_ids.max()) + 1
-        graph = nifty.graph.undirectedGraph(n_nodes)
-        graph.insertEdges(uv_ids)
-        costs = problem[:, -1].astype('float32')
-        return graph, costs
 
     # https://github.com/constantinpape/graph/blob/master/src/andres/graph/unit-test/multicut/kernighan-lin.cxx
     def toy_problem(self):
@@ -59,7 +45,7 @@ class TestMulticut(unittest.TestCase):
         self.assertTrue(np.array_equal(result, expected_result))
 
     def _test_multicut(self, solver, **kwargs):
-        graph, costs = self.load_problem(self.problem_path)
+        graph, costs = load_multicut_problem('A', 'small', self.problem_path)
         node_labels = solver(graph, costs, **kwargs)
         obj = nmc.multicutObjective(graph, costs)
         energy = obj.evalNodeLabels(node_labels)

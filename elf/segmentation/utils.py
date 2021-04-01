@@ -1,7 +1,58 @@
-import nifty.ground_truth as ngt
+import os
+import urllib.request
+
 import numpy as np
+import nifty
+import nifty.ground_truth as ngt
 from scipy.ndimage import convolve
 from scipy.ndimage.morphology import distance_transform_edt
+
+
+# Aff large problems?
+def load_multicut_problem(sample, size, path=None):
+    """ Load example multicut problems.
+
+    These problems were introduced in
+    "Solving large multicut problems for connectomics via domain decomposition":
+    https://openaccess.thecvf.com/content_ICCV_2017_workshops/w1/html/Pape_Solving_Large_Multicut_ICCV_2017_paper.html
+
+    Arguments:
+        sample [str] - the sample for this problem, 'A' 'B' or 'C'
+        size [str] - the size for this problem, 'small' or 'medium'
+        path [str] - where to save the problem file (default: None)
+    """
+    problems = {
+        "A": {
+            "small": "https://oc.embl.de/index.php/s/yVKwyQ8VoPXYkft/download",
+            "medium": "https://oc.embl.de/index.php/s/ztnwjmv0bmd3mnS/download"
+        },
+        "B": {
+            "small": "https://oc.embl.de/index.php/s/QKYA2EoMXqxQuO4/download",
+            "medium": "https://oc.embl.de/index.php/s/yuk7VwCvgZC017q/download"
+        },
+        "C": {
+            "small": "https://oc.embl.de/index.php/s/eDZprDwT2cXFAe0/download",
+            "medium": "https://oc.embl.de/index.php/s/hGyqlkenHfsq5P4/download"
+        }
+    }
+    assert sample in problems
+    assert size in problems[sample]
+    url = problems[sample][size]
+    path = f'{size}_problem_sample{sample}' if path is None else path
+    if not os.path.exists(path):
+        with urllib.request.urlopen(url) as f:
+            problem = f.read().decode('utf-8')
+        with open(path, 'w') as f:
+            f.write(problem)
+
+    problem = np.genfromtxt(path)
+    uv_ids = problem[:, :2].astype('uint64')
+    n_nodes = int(uv_ids.max()) + 1
+    graph = nifty.graph.undirectedGraph(n_nodes)
+    graph.insertEdges(uv_ids)
+    costs = problem[:, -1].astype('float32')
+
+    return graph, costs
 
 
 def compute_maximum_label_overlap(seg_a, seg_b, ignore_zeros=False):
