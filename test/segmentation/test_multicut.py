@@ -87,12 +87,9 @@ class TestMulticut(unittest.TestCase):
 
     # TODO cut glue cut, check if nifty is compiled with the necessary flags
 
-    # TODO try again with warmstart
-    @unittest.skip("Fusion moves take to long for CI")
     def test_fusion_moves(self):
         from elf.segmentation.multicut import multicut_fusion_moves
-        self._test_multicut(multicut_fusion_moves, internal_solver='greedy-additive',
-                            num_it=250, num_it_stop=10, seed_fraction=.1)
+        self._test_multicut(multicut_fusion_moves, internal_solver='greedy-additive', num_it=25, num_it_stop=5)
 
     def test_fusion_moves_toy(self):
         from elf.segmentation.multicut import multicut_fusion_moves

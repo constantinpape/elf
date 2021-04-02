@@ -279,9 +279,9 @@ def multicut_decomposition(graph, costs, time_limit=None,
     return solver.optimize()
 
 
-# TODO enable warmstart with gaec / kl
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
-                          internal_solver='kernighan-lin', seed_fraction=.05,
+                          internal_solver='kernighan-lin', warmstart=True,
+                          seed_fraction=.05,
                           num_it=1000, num_it_stop=25, sigma=2.):
     """ Solve multicut problem with fusion moves solver.
 
@@ -295,6 +295,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
         n_threasd [int] - number of threads (default: 1)
         internal_solver [str] - name of solver used for connected components
             (default: 'kernighan-lin')
+        warmstart [bool] - whether to warmstart with gaec solution (default: True)
         seed_fraction [float] - fraction of nodes used as seeds for proposal generation
             (default: .05)
         num_it [int] - maximal number of iterations (default: 1000)
@@ -307,6 +308,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
     proposal_gen = objective.watershedCcProposals(sigma=sigma, numberOfSeeds=seed_fraction)
 
     solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
+                                                warmStartGreedy=warmstart,
                                                 proposalGenerator=proposal_gen,
                                                 numberOfThreads=n_threads,
                                                 numberOfIterations=num_it,
