@@ -109,6 +109,17 @@ def analyse_lifted_multicut_problem(graph, costs, lifted_uvs, lifted_costs):
     pass
 
 
+def parse_visitor_output(output):
+    data = []
+    for line in output.split('\n'):
+        if not line.startswith('E:'):
+            continue
+        line = line.split()
+        data.append([float(line[1]), float(line[3]), float(line[5])])
+    columns = ['energy', 'runtime solver [s]', 'runtime total [s]']
+    return pd.DataFrame(data=data, columns=columns)
+
+
 #
 # misc utils
 #

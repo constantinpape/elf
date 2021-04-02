@@ -7,14 +7,9 @@ import nifty.graph.opt.multicut as nmc
 from .blockwise_mc_impl import blockwise_mc_impl
 
 
-def _to_objective(graph, costs):
-    if isinstance(graph, nifty.graph.UndirectedGraph):
-        graph_ = graph
-    else:
-        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
-        graph_.insertEdges(graph.uvIds())
-    objective = nmc.multicutObjective(graph_, costs)
-    return objective
+#
+# cost functionality
+#
 
 
 def _weight_edges(costs, edge_sizes, weighting_exponent):
@@ -121,27 +116,18 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
 
 
 #
-# TODO
-# - support setting logging visitors
+# multicut solvers
 #
 
 
-def get_multicut_solver(name, **kwargs):
-    """ Get multicut solver by name.
-    """
-    solvers = {'kernighan-lin': partial(multicut_kernighan_lin, **kwargs),
-               'greedy-additive': partial(multicut_gaec, **kwargs),
-               'decomposition': partial(multicut_decomposition, **kwargs),
-               'fusion-moves': partial(multicut_fusion_moves, **kwargs),
-               'blockwise-multicut': partial(blockwise_multicut, **kwargs),
-               'greedy-fixation': partial(multicut_greedy_fixation, **kwargs),
-               'cut-glue-cut': partial(multicut_cgc, **kwargs),
-               'ilp': partial(multicut_ilp, **kwargs)}
-    try:
-        solver = solvers[name]
-    except KeyError:
-        raise KeyError("Solver %s is not supported" % name)
-    return solver
+def _to_objective(graph, costs):
+    if isinstance(graph, nifty.graph.UndirectedGraph):
+        graph_ = graph
+    else:
+        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
+        graph_.insertEdges(graph.uvIds())
+    objective = nmc.multicutObjective(graph_, costs)
+    return objective
 
 
 def _get_solver_factory(objective, internal_solver, warmstart=True):
@@ -164,6 +150,48 @@ def _get_solver_factory(objective, internal_solver, warmstart=True):
     else:
         raise ValueError(f"{internal_solver} cannot be used as internal solver.")
     return sub_solver
+
+
+def _get_visitor(objective, time_limit=None, **kwargs):
+    logging_interval = kwargs.pop('logging_interval', None)
+    log_level = kwargs.pop('log_level', 'INFO')
+    if time_limit is not None or logging_interval is not None:
+        logging_interval = int(np.iinfo('int32').max) if logging_interval is None else logging_interval
+        time_limit = float('inf') if time_limit is None else time_limit
+        log_level = getattr(nifty.LogLevel, log_level, nifty.LogLevel.INFO)
+
+        # I can't see a real difference between loggingVisitor and verboseVisitor.
+        # Use loggingVisitor for now.
+
+        # visitor = objective.verboseVisitor(visitNth=logging_interval,
+        #                                    timeLimitTotal=time_limit,
+        #                                    logLevel=log_level)
+
+        visitor = objective.loggingVisitor(visitNth=logging_interval,
+                                           timeLimitTotal=time_limit,
+                                           logLevel=log_level)
+
+        return visitor
+    else:
+        return None
+
+
+def get_multicut_solver(name, **kwargs):
+    """ Get multicut solver by name.
+    """
+    solvers = {'kernighan-lin': partial(multicut_kernighan_lin, **kwargs),
+               'greedy-additive': partial(multicut_gaec, **kwargs),
+               'decomposition': partial(multicut_decomposition, **kwargs),
+               'fusion-moves': partial(multicut_fusion_moves, **kwargs),
+               'blockwise-multicut': partial(blockwise_multicut, **kwargs),
+               'greedy-fixation': partial(multicut_greedy_fixation, **kwargs),
+               'cut-glue-cut': partial(multicut_cgc, **kwargs),
+               'ilp': partial(multicut_ilp, **kwargs)}
+    try:
+        solver = solvers[name]
+    except KeyError:
+        raise KeyError("Solver %s is not supported" % name)
+    return solver
 
 
 def blockwise_multicut(graph, costs, segmentation,
@@ -206,12 +234,8 @@ def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwar
     """
     objective = _to_objective(graph, costs)
     solver = objective.kernighanLinFactory(warmStartGreedy=warmstart).create(objective)
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000,
-                                           timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_gaec(graph, costs, time_limit=None, **kwargs):
@@ -227,12 +251,8 @@ def multicut_gaec(graph, costs, time_limit=None, **kwargs):
     """
     objective = _to_objective(graph, costs)
     solver = objective.greedyAdditiveFactory().create(objective)
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000,
-                                           timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
@@ -248,12 +268,8 @@ def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
     """
     objective = _to_objective(graph, costs)
     solver = objective.greedyFixationFactory().create(objective)
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000,
-                                           timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_cgc(graph, costs, time_limit=None, warmstart=True, **kwargs):
@@ -274,12 +290,8 @@ def multicut_cgc(graph, costs, time_limit=None, warmstart=True, **kwargs):
         raise RuntimeError("multicut_cgc requires nifty built with QPBO")
     objective = _to_objective(graph, costs)
     solver = objective.cgcFactory(warmStartGreedy=warmstart).create(objective)
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000,
-                                           timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_decomposition(graph, costs, time_limit=None,
@@ -305,13 +317,15 @@ def multicut_decomposition(graph, costs, time_limit=None,
         fallthroughFactory=solver_factory,
         numberOfThreads=n_threads
     ).create(objective)
-    return solver.optimize()
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                           internal_solver='kernighan-lin', warmstart=True,
                           seed_fraction=.05,
-                          num_it=1000, num_it_stop=25, sigma=2.):
+                          num_it=1000, num_it_stop=25, sigma=2.,
+                          **kwargs):
     """ Solve multicut problem with fusion moves solver.
 
     Introduced in "Fusion moves for correlation clustering":
@@ -342,16 +356,11 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                                                 numberOfThreads=n_threads,
                                                 numberOfIterations=num_it,
                                                 stopIfNoImprovement=num_it_stop).create(objective)
-
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000,
-                                           timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_ilp(graph, costs, time_limit):
+def multicut_ilp(graph, costs, time_limit=None, **kwargs):
     """ Solve multicut problem with ilp solver.
 
     Introduced in "Globally Optimal Closed-surface Segmentation for Connectomics":
@@ -368,9 +377,5 @@ def multicut_ilp(graph, costs, time_limit):
         raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
     objective = _to_objective(graph, costs)
     solver = objective.multicutIlpFactory().create(objective)
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000,
-                                           timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    visitor = _get_visitor(objective, time_limit, **kwargs)
+    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
