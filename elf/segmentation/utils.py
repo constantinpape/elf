@@ -4,8 +4,16 @@ import urllib.request
 import numpy as np
 import nifty
 import nifty.ground_truth as ngt
+import nifty.ufd as nufd
+import pandas as pd
 from scipy.ndimage import convolve
 from scipy.ndimage.morphology import distance_transform_edt
+from vigra.analysis import relabelConsecutive
+
+
+#
+# multicut utils
+#
 
 
 # add large problems?
@@ -55,6 +63,57 @@ def load_multicut_problem(sample, size, path=None):
     return graph, costs
 
 
+def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0):
+    # problem size and cost summary
+    n_nodes, n_edges = graph.numberOfNodes, graph.numberOfEdges
+    min_cost, max_cost = costs.min(), costs.max()
+    mean_cost, std_cost = costs.mean(), costs.std()
+
+    # component analysis
+    merge_edges = costs > cost_threshold
+    ufd = nufd.ufd(n_nodes)
+    uv_ids = graph.uvIds()
+    ufd.merge(uv_ids[merge_edges])
+    cc_labels = ufd.elementLabeling()
+    cc_labels, max_id, _ = relabelConsecutive(cc_labels, start_label=0,
+                                              keep_zeros=False)
+    n_components = max_id + 1
+    _, component_sizes = np.unique(cc_labels, return_counts=True)
+    component_sizes = np.sort(component_sizes)[::-1]
+    top_five_rel_sizes = component_sizes[:5].astype('float32') / n_nodes
+
+    # TODO add partial optimality analysis from
+    # http://proceedings.mlr.press/v80/lange18a.html
+    if verbose:
+        print("Analysis of multicut problem:")
+        print("The graph has", n_nodes, "nodes and", n_edges, "edges")
+        print("The costs are in range", min_cost, "to", max_cost)
+        print("The mean cost is", mean_cost, "+-", std_cost)
+        print("The problem decomposes into", n_components, "components at threshold", cost_threshold)
+        print("The 5 largest components have the following sizes:", top_five_rel_sizes)
+
+    data = [n_nodes, n_edges,
+            max_cost, min_cost, mean_cost, std_cost,
+            n_components, cost_threshold]
+    data.extend(top_five_rel_sizes.tolist())
+    columns = ['n_nodes', 'n_edges',
+               'max_cost', 'min_cost', 'mean_cost', 'std_cost',
+               'n_componennts', 'cost_threshold']
+    columns.extend([f'relative_size_top{i+1}_component' for i in range(len(top_five_rel_sizes))])
+    df = pd.DataFrame(data=[data], columns=columns)
+    return df
+
+
+# TODO
+def analyse_lifted_multicut_problem(graph, costs, lifted_uvs, lifted_costs):
+    pass
+
+
+#
+# misc utils
+#
+
+
 def compute_maximum_label_overlap(seg_a, seg_b, ignore_zeros=False):
     """ For each node in seg_a, compute the node in seg_b with
     the biggest overalp.
@@ -84,6 +143,11 @@ def normalize_input(input_, eps=1e-6):
     input_ -= input_.min()
     input_ /= (input_.max() + eps)
     return input_
+
+
+#
+# segmentation boundary utils
+#
 
 
 def smooth_edges(edges, gain=1.):
