@@ -42,6 +42,8 @@ class TestMulticut(unittest.TestCase):
         node_labels = solver(graph, costs)
         uv_ids = graph.uvIds()
         result = node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]
+        # print("Expected", expected_result)
+        # print("Result", result)
         self.assertTrue(np.array_equal(result, expected_result))
 
     def _test_multicut(self, solver, **kwargs):
@@ -75,6 +77,17 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_decomposition
         self._test_multicut_toy(multicut_decomposition)
 
+    def test_greedy_fixation(self):
+        from elf.segmentation.multicut import multicut_greedy_fixation
+        self._test_multicut(multicut_greedy_fixation)
+
+    def test_greedy_fixation_toy(self):
+        from elf.segmentation.multicut import multicut_greedy_fixation
+        self._test_multicut_toy(multicut_greedy_fixation)
+
+    # TODO cut glue cut, check if nifty is compiled with the necessary flags
+
+    # TODO try again with warmstart
     @unittest.skip("Fusion moves take to long for CI")
     def test_fusion_moves(self):
         from elf.segmentation.multicut import multicut_fusion_moves

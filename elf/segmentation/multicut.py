@@ -134,7 +134,9 @@ def get_multicut_solver(name, **kwargs):
                'greedy-additive': partial(multicut_gaec, **kwargs),
                'decomposition': partial(multicut_decomposition, **kwargs),
                'fusion-moves': partial(multicut_fusion_moves, **kwargs),
-               'blockwise-multicut': partial(blockwise_multicut, **kwargs)}
+               'blockwise-multicut': partial(blockwise_multicut, **kwargs),
+               'greedy-fixation': partial(multicut_greedy_fixation, **kwargs),
+               'cut-glue-cut': partial(multicut_cgc, **kwargs)}
     try:
         solver = solvers[name]
     except KeyError:
@@ -142,11 +144,14 @@ def get_multicut_solver(name, **kwargs):
     return solver
 
 
+# TODO cgc?
 def _get_solver_factory(objective, internal_solver, warmstart=True):
     if internal_solver == 'kernighan-lin':
         sub_solver = objective.kernighanLinFactory(warmStartGreedy=warmstart)
     elif internal_solver == 'greedy-additive':
         sub_solver = objective.greedyAdditiveFactory()
+    elif internal_solver == 'greedy-fixation':
+        sub_solver = objective.greedyFixationFactory()
     elif internal_solver in ('fusion-move', 'decomposition'):
         raise NotImplementedError(f"Using {internal_solver} as internal solver is currently not supported.")
     else:
@@ -221,6 +226,31 @@ def multicut_gaec(graph, costs, time_limit=None, **kwargs):
         visitor = objective.verboseVisitor(visitNth=1000000,
                                            timeLimitTotal=time_limit)
         return solver.optimize(visitor=visitor)
+
+
+def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
+    """ Solve multicut problem with greedy fixation solver.
+
+    Introduced in "A Comparative Study of Local Search Algorithms for Correlation Clustering":
+    https://link.springer.com/chapter/10.1007/978-3-319-66709-6_9
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference in seconds (default: None)
+    """
+    objective = _to_objective(graph, costs)
+    solver = objective.greedyFixationFactory().create(objective)
+    if time_limit is None:
+        return solver.optimize()
+    else:
+        visitor = objective.verboseVisitor(visitNth=1000000,
+                                           timeLimitTotal=time_limit)
+        return solver.optimize(visitor=visitor)
+
+
+def multicut_cgc(graph, costs, time_limit=None, **kwargs):
+    pass
 
 
 def multicut_decomposition(graph, costs, time_limit=None,
