@@ -135,7 +135,8 @@ def get_multicut_solver(name, **kwargs):
                'fusion-moves': partial(multicut_fusion_moves, **kwargs),
                'blockwise-multicut': partial(blockwise_multicut, **kwargs),
                'greedy-fixation': partial(multicut_greedy_fixation, **kwargs),
-               'cut-glue-cut': partial(multicut_cgc, **kwargs)}
+               'cut-glue-cut': partial(multicut_cgc, **kwargs),
+               'ilp': partial(multicut_ilp, **kwargs)}
     try:
         solver = solvers[name]
     except KeyError:
@@ -154,6 +155,10 @@ def _get_solver_factory(objective, internal_solver, warmstart=True):
         if not nifty.Configuration.WITH_QPBO:
             raise RuntimeError("multicut_cgc requires nifty built with QPBO")
         sub_solver = objective.cgcFactory(warmStartGreedy=warmstart)
+    elif internal_solver == 'ilp':
+        if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
+            raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
+        sub_solver = objective.multicutIlpFactory()
     elif internal_solver in ('fusion-move', 'decomposition'):
         raise NotImplementedError(f"Using {internal_solver} as internal solver is currently not supported.")
     else:
@@ -338,6 +343,31 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
                                                 numberOfIterations=num_it,
                                                 stopIfNoImprovement=num_it_stop).create(objective)
 
+    if time_limit is None:
+        return solver.optimize()
+    else:
+        visitor = objective.verboseVisitor(visitNth=1000000,
+                                           timeLimitTotal=time_limit)
+        return solver.optimize(visitor=visitor)
+
+
+def multicut_ilp(graph, costs, time_limit):
+    """ Solve multicut problem with ilp solver.
+
+    Introduced in "Globally Optimal Closed-surface Segmentation for Connectomics":
+    https://link.springer.com/chapter/10.1007/978-3-642-33712-3_56
+
+    Requires nifty build with CPLEX, GUROBI or GLPK.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference in seconds (default: None)
+    """
+    if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
+        raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
+    objective = _to_objective(graph, costs)
+    solver = objective.multicutIlpFactory().create(objective)
     if time_limit is None:
         return solver.optimize()
     else:

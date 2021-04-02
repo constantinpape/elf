@@ -6,6 +6,12 @@ import nifty
 import nifty.graph.opt.multicut as nmc
 from elf.segmentation.utils import load_multicut_problem
 
+ILP_SOLVER = any((
+    nifty.Configuration.WITH_GLPK,
+    nifty.Configuration.WITH_GUROBI,
+    nifty.Configuration.WITH_CPLEX
+))
+
 
 class TestMulticut(unittest.TestCase):
     upper_bound = -76900
@@ -16,11 +22,11 @@ class TestMulticut(unittest.TestCase):
         load_multicut_problem('A', 'small', path=cls.problem_path)
 
     @classmethod
-    # def tearDownClass(cls):
-    #     try:
-    #         os.remove(cls.problem_path)
-    #     except OSError:
-    #         pass
+    def tearDownClass(cls):
+        try:
+            os.remove(cls.problem_path)
+        except OSError:
+            pass
 
     # https://github.com/constantinpape/graph/blob/master/src/andres/graph/unit-test/multicut/kernighan-lin.cxx
     def toy_problem(self):
@@ -42,8 +48,6 @@ class TestMulticut(unittest.TestCase):
         node_labels = solver(graph, costs)
         uv_ids = graph.uvIds()
         result = node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]
-        # print("Expected", expected_result)
-        # print("Result", result)
         self.assertTrue(np.array_equal(result, expected_result))
 
     def _test_multicut(self, solver, **kwargs):
@@ -102,6 +106,16 @@ class TestMulticut(unittest.TestCase):
     def test_fusion_moves_toy(self):
         from elf.segmentation.multicut import multicut_fusion_moves
         self._test_multicut_toy(multicut_fusion_moves)
+
+    @unittest.skipUnless(ILP_SOLVER, "Needs nifty build with an ilp solver")
+    def test_ilp(self):
+        from elf.segmentation.multicut import multicut_cgc
+        self._test_multicut(multicut_cgc)
+
+    @unittest.skipUnless(ILP_SOLVER, "Needs nifty build with an ilp solver")
+    def test_ilp_toy(self):
+        from elf.segmentation.multicut import multicut_cgc
+        self._test_multicut_toy(multicut_cgc)
 
     def test_transform_probabilities_to_costs(self):
         from elf.segmentation.multicut import transform_probabilities_to_costs
