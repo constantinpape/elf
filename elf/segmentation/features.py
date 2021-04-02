@@ -245,10 +245,10 @@ def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
 #
 # Grid Graph and Features
 #
-def compute_grid_graph(image):
-    """ Compute grid graph for the image.
+def compute_grid_graph(shape):
+    """ Compute grid graph for the given shape.
     """
-    grid_graph = nifty.graph.undirectedGridGraph(image.shape)
+    grid_graph = nifty.graph.undirectedGridGraph(shape)
     return grid_graph
 
 
