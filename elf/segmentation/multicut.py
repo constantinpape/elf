@@ -123,7 +123,6 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
 #
 # TODO
 # - support setting logging visitors
-# - expose more parameters
 #
 
 
@@ -144,7 +143,6 @@ def get_multicut_solver(name, **kwargs):
     return solver
 
 
-# TODO cgc?
 def _get_solver_factory(objective, internal_solver, warmstart=True):
     if internal_solver == 'kernighan-lin':
         sub_solver = objective.kernighanLinFactory(warmStartGreedy=warmstart)
@@ -152,6 +150,10 @@ def _get_solver_factory(objective, internal_solver, warmstart=True):
         sub_solver = objective.greedyAdditiveFactory()
     elif internal_solver == 'greedy-fixation':
         sub_solver = objective.greedyFixationFactory()
+    elif internal_solver == 'cut-glue-cut':
+        if not nifty.Configuration.WITH_QPBO:
+            raise RuntimeError("multicut_cgc requires nifty built with QPBO")
+        sub_solver = objective.cgcFactory(warmStartGreedy=warmstart)
     elif internal_solver in ('fusion-move', 'decomposition'):
         raise NotImplementedError(f"Using {internal_solver} as internal solver is currently not supported.")
     else:
@@ -249,8 +251,30 @@ def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
         return solver.optimize(visitor=visitor)
 
 
-def multicut_cgc(graph, costs, time_limit=None, **kwargs):
-    pass
+def multicut_cgc(graph, costs, time_limit=None, warmstart=True, **kwargs):
+    """ Solve multicut problem with cut,glue&cut solver.
+
+    Introduced in "Cut, Glue & Cut: A Fast, Approximate Solver for Multicut Partitioning":
+    https://www.cv-foundation.org/openaccess/content_cvpr_2014/html/Beier_Cut_Glue__2014_CVPR_paper.html
+
+    Requires nifty build with QPBO.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference in seconds (default: None)
+        warmstart [bool] - whether to warmstart with gaec solution (default: True)
+    """
+    if not nifty.Configuration.WITH_QPBO:
+        raise RuntimeError("multicut_cgc requires nifty built with QPBO")
+    objective = _to_objective(graph, costs)
+    solver = objective.cgcFactory(warmStartGreedy=warmstart).create(objective)
+    if time_limit is None:
+        return solver.optimize()
+    else:
+        visitor = objective.verboseVisitor(visitNth=1000000,
+                                           timeLimitTotal=time_limit)
+        return solver.optimize(visitor=visitor)
 
 
 def multicut_decomposition(graph, costs, time_limit=None,

@@ -16,11 +16,11 @@ class TestMulticut(unittest.TestCase):
         load_multicut_problem('A', 'small', path=cls.problem_path)
 
     @classmethod
-    def tearDownClass(cls):
-        try:
-            os.remove(cls.problem_path)
-        except OSError:
-            pass
+    # def tearDownClass(cls):
+    #     try:
+    #         os.remove(cls.problem_path)
+    #     except OSError:
+    #         pass
 
     # https://github.com/constantinpape/graph/blob/master/src/andres/graph/unit-test/multicut/kernighan-lin.cxx
     def toy_problem(self):
@@ -85,7 +85,15 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_greedy_fixation
         self._test_multicut_toy(multicut_greedy_fixation)
 
-    # TODO cut glue cut, check if nifty is compiled with the necessary flags
+    @unittest.skipUnless(nifty.Configuration.WITH_QPBO, "CGC solver needs QPBO")
+    def test_cgc(self):
+        from elf.segmentation.multicut import multicut_cgc
+        self._test_multicut(multicut_cgc)
+
+    @unittest.skipUnless(nifty.Configuration.WITH_QPBO, "CGC solver needs QPBO")
+    def test_cgc_toy(self):
+        from elf.segmentation.multicut import multicut_cgc
+        self._test_multicut_toy(multicut_cgc)
 
     def test_fusion_moves(self):
         from elf.segmentation.multicut import multicut_fusion_moves
