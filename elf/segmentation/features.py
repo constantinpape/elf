@@ -436,6 +436,49 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
 # Misc
 #
 
+def get_stitch_edges(rag, seg, block_shape):
+    """ Get the edges between blocks.
+
+    Arguments:
+        rag [RegionAdjacencyGraph] - region adjacency graph
+        seg [np.ndarray] - segmentation underlying the rag
+        block_shape [list[int] or tuple[int]] - shape of the blocking.
+    """
+    ndim = seg.ndim
+    blocking = nifty.tools.blocking([0] * ndim, seg.shape, block_shape)
+    stitch_edges = []
+    for block_id in range(blocking.numberOfBlocks):
+        block = blocking.getBlock(block_id)
+        block_start = [beg for beg in block.begin]
+        for axis in range(ndim):
+            if blocking.getNeighborId(block_id, axis, True) == -1:
+                continue
+            face_a = tuple(
+                block_start[d] if d == axis else slice(None) for d in range(ndim)
+            )
+            face_b = tuple(
+                block_start[d] - 1 if d == axis else slice(None) for d in range(ndim)
+            )
+
+            labels_a = seg[face_a]
+            labels_b = seg[face_b]
+            uv_ids = np.concatenate(
+                [labels_a[:, None], labels_b[:, None]],
+                axis=1
+            )
+            uv_ids = np.unique(uv_ids, axis=0)
+
+            edge_ids = rag.findEdges(uv_ids)
+            edge_ids = edge_ids[edge_ids != -1]
+            stitch_edges.append(edge_ids)
+
+    stitch_edges = np.concatenate(stitch_edges)
+    stitch_edges = np.unique(stitch_edges)
+    full_edges = np.zeros(rag.numberOfEdges, dtype='bool')
+    full_edges[stitch_edges] = 1
+    return full_edges
+
+
 def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
     """ Project label values for graph nodes back to pixels to obtain segmentation.
 
