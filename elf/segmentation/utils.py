@@ -63,7 +63,7 @@ def load_multicut_problem(sample, size, path=None):
     return graph, costs
 
 
-def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0):
+def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=5):
     # problem size and cost summary
     n_nodes, n_edges = graph.numberOfNodes, graph.numberOfEdges
     min_cost, max_cost = costs.min(), costs.max()
@@ -80,7 +80,7 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0):
     n_components = max_id + 1
     _, component_sizes = np.unique(cc_labels, return_counts=True)
     component_sizes = np.sort(component_sizes)[::-1]
-    top_five_rel_sizes = component_sizes[:5].astype('float32') / n_nodes
+    topk_rel_sizes = component_sizes[:topk].astype('float32') / n_nodes
 
     # TODO add partial optimality analysis from
     # http://proceedings.mlr.press/v80/lange18a.html
@@ -90,16 +90,16 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0):
         print("The costs are in range", min_cost, "to", max_cost)
         print("The mean cost is", mean_cost, "+-", std_cost)
         print("The problem decomposes into", n_components, "components at threshold", cost_threshold)
-        print("The 5 largest components have the following sizes:", top_five_rel_sizes)
+        print("The 5 largest components have the following sizes:", topk_rel_sizes)
 
     data = [n_nodes, n_edges,
             max_cost, min_cost, mean_cost, std_cost,
             n_components, cost_threshold]
-    data.extend(top_five_rel_sizes.tolist())
+    data.extend(topk_rel_sizes.tolist())
     columns = ['n_nodes', 'n_edges',
                'max_cost', 'min_cost', 'mean_cost', 'std_cost',
                'n_componennts', 'cost_threshold']
-    columns.extend([f'relative_size_top{i+1}_component' for i in range(len(top_five_rel_sizes))])
+    columns.extend([f'relative_size_top{i+1}_component' for i in range(len(topk_rel_sizes))])
     df = pd.DataFrame(data=[data], columns=columns)
     return df
 
