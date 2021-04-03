@@ -130,7 +130,7 @@ def _to_objective(graph, costs):
     return objective
 
 
-def _get_solver_factory(objective, internal_solver, warmstart=True):
+def _get_solver_factory(objective, internal_solver, warmstart=True, warmstart_kl=False):
     if internal_solver == 'kernighan-lin':
         sub_solver = objective.kernighanLinFactory(warmStartGreedy=warmstart)
     elif internal_solver == 'greedy-additive':
@@ -140,7 +140,7 @@ def _get_solver_factory(objective, internal_solver, warmstart=True):
     elif internal_solver == 'cut-glue-cut':
         if not nifty.Configuration.WITH_QPBO:
             raise RuntimeError("multicut_cgc requires nifty built with QPBO")
-        sub_solver = objective.cgcFactory(warmStartGreedy=warmstart)
+        sub_solver = objective.cgcFactory(warmStartGreedy=warmstart, warmstartKl=warmstart_kl)
     elif internal_solver == 'ilp':
         if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
             raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
@@ -272,7 +272,7 @@ def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_cgc(graph, costs, time_limit=None, warmstart=True, **kwargs):
+def multicut_cgc(graph, costs, time_limit=None, warmstart=True, warmstart_kl=True, **kwargs):
     """ Solve multicut problem with cut,glue&cut solver.
 
     Introduced in "Cut, Glue & Cut: A Fast, Approximate Solver for Multicut Partitioning":
@@ -285,11 +285,12 @@ def multicut_cgc(graph, costs, time_limit=None, warmstart=True, **kwargs):
         costs [np.ndarray] - edge costs of multicut problem
         time_limit [float] - time limit for inference in seconds (default: None)
         warmstart [bool] - whether to warmstart with gaec solution (default: True)
+        warmstart_kl [bool] - also use kernighan lin to warmstart (default: True)
     """
     if not nifty.Configuration.WITH_QPBO:
         raise RuntimeError("multicut_cgc requires nifty built with QPBO")
     objective = _to_objective(graph, costs)
-    solver = objective.cgcFactory(warmStartGreedy=warmstart).create(objective)
+    solver = objective.cgcFactory(warmStartGreedy=warmstart, warmstartKl=warmstart_kl).create(objective)
     visitor = _get_visitor(objective, time_limit, **kwargs)
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
@@ -322,9 +323,9 @@ def multicut_decomposition(graph, costs, time_limit=None,
 
 
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
-                          internal_solver='kernighan-lin', warmstart=True,
-                          seed_fraction=.05,
-                          num_it=1000, num_it_stop=25, sigma=2.,
+                          internal_solver='kernighan-lin',
+                          warmstart=True, warmstart_kl=True,
+                          seed_fraction=.05, num_it=1000, num_it_stop=25, sigma=2.,
                           **kwargs):
     """ Solve multicut problem with fusion moves solver.
 
@@ -339,6 +340,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
         internal_solver [str] - name of solver used for connected components
             (default: 'kernighan-lin')
         warmstart [bool] - whether to warmstart with gaec solution (default: True)
+        warmstart_kl [bool] - also use kernighan lin to warmstart (default: True)
         seed_fraction [float] - fraction of nodes used as seeds for proposal generation
             (default: .05)
         num_it [int] - maximal number of iterations (default: 1000)
@@ -352,6 +354,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
 
     solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
                                                 warmStartGreedy=warmstart,
+                                                warmstartKl=warmstart_kl,
                                                 proposalGenerator=proposal_gen,
                                                 numberOfThreads=n_threads,
                                                 numberOfIterations=num_it,
