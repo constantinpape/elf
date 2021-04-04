@@ -140,7 +140,7 @@ def _get_solver_factory(objective, internal_solver, warmstart=True, warmstart_kl
     elif internal_solver == 'cut-glue-cut':
         if not nifty.Configuration.WITH_QPBO:
             raise RuntimeError("multicut_cgc requires nifty built with QPBO")
-        sub_solver = objective.cgcFactory(warmStartGreedy=warmstart, warmstartKl=warmstart_kl)
+        sub_solver = objective.cgcFactory(warmStartGreedy=warmstart, warmStartKl=warmstart_kl)
     elif internal_solver == 'ilp':
         if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
             raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
@@ -290,7 +290,7 @@ def multicut_cgc(graph, costs, time_limit=None, warmstart=True, warmstart_kl=Tru
     if not nifty.Configuration.WITH_QPBO:
         raise RuntimeError("multicut_cgc requires nifty built with QPBO")
     objective = _to_objective(graph, costs)
-    solver = objective.cgcFactory(warmStartGreedy=warmstart, warmstartKl=warmstart_kl).create(objective)
+    solver = objective.cgcFactory(warmStartGreedy=warmstart, warmStartKl=warmstart_kl).create(objective)
     visitor = _get_visitor(objective, time_limit, **kwargs)
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
@@ -354,7 +354,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
 
     solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
                                                 warmStartGreedy=warmstart,
-                                                warmstartKl=warmstart_kl,
+                                                warmStartKl=warmstart_kl,
                                                 proposalGenerator=proposal_gen,
                                                 numberOfThreads=n_threads,
                                                 numberOfIterations=num_it,
