@@ -98,7 +98,7 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=
     data.extend(topk_rel_sizes.tolist())
     columns = ['n_nodes', 'n_edges',
                'max_cost', 'min_cost', 'mean_cost', 'std_cost',
-               'n_componennts', 'cost_threshold']
+               'n_components', 'cost_threshold']
     columns.extend([f'relative_size_top{i+1}_component' for i in range(len(topk_rel_sizes))])
     df = pd.DataFrame(data=[data], columns=columns)
     return df
