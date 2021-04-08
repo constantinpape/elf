@@ -110,6 +110,9 @@ def analyse_lifted_multicut_problem(graph, costs, lifted_uvs, lifted_costs):
 
 
 def parse_visitor_output(output):
+    if os.path.isfile(output):
+        with open(output) as f:
+            output = f.read()
     data = []
     for line in output.split('\n'):
         if not line.startswith('E:'):

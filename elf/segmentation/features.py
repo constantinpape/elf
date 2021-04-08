@@ -16,6 +16,7 @@ try:
 except ImportError:
     import vigra.filters as ff
 
+from tqdm import tqdm
 from .multicut import transform_probabilities_to_costs
 
 
@@ -436,7 +437,7 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
 # Misc
 #
 
-def get_stitch_edges(rag, seg, block_shape):
+def get_stitch_edges(rag, seg, block_shape, n_threads=None, verbose=False):
     """ Get the edges between blocks.
 
     Arguments:
@@ -444,24 +445,28 @@ def get_stitch_edges(rag, seg, block_shape):
         seg [np.ndarray] - segmentation underlying the rag
         block_shape [list[int] or tuple[int]] - shape of the blocking.
     """
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     ndim = seg.ndim
     blocking = nifty.tools.blocking([0] * ndim, seg.shape, block_shape)
-    stitch_edges = []
-    for block_id in range(blocking.numberOfBlocks):
+
+    def find_stitch_edges(block_id):
+        stitch_edges = []
         block = blocking.getBlock(block_id)
-        block_start = [beg for beg in block.begin]
         for axis in range(ndim):
             if blocking.getNeighborId(block_id, axis, True) == -1:
                 continue
             face_a = tuple(
-                block_start[d] if d == axis else slice(None) for d in range(ndim)
+                beg if d == axis else slice(beg, end)
+                for d, beg, end in zip(range(ndim), block.begin, block.end)
             )
             face_b = tuple(
-                block_start[d] - 1 if d == axis else slice(None) for d in range(ndim)
+                beg - 1 if d == axis else slice(beg, end)
+                for d, beg, end in zip(range(ndim), block.begin, block.end)
             )
 
-            labels_a = seg[face_a]
-            labels_b = seg[face_b]
+            labels_a = seg[face_a].ravel()
+            labels_b = seg[face_b].ravel()
+
             uv_ids = np.concatenate(
                 [labels_a[:, None], labels_b[:, None]],
                 axis=1
@@ -472,7 +477,23 @@ def get_stitch_edges(rag, seg, block_shape):
             edge_ids = edge_ids[edge_ids != -1]
             stitch_edges.append(edge_ids)
 
-    stitch_edges = np.concatenate(stitch_edges)
+        if stitch_edges:
+            stitch_edges = np.concatenate(stitch_edges)
+            stitch_edges = np.unique(stitch_edges)
+        else:
+            stitch_edges = None
+        return stitch_edges
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        if verbose:
+            stitch_edges = list(tqdm(
+                tp.map(find_stitch_edges, range(blocking.numberOfBlocks)),
+                total=blocking.numberOfBlocks
+            ))
+        else:
+            stitch_edges = tp.map(find_stitch_edges, range(blocking.numberOfBlocks))
+
+    stitch_edges = np.concatenate([st for st in stitch_edges if st is not None])
     stitch_edges = np.unique(stitch_edges)
     full_edges = np.zeros(rag.numberOfEdges, dtype='bool')
     full_edges[stitch_edges] = 1
