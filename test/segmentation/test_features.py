@@ -1,16 +1,7 @@
 import unittest
 import numpy as np
-try:
-    import vigra
-except ImportError:
-    vigra = None
-try:
-    import nifty
-except ImportError:
-    nifty = None
 
 
-@unittest.skipUnless(vigra and nifty, "Need vigra and nifty")
 class TestFeatures(unittest.TestCase):
 
     def make_seg(self, shape):
@@ -87,6 +78,74 @@ class TestFeatures(unittest.TestCase):
                                                                         same_segment_cost=1.,
                                                                         different_segment_cost=-1)
             self.assertEqual(len(lifted_uvs), len(lifted_costs))
+
+    def test_grid_graph(self):
+        from elf.segmentation.features import compute_grid_graph
+
+        # 2d test
+        shape = (64, 64)
+        g = compute_grid_graph(shape)
+        self.assertEqual(g.numberOfNodes, shape[0] * shape[1])
+
+        # 3d test
+        shape = (32, 64, 64)
+        g = compute_grid_graph(shape)
+        self.assertEqual(g.numberOfNodes, shape[0] * shape[1] * shape[2])
+
+    def _test_grid_graph_affinity_features(self, shape, offsets, strides):
+        from elf.segmentation.features import compute_grid_graph, compute_grid_graph_affinity_features
+
+        ndim = len(shape)
+        # test
+        g = compute_grid_graph(shape)
+        aff_shape = (ndim,) + shape
+        affs = np.random.rand(*aff_shape).astype('float32')
+        edges, feats = compute_grid_graph_affinity_features(g, affs)
+        # for the case without affinities, the edges returned must correspond
+        # to the edges of the grid graph
+        self.assertEqual(len(edges), g.numberOfEdges)
+        self.assertEqual(len(feats), g.numberOfEdges)
+        self.assertFalse(np.allclose(feats, 0))
+        self.assertTrue(np.array_equal(edges, g.uvIds()))
+
+        # test - with offsets
+        aff_shape = (len(offsets),) + shape
+        affs = np.random.rand(*aff_shape).astype('float32')
+        edges, feats = compute_grid_graph_affinity_features(g, affs, offsets=offsets)
+        self.assertEqual(len(edges), len(feats))
+        self.assertEqual(edges.shape[1], 2)
+        self.assertFalse(np.allclose(feats, 0))
+        n_edges_full = len(edges)
+
+        # test - with offsets and strides
+        edges, feats = compute_grid_graph_affinity_features(g, affs,
+                                                            offsets=offsets, strides=strides)
+        self.assertEqual(len(edges), len(feats))
+        self.assertGreater(n_edges_full, len(edges))
+        self.assertEqual(edges.shape[1], 2)
+        self.assertFalse(np.allclose(feats, 0))
+        n_edges_prev = len(edges)
+
+        # test - with offsets and randomized strides
+        edges, feats = compute_grid_graph_affinity_features(g, affs,
+                                                            offsets=offsets, strides=strides,
+                                                            randomize_strides=True)
+        self.assertEqual(len(edges), len(feats))
+        self.assertGreater(n_edges_full, len(edges))
+        self.assertNotEqual(n_edges_prev, len(edges))
+        self.assertEqual(edges.shape[1], 2)
+        self.assertFalse(np.allclose(feats, 0))
+
+    def test_grid_graph_affinity_features_2d(self):
+        self._test_grid_graph_affinity_features(shape=(64, 64),
+                                                offsets=[[-3, 0], [0, -3], [-9, 2], [-12, -7], [3, 3]],
+                                                strides=[4, 4])
+
+    def test_grid_graph_affinity_features_3d(self):
+        self._test_grid_graph_affinity_features(shape=(32, 64, 64),
+                                                offsets=[[0, -1, 1], [3, 0, 4],
+                                                         [-7, 9, 32], [11, 7, 9]],
+                                                strides=[2, 4, 4])
 
 
 if __name__ == '__main__':

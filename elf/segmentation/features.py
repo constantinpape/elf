@@ -242,7 +242,6 @@ def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
     return features
 
 
-# TODO implement long range functionality
 #
 # Grid Graph and Features
 #
@@ -253,7 +252,9 @@ def compute_grid_graph(shape):
     return grid_graph
 
 
-def compute_grid_graph_features(grid_graph, image, mode):
+def compute_grid_graph_image_features(grid_graph, image, mode,
+                                      offsets=None, strides=None,
+                                      randomize_strides=False):
     """ Compute edge features from image for the given grid_graph.
 
     Parameters:
@@ -268,15 +269,55 @@ def compute_grid_graph_features(grid_graph, image, mode):
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
         features = grid_graph.imageToEdgeMap(image, mode)
+        edges = grid_graph.uvIds()
+
     elif image.ndim == gndim + 1:
         modes = ('l1', 'l2', 'cosine')
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
         features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
+        edges = grid_graph.uvId()
+
     else:
         msg = f"Invalid image dimension {image.ndim}, expect one of {gndim} or {gndim + 1}"
         raise ValueError(msg)
-    return features
+
+    return edges, features
+
+
+def compute_grid_graph_affinity_features(grid_graph, affinities,
+                                         offsets=None, strides=None,
+                                         randomize_strides=False):
+    """ Compute edge features from affinities for the given grid_graph.
+
+    Parameters:
+        grid_graph [grid-graph] - the grid graph
+        affinities [np.ndarray] - the affinity map
+        offsets [list[list[int]]] - the offsets which correspond to the affinity channels.
+            If none are given, it's assumed that the affinites are for the nearest neighbor transitions.
+            (default: None)
+        strides [list[int]] - the strides used to subsample edges that are computed from offsets.
+            (default: None)
+        randomize_strides (default: False) - whether to subsample randomly instead of using regular strides.
+            (default: False)
+    """
+    gndim = len(grid_graph.shape)
+    if affinities.ndim != gndim + 1:
+        raise ValueError
+
+    if offsets is None:
+        assert affinities.shape[0] == gndim
+        assert strides is None
+        features = grid_graph.affinitiesToEdgeMap(affinities)
+        edges = grid_graph.uvIds()
+    else:
+        n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithOffsets(affinities,
+                                                                             offsets=offsets,
+                                                                             strides=strides,
+                                                                             randomize_strides=randomize_strides)
+        edges, features = edges[:n_edges], features[:n_edges]
+
+    return edges, features
 
 
 #
