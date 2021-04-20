@@ -252,6 +252,7 @@ def compute_grid_graph(shape):
     return grid_graph
 
 
+# TODO implement with offsets
 def compute_grid_graph_image_features(grid_graph, image, mode,
                                       offsets=None, strides=None,
                                       randomize_strides=False):
@@ -261,6 +262,13 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
         grid_graph [grid-graph] - the grid graph
         image [np.ndarray] - the image, the features are derived from
         mode [str] - feature accumulation method
+        offsets [list[list[int]]] - the offsets which correspond to the affinity channels.
+            If none are given, it's assumed that the affinites are for the nearest neighbor transitions.
+            (default: None)
+        strides [list[int]] - the strides used to subsample edges that are computed from offsets.
+            (default: None)
+        randomize_strides (default: False) - whether to subsample randomly instead of using regular strides.
+            (default: False)
     """
     gndim = len(grid_graph.shape)
 
@@ -276,7 +284,7 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
         features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
-        edges = grid_graph.uvId()
+        edges = grid_graph.uvIds()
 
     else:
         msg = f"Invalid image dimension {image.ndim}, expect one of {gndim} or {gndim + 1}"

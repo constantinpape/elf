@@ -101,7 +101,7 @@ class TestFeatures(unittest.TestCase):
         aff_shape = (ndim,) + shape
         affs = np.random.rand(*aff_shape).astype('float32')
         edges, feats = compute_grid_graph_affinity_features(g, affs)
-        # for the case without affinities, the edges returned must correspond
+        # for the case without offsets, the edges returned must correspond
         # to the edges of the grid graph
         self.assertEqual(len(edges), g.numberOfEdges)
         self.assertEqual(len(feats), g.numberOfEdges)
@@ -146,6 +146,41 @@ class TestFeatures(unittest.TestCase):
                                                 offsets=[[0, -1, 1], [3, 0, 4],
                                                          [-7, 9, 32], [11, 7, 9]],
                                                 strides=[2, 4, 4])
+
+    def _test_grid_graph_image_features(self, shape, offsets, strides):
+        from elf.segmentation.features import compute_grid_graph, compute_grid_graph_image_features
+
+        # test
+        g = compute_grid_graph(shape)
+        im_shape = (6,) + shape
+        im = np.random.rand(*im_shape).astype('float32')
+        for dist in ('l1', 'l2', 'cosine'):
+            edges, feats = compute_grid_graph_image_features(g, im, dist)
+            # for the case without offsets, the edges returned must correspond
+            # to the edges of the grid graph
+            self.assertEqual(len(edges), g.numberOfEdges)
+            self.assertEqual(len(feats), g.numberOfEdges)
+            self.assertTrue(np.array_equal(edges, g.uvIds()))
+
+            self.assertFalse(np.allclose(feats, 0))
+            # all distances must be greater than 0
+            self.assertTrue((feats >= 0).all())
+            # cosine distance is bounded at 1
+            if dist == 'cosine':
+                self.assertTrue((feats <= 1).all())
+
+        # TODO with offsets, strides and randomized strides
+
+    def test_grid_graph_image_features_2d(self):
+        self._test_grid_graph_image_features(shape=(64, 64),
+                                             offsets=[[-3, 0], [0, -3], [-9, 2], [-12, -7], [3, 3]],
+                                             strides=[4, 4])
+
+    def test_grid_graph_image_features_3d(self):
+        self._test_grid_graph_image_features(shape=(32, 64, 64),
+                                             offsets=[[0, -1, 1], [3, 0, 4],
+                                                      [-7, 9, 32], [11, 7, 9]],
+                                             strides=[2, 4, 4])
 
 
 if __name__ == '__main__':
