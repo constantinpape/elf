@@ -150,6 +150,15 @@ class TestFeatures(unittest.TestCase):
     def _test_grid_graph_image_features(self, shape, offsets, strides):
         from elf.segmentation.features import compute_grid_graph, compute_grid_graph_image_features
 
+        def _check_dists(feats, dist):
+            self.assertGreater(len(feats), 0)
+            self.assertFalse(np.allclose(feats, 0))
+            # all distances must be greater than 0
+            self.assertTrue((feats >= 0).all())
+            # cosine distance is bounded at 1
+            if dist == 'cosine':
+                self.assertTrue((feats <= 1).all())
+
         # test
         g = compute_grid_graph(shape)
         im_shape = (6,) + shape
@@ -161,15 +170,34 @@ class TestFeatures(unittest.TestCase):
             self.assertEqual(len(edges), g.numberOfEdges)
             self.assertEqual(len(feats), g.numberOfEdges)
             self.assertTrue(np.array_equal(edges, g.uvIds()))
+            _check_dists(feats, dist)
 
-            self.assertFalse(np.allclose(feats, 0))
-            # all distances must be greater than 0
-            self.assertTrue((feats >= 0).all())
-            # cosine distance is bounded at 1
-            if dist == 'cosine':
-                self.assertTrue((feats <= 1).all())
+            # with offsets
+            edges, feats = compute_grid_graph_image_features(g, im, dist,
+                                                             offsets=offsets)
+            self.assertEqual(len(feats), len(edges))
+            _check_dists(feats, dist)
+            n_edges_full = len(edges)
 
-        # TODO with offsets, strides and randomized strides
+            # with strides
+            edges, feats = compute_grid_graph_image_features(g, im, dist,
+                                                             offsets=offsets,
+                                                             strides=strides)
+            self.assertEqual(len(feats), len(edges))
+            _check_dists(feats, dist)
+            self.assertLess(len(edges), n_edges_full)
+            n_edges_prev = len(edges)
+
+            # with randomized strides
+            edges, feats = compute_grid_graph_image_features(g, im, dist,
+                                                             offsets=offsets,
+                                                             strides=strides,
+                                                             randomize_strides=True)
+            self.assertEqual(len(feats), len(edges))
+            _check_dists(feats, dist)
+            self.assertLess(len(edges), n_edges_full)
+            self.assertNotEqual(len(edges), n_edges_prev)
+
 
     def test_grid_graph_image_features_2d(self):
         self._test_grid_graph_image_features(shape=(64, 64),

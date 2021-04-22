@@ -252,7 +252,6 @@ def compute_grid_graph(shape):
     return grid_graph
 
 
-# TODO implement with offsets
 def compute_grid_graph_image_features(grid_graph, image, mode,
                                       offsets=None, strides=None,
                                       randomize_strides=False):
@@ -273,6 +272,8 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
     gndim = len(grid_graph.shape)
 
     if image.ndim == gndim:
+        if offsets is not None:
+            raise NotImplementedError
         modes = ('l1', 'l2', 'min', 'max', 'sum', 'prod', 'interpixel')
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
@@ -283,8 +284,16 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
         modes = ('l1', 'l2', 'cosine')
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
-        features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
-        edges = grid_graph.uvIds()
+
+        if offsets is None:
+            features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
+            edges = grid_graph.uvIds()
+        else:
+            n_edges, edges, features = grid_graph.imageWithChannelsToEdgeMapWithOffsets(image, mode,
+                                                                                        offsets=offsets,
+                                                                                        strides=strides,
+                                                                                        randomize_strides=randomize_strides)
+            edges, features = edges[:n_edges], features[:n_edges]
 
     else:
         msg = f"Invalid image dimension {image.ndim}, expect one of {gndim} or {gndim + 1}"
