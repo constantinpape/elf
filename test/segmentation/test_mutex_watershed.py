@@ -4,10 +4,6 @@ try:
     import affogato
 except ImportError:
     affogato = None
-try:
-    import nifty
-except ImportError:
-    nifty = None
 
 
 @unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
@@ -27,6 +23,30 @@ class TestMutexWatershed(unittest.TestCase):
         self.assertEqual(seg.shape, shape)
         # make sure the segmentation is not trivial
         self.assertGreater(len(np.unique(seg)), 10)
+
+    def test_mutex_watershed_clustering(self):
+        from elf.segmentation.mutex_watershed import mutex_watershed_clustering
+
+        n_nodes = 1000
+
+        n_edges = 100 * n_nodes
+        uvs = np.random.randint(0, n_nodes, size=(n_edges, 2))
+        uvs = uvs[uvs[:, 0] != uvs[:, 1]]
+        uvs = np.unique(uvs, axis=0)
+        weights = np.random.rand(len(uvs)).astype('float32')
+
+        n_mutex_edges = 200 * n_nodes
+        mutex_uvs = np.random.randint(0, n_nodes, size=(n_mutex_edges, 2))
+        mutex_uvs = mutex_uvs[mutex_uvs[:, 0] != mutex_uvs[:, 1]]
+        mutex_uvs = np.unique(mutex_uvs, axis=0)
+        mutex_weights = np.random.rand(len(mutex_uvs)).astype('float32')
+
+        # NOTE we may have duplicate edges in the weights and mutex weights, but that should be
+        # fine, the one with the higher weight will just win
+
+        node_labels = mutex_watershed_clustering(uvs, mutex_uvs, weights, mutex_weights)
+        self.assertEqual(len(node_labels), n_nodes)
+        self.assertFalse(np.allclose(node_labels, 0))
 
     # TODO remove expected failure once affogato is up-to-date
     @unittest.expectedFailure  # the affogato version on conda is not up-to date
@@ -48,7 +68,6 @@ class TestMutexWatershed(unittest.TestCase):
         self.assertGreater(len(np.unique(seg)), 10)
         # TODO check that seeds were actually taken into account
 
-    @unittest.skipUnless(nifty, "Need nifty to run blockwise mutex watershed")
     def test_blockwise_mutex_watershed(self):
         from elf.segmentation.mutex_watershed import blockwise_mutex_watershed
 

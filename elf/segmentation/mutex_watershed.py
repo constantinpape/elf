@@ -16,7 +16,8 @@ def mutex_watershed(affs, offsets, strides,
 
     Introduced in "The Mutex Watershed and its Objective: Efficient, Parameter-Free Image Partitioning":
     https://arxiv.org/pdf/1904.12654.pdf
-    This function changes the affinities inplace. To avoid this, pass a copy of the affinities.
+
+    This function changes the affinities inplace. To avoid this, pass a copy.
 
     Arguments:
         affs [np.ndarray] - input affinity map
@@ -37,6 +38,30 @@ def mutex_watershed(affs, offsets, strides,
                                    randomize_strides=randomize_strides)
     relabelConsecutive(seg, out=seg, start_label=1, keep_zeros=mask is not None)
     return seg
+
+
+def mutex_watershed_clustering(uvs, mutex_uvs,
+                               weights, mutex_weights,
+                               n_nodes=None):
+    """ Compute mutex watershed clustering.
+
+    Introduced in "The Mutex Watershed and its Objective: Efficient, Parameter-Free Image Partitioning":
+    https://arxiv.org/pdf/1904.12654.pdf
+
+    Arguments:
+        uvs [np.ndarray] - the uv ids for regular edges
+        mutex_uvs [np.ndarray] - the uv ids for mutex edges
+        weights [np.ndarray] - the weights for regular edges
+        mutex_weights [np.ndarray] - the weights for mutex edges
+        n_nodes [int] - the number of nodes. Will be computed from edges if not given (default: None)
+    """
+    if n_nodes is None:
+        n_nodes = int(uvs.max()) + 1
+    node_labels = compute_mws_clustering(n_nodes, uvs, mutex_uvs,
+                                         weights.max() - weights,
+                                         mutex_weights)
+    relabelConsecutive(node_labels, out=node_labels, start_label=0, keep_zeros=False)
+    return node_labels
 
 
 def compute_grid_graph(shape, mask=None, seeds=None):
