@@ -95,18 +95,23 @@ class TestFeatures(unittest.TestCase):
     def _test_grid_graph_affinity_features(self, shape, offsets, strides):
         from elf.segmentation.features import compute_grid_graph, compute_grid_graph_affinity_features
 
+        def _check_feats(feats):
+            self.assertGreater(len(feats), 0)
+            self.assertFalse(np.allclose(feats, 0))
+
         ndim = len(shape)
         # test
         g = compute_grid_graph(shape)
         aff_shape = (ndim,) + shape
         affs = np.random.rand(*aff_shape).astype('float32')
-        edges, feats = compute_grid_graph_affinity_features(g, affs)
+
         # for the case without offsets, the edges returned must correspond
         # to the edges of the grid graph
+        edges, feats = compute_grid_graph_affinity_features(g, affs)
         self.assertEqual(len(edges), g.numberOfEdges)
         self.assertEqual(len(feats), g.numberOfEdges)
-        self.assertFalse(np.allclose(feats, 0))
         self.assertTrue(np.array_equal(edges, g.uvIds()))
+        _check_feats(feats)
 
         # test - with offsets
         aff_shape = (len(offsets),) + shape
@@ -114,27 +119,26 @@ class TestFeatures(unittest.TestCase):
         edges, feats = compute_grid_graph_affinity_features(g, affs, offsets=offsets)
         self.assertEqual(len(edges), len(feats))
         self.assertEqual(edges.shape[1], 2)
-        self.assertFalse(np.allclose(feats, 0))
+        _check_feats(feats)
         n_edges_full = len(edges)
 
+        n_edges_exp = int(n_edges_full  / np.prod(strides))
         # test - with offsets and strides
         edges, feats = compute_grid_graph_affinity_features(g, affs,
                                                             offsets=offsets, strides=strides)
         self.assertEqual(len(edges), len(feats))
-        self.assertGreater(n_edges_full, len(edges))
         self.assertEqual(edges.shape[1], 2)
-        self.assertFalse(np.allclose(feats, 0))
-        n_edges_prev = len(edges)
+        _check_feats(feats)
+        self.assertLess(np.abs(n_edges_exp - len(edges)), 0.01 * n_edges_full)
 
         # test - with offsets and randomized strides
         edges, feats = compute_grid_graph_affinity_features(g, affs,
                                                             offsets=offsets, strides=strides,
                                                             randomize_strides=True)
         self.assertEqual(len(edges), len(feats))
-        self.assertGreater(n_edges_full, len(edges))
-        self.assertNotEqual(n_edges_prev, len(edges))
         self.assertEqual(edges.shape[1], 2)
-        self.assertFalse(np.allclose(feats, 0))
+        _check_feats(feats)
+        self.assertLess(np.abs(n_edges_exp - len(edges)), 0.01 * n_edges_full)
 
     def test_grid_graph_affinity_features_2d(self):
         self._test_grid_graph_affinity_features(shape=(64, 64),
@@ -179,14 +183,14 @@ class TestFeatures(unittest.TestCase):
             _check_dists(feats, dist)
             n_edges_full = len(edges)
 
+            n_edges_exp = int(n_edges_full  / np.prod(strides))
             # with strides
             edges, feats = compute_grid_graph_image_features(g, im, dist,
                                                              offsets=offsets,
                                                              strides=strides)
             self.assertEqual(len(feats), len(edges))
             _check_dists(feats, dist)
-            self.assertLess(len(edges), n_edges_full)
-            n_edges_prev = len(edges)
+            self.assertLess(np.abs(n_edges_exp - len(edges)), 0.01 * n_edges_full)
 
             # with randomized strides
             edges, feats = compute_grid_graph_image_features(g, im, dist,
@@ -196,7 +200,7 @@ class TestFeatures(unittest.TestCase):
             self.assertEqual(len(feats), len(edges))
             _check_dists(feats, dist)
             self.assertLess(len(edges), n_edges_full)
-            self.assertNotEqual(len(edges), n_edges_prev)
+            self.assertLess(np.abs(n_edges_exp - len(edges)), 0.01 * n_edges_full)
 
 
     def test_grid_graph_image_features_2d(self):
