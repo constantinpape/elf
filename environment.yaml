@@ -3,6 +3,7 @@ channels:
 name:
     elf-dev
 dependencies:
+    - affogato
     - imageio
     - h5py
     - mrcfile
