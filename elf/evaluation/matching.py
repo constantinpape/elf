@@ -57,20 +57,7 @@ def label_overlap(seg_a, seg_b):
     return overlap
 
 
-# TODO compare to stardist impl
-def matching(segmentation, groundtruth, threshold=0.5, criterion='iou'):
-    """ Scores from matching objects in segmentation and groundtruth.
-
-    Implemented after stardist repo:
-    https://github.com/mpicbg-csbd/stardist/blob/master/stardist/matching.py
-
-    Arguments:
-        segmentation [np.ndarray] - candidate segmentation to evaluate
-        groundtruth [np.ndarray] - groundtruth segmentation
-        threshold [float] - overlap threshold (default: 0.5)
-        criterion [str] - matching criterion. Can be one of 'iou', 'iop', 'iot'. (default: 'iou')
-    """
-
+def _compute_scores(segmentation, groundtruth, criterion):
     # compute overlap from the contingency table
     overlap = label_overlap(segmentation, groundtruth)
 
@@ -81,20 +68,41 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion='iou'):
 
     # ignore background
     scores = scores[1:, 1:]
-    n_true, n_pred = scores.shape
+    n_pred, n_true = scores.shape
     n_matched = min(n_true, n_pred)
 
+    return n_true, n_matched, n_pred, scores
+
+
+def _compute_tps(scores, n_matched, threshold):
     not_trivial = n_matched > 0 and np.any(scores >= threshold)
     if not_trivial:
         # compute optimal matching with scores as tie-breaker
         costs = -(scores >= threshold).astype(float) - scores / (2*n_matched)
-        true_ind, pred_ind = linear_sum_assignment(costs)
+        pred_ind, true_ind = linear_sum_assignment(costs)
         assert n_matched == len(true_ind) == len(pred_ind)
-        match_ok = scores[true_ind, pred_ind] >= threshold
+        match_ok = scores[pred_ind, true_ind] >= threshold
         tp = np.count_nonzero(match_ok)
     else:
         tp = 0
+    return tp
 
+
+def matching(segmentation, groundtruth, threshold=0.5, criterion='iou'):
+    """ Scores from matching objects in segmentation and groundtruth.
+
+    Implementation based on:
+    https://github.com/mpicbg-csbd/stardist/blob/master/stardist/matching.py
+
+    Arguments:
+        segmentation [np.ndarray] - candidate segmentation to evaluate
+        groundtruth [np.ndarray] - groundtruth segmentation
+        threshold [float] - overlap threshold (default: 0.5)
+        criterion [str] - matching criterion. Can be one of 'iou', 'iop', 'iot'. (default: 'iou')
+    """
+
+    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion)
+    tp = _compute_tps(scores, n_matched, threshold)
     fp = n_pred - tp
     fn = n_true - tp
     stats = {'precision': precision(tp, fp, fn),
@@ -102,3 +110,31 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion='iou'):
              'accuracy': accuracy(tp, fp, fn),
              'f1': f1(tp, fp, fn)}
     return stats
+
+
+def mean_average_precision(segmentation, groundtruth,
+                           thresholds=None, return_aps=False):
+    """ Mean average precision metrics.
+
+    Arguments:
+        segmentation [np.ndarray] - candidate segmentation to evaluate
+        groundtruth [np.ndarray] - groundtruth segmentation
+        thresholds [sequence of floats] - overlap thresholds,
+            by default np.arange(0.5, 1., 0.05) is used (default: None)
+        return_aps [bool] - whether to return intermediate aps (default: false)
+    """
+    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth,
+                                                        criterion='iou')
+    if thresholds is None:
+        thresholds = np.arange(0.5, 1., 0.05)
+
+    tps = [_compute_tps(scores, n_matched, threshold) for threshold in thresholds]
+    fps = [n_pred - tp for tp in tps]
+    fns = [n_true - tp for tp in tps]
+    aps = [precision(tp, fp, fn) for tp, fp, fn in zip(tps, fps, fns)]
+    m_ap = np.mean(aps)
+
+    if return_aps:
+        return m_ap, aps
+    else:
+        return m_ap
