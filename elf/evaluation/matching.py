@@ -8,7 +8,8 @@ def intersection_over_union(overlap):
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
     n_pixels_true = np.sum(overlap, axis=1, keepdims=True)
-    return overlap / (n_pixels_pred + n_pixels_true - overlap)
+    eps = 1e-7
+    return overlap / np.maximum(n_pixels_pred + n_pixels_true - overlap, eps)
 
 
 def intersection_over_true(overlap):
@@ -64,7 +65,7 @@ def _compute_scores(segmentation, groundtruth, criterion):
     # compute scores with the matcher
     matcher = MATCHING_CRITERIA[criterion]
     scores = matcher(overlap)
-    assert 0 <= np.min(scores) <= np.max(scores) <= 1
+    assert 0 <= np.min(scores) <= np.max(scores) <= 1, f"{np.min(scores)}, {np.max(scores)}"
 
     # ignore background
     scores = scores[1:, 1:]
