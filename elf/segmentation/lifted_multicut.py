@@ -1,5 +1,6 @@
 import time
 from functools import partial
+import nifty
 import nifty.graph.opt.lifted_multicut as nlmc
 
 from .blockwise_lmc_impl import blockwise_lmc_impl
@@ -51,6 +52,18 @@ def blockwise_lifted_multicut(graph, costs, lifted_uv_ids, lifted_costs,
                               n_threads, n_levels, halo)
 
 
+def _to_objective(graph, costs, lifted_uv_ids, lifted_costs):
+    if isinstance(graph, nifty.graph.UndirectedGraph):
+        graph_ = graph
+    else:
+        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
+        graph_.insertEdges(graph.uvIds())
+    objective = nlmc.liftedMulticutObjective(graph_)
+    objective.setGraphEdgesCosts(costs)
+    objective.setCosts(lifted_uv_ids, lifted_costs)
+    return objective
+
+
 def lifted_multicut_kernighan_lin(graph, costs, lifted_uv_ids, lifted_costs,
                                   time_limit=None, warmstart=True,
                                   **kwargs):
@@ -67,9 +80,7 @@ def lifted_multicut_kernighan_lin(graph, costs, lifted_uv_ids, lifted_costs,
         time_limit [float] - time limit for inference (default: None)
         warmstart [bool] - whether to warmstart with gaec solution (default: True)
     """
-    objective = nlmc.liftedMulticutObjective(graph)
-    objective.setGraphEdgesCosts(costs)
-    objective.setCosts(lifted_uv_ids, lifted_costs)
+    objective = _to_objective(graph, costs, lifted_uv_ids, lifted_costs)
     solver_kl = objective.liftedMulticutKernighanLinFactory().create(objective)
     if time_limit is None:
         if warmstart:
@@ -115,9 +126,7 @@ def lifted_multicut_gaec(graph, costs, lifted_uv_ids, lifted_costs,
         lifted_costs [np.ndarray] - lifted edge costs
         time_limit [float] - time limit for inference (default: None)
     """
-    objective = nlmc.liftedMulticutObjective(graph)
-    objective.setGraphEdgesCosts(costs)
-    objective.setCosts(lifted_uv_ids, lifted_costs)
+    objective = _to_objective(graph, costs, lifted_uv_ids, lifted_costs)
     solver = objective.liftedMulticutGreedyAdditiveFactory().create(objective)
     if time_limit is None:
         return solver.optimize()
@@ -144,9 +153,7 @@ def lifted_multicut_fusion_moves(graph, costs, lifted_uv_ids, lifted_costs,
         warmstart_gaec [bool] - whether to warmstart with gaec solution (default: True)
         warmstart_kl [bool] - whether to warmstart with kl solution (default: True)
     """
-    objective = nlmc.liftedMulticutObjective(graph)
-    objective.setGraphEdgesCosts(costs)
-    objective.setCosts(lifted_uv_ids, lifted_costs)
+    objective = _to_objective(graph, costs, lifted_uv_ids, lifted_costs)
 
     # TODO keep track of time limits when warmstarting
     # perform warmstarts
