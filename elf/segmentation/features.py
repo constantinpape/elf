@@ -341,6 +341,20 @@ def compute_grid_graph_affinity_features(grid_graph, affinities,
 # Lifted Features
 #
 
+def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
+    if max_graph_distance < 2:
+        raise ValueError(f"Graph distance must be greater equal 2, got {max_graph_distance}")
+    if isinstance(graph, nifty.graph.UndirectedGraph):
+        objective = nifty.graph.opt.lifted_multicut.liftedMulticutObjective(graph)
+    else:
+        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
+        graph_.insertEdges(graph.uvIds())
+        objective = nifty.graph.opt.lifted_multicut.liftedMulticutObjective(graph_)
+    objective.insertLiftedEdgesBfs(max_graph_distance)
+    lifted_uvs = objective.liftedUvIds()
+    return lifted_uvs
+
+
 def feats_to_costs_default(lifted_labels, lifted_features):
     # we assume that we only have different classes for a given lifted
     # edge here (mode = 'different') and then set all edges to be repulsive
