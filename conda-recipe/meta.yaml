@@ -31,7 +31,7 @@ requirements:
     - h5py
     - mrcfile
     - nifty
-    - numba <=0.50  # need to pin this due to skan
+    - numba
     - pandas
     - scikit-image
     - scikit-learn
