@@ -156,6 +156,37 @@ def cluster_segmentation_mala(segmentation, input_map, threshold, min_segment_si
     return seg
 
 
+def node_based_clustering(graph, node_features, node_sizes=None,
+                          distance="l2", update_rule="mean",
+                          threshold=0.0, n_stop=1,
+                          size_regularizer=0.0, delta=0.0,
+                          signed_weights=False, beta=0.5,
+                          return_object=False):
+    """ Run agglomerative clustering based on node features.
+
+    Arguments:
+    """
+    assert graph.numberOfNodes == len(node_features)
+
+    if n_stop < 1:
+        assert isinstance(n_stop, float)
+        n_stop = int(n_stop * len(node_features))
+
+    policy = nagglo.getNodeWeightedPolicy(
+        graph, node_features,
+        distance=distance, update_rule=update_rule,
+        node_sizes=node_sizes, threshold=threshold,
+        signed_weights=signed_weights, beta=beta,
+        size_regularizer=size_regularizer,
+        number_of_nodes_to_stop=n_stop
+    )
+    clustering = nagglo.agglomerativeClustering(policy)
+    if return_object:
+        return clustering
+    clustering.run()
+    return clustering.result()
+
+
 def compute_linkage_matrix(clustering, normalize_distances=False):
     us, vs, dist, sizes = clustering.runAndGetLinkageMatrix()
     lm = [us, vs, dist, sizes]
