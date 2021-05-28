@@ -469,7 +469,7 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     # compute the overlaps
     ovlp_comp = ngt.overlap(watershed, input_segmentation)
     ws_ids = np.unique(watershed)
-    n_labels = ws_ids[-1] + 1
+    n_labels = int(ws_ids[-1]) + 1
     assert n_labels == rag.numberOfNodes, "%i, %i" % (n_labels, rag.numberOfNodes)
 
     # initialise the arrays for node labels, to be
