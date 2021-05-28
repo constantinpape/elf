@@ -289,10 +289,12 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
             features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
             edges = grid_graph.uvIds()
         else:
-            n_edges, edges, features = grid_graph.imageWithChannelsToEdgeMapWithOffsets(image, mode,
-                                                                                        offsets=offsets,
-                                                                                        strides=strides,
-                                                                                        randomize_strides=randomize_strides)
+            (n_edges,
+             edges,
+             features) = grid_graph.imageWithChannelsToEdgeMapWithOffsets(image, mode,
+                                                                          offsets=offsets,
+                                                                          strides=strides,
+                                                                          randomize_strides=randomize_strides)
             edges, features = edges[:n_edges], features[:n_edges]
 
     else:
@@ -496,7 +498,7 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()),
                                                              rag.numberOfNodes)
     lifted_labels = node_labels[lifted_uvs]
-    lifted_costs = np.zeros_like(lifted_labels, dtype='float32')
+    lifted_costs = np.zeros(len(lifted_labels), dtype='float64')
 
     same_mask = lifted_labels[:, 0] == lifted_labels[:, 1]
     lifted_costs[same_mask] = same_segment_cost

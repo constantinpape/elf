@@ -59,6 +59,7 @@ class TestFeatures(unittest.TestCase):
         lifted_uvs, lifted_costs = lifted_problem_from_probabilities(rag, seg, input_maps,
                                                                      assignment_threshold, graph_depth)
         self.assertEqual(len(lifted_uvs), len(lifted_costs))
+        self.assertEqual(lifted_costs.ndim, 1)
 
     def test_lifted_problem_from_segmentation(self):
         from elf.segmentation.features import (compute_rag,
@@ -78,6 +79,7 @@ class TestFeatures(unittest.TestCase):
                                                                         same_segment_cost=1.,
                                                                         different_segment_cost=-1)
             self.assertEqual(len(lifted_uvs), len(lifted_costs))
+            self.assertEqual(lifted_costs.ndim, 1)
 
     def test_grid_graph(self):
         from elf.segmentation.features import compute_grid_graph
@@ -122,7 +124,7 @@ class TestFeatures(unittest.TestCase):
         _check_feats(feats)
         n_edges_full = len(edges)
 
-        n_edges_exp = int(n_edges_full  / np.prod(strides))
+        n_edges_exp = int(n_edges_full / np.prod(strides))
         # test - with offsets and strides
         edges, feats = compute_grid_graph_affinity_features(g, affs,
                                                             offsets=offsets, strides=strides)
@@ -183,7 +185,7 @@ class TestFeatures(unittest.TestCase):
             _check_dists(feats, dist)
             n_edges_full = len(edges)
 
-            n_edges_exp = int(n_edges_full  / np.prod(strides))
+            n_edges_exp = int(n_edges_full / np.prod(strides))
             # with strides
             edges, feats = compute_grid_graph_image_features(g, im, dist,
                                                              offsets=offsets,
@@ -201,7 +203,6 @@ class TestFeatures(unittest.TestCase):
             _check_dists(feats, dist)
             self.assertLess(len(edges), n_edges_full)
             self.assertLess(np.abs(n_edges_exp - len(edges)), 0.01 * n_edges_full)
-
 
     def test_grid_graph_image_features_2d(self):
         self._test_grid_graph_image_features(shape=(64, 64),

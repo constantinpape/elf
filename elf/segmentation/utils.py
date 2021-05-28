@@ -146,12 +146,12 @@ def compute_maximum_label_overlap(seg_a, seg_b, ignore_zeros=False):
     return overlaps
 
 
-def normalize_input(input_, eps=1e-6):
+def normalize_input(input_, eps=1e-7):
     """ Cast input to float and normalize to range [0, 1]
 
     Arguments:
         input_ [np.ndarray] - input tensor to be normalized
-        eps [float] - epsilon for numerical stability (default: 1e-6)
+        eps [float] - epsilon for numerical stability (default: 1e-7)
     """
     input_ = input_.astype('float32')
     input_ -= input_.min()
