@@ -63,14 +63,15 @@ def _best_dice_nifty(gt, seg):
     dice_scores = []
     for gt_id, gt_count in zip(gt_labels, gt_counts):
         ovlp_ids, ovlp_counts = overlaps.overlapArrays(gt_id, sorted=True)
-        if ovlp_ids[0] == 0:
-            ovlp_ids, ovlp_counts = ovlp_ids[1:], ovlp_counts[1:]
+        zero_mask = ovlp_ids == 0
+        if zero_mask.sum() > 0:
+            ovlp_ids, ovlp_counts = ovlp_ids[~zero_mask], ovlp_counts[~zero_mask]
         if len(ovlp_ids) == 0:
             dice_scores.append(0.)
             continue
-        seg_id, count = ovlp_ids[0], ovlp_counts[0]
-        score = float(2 * count) / float(gt_count + seg_counts[seg_id] + eps)
-        dice_scores.append(score)
+        scores = [float(2 * count) / float(gt_count + seg_counts[seg_id] + eps)
+                  for seg_id, count in zip(ovlp_ids, ovlp_counts)]
+        dice_scores.append(np.max(scores))
 
     return np.mean(dice_scores)
 
