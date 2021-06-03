@@ -296,7 +296,7 @@ def multicut_cgc(graph, costs, time_limit=None, warmstart=True, warmstart_kl=Tru
 
 
 def multicut_decomposition(graph, costs, time_limit=None,
-                           n_threads=1, internal_solver='kernighan-lin',
+                           internal_solver='kernighan-lin',
                            **kwargs):
     """ Solve multicut problem with decomposition solver.
 
@@ -307,7 +307,6 @@ def multicut_decomposition(graph, costs, time_limit=None,
         graph [nifty.graph] - graph of multicut problem
         costs [np.ndarray] - edge costs of multicut problem
         time_limit [float] - time limit for inference in seconds (default: None)
-        n_threads [int] - number of threads (default: 1)
         internal_solver [str] - name of solver used for connected components
             (default: 'kernighan-lin')
     """
@@ -315,8 +314,7 @@ def multicut_decomposition(graph, costs, time_limit=None,
     solver_factory = _get_solver_factory(objective, internal_solver)
     solver = objective.multicutDecomposerFactory(
         submodelFactory=solver_factory,
-        fallthroughFactory=solver_factory,
-        numberOfThreads=n_threads
+        fallthroughFactory=solver_factory
     ).create(objective)
     visitor = _get_visitor(objective, time_limit, **kwargs)
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
