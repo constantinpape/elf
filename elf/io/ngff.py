@@ -1,3 +1,4 @@
+import numpy as np
 import skimage.transform
 # we use zarr here because z5py does not support nested directory for the zarr format
 import zarr
@@ -21,41 +22,65 @@ def _validate_axes_names(ndim, axes_names):
     assert len(axes_names) == ndim
     val_axes = tuple(axes_names)
     if ndim == 2:
-        assert val_axes == ('y', 'x')
+        assert val_axes == ('y', 'x'), str(val_axes)
     elif ndim == 3:
-        assert val_axes in [('z', 'y', 'x'), ('c', 'y', 'x'), ('t', 'y', 'x')]
+        assert val_axes in [('z', 'y', 'x'), ('c', 'y', 'x'), ('t', 'y', 'x')], str(val_axes)
     elif ndim == 4:
-        assert val_axes in [('t', 'z', 'y', 'x'), ('c', 'z' 'y', 'x'), ('t', 'c', 'y', 'x')]
+        assert val_axes in [('t', 'z', 'y', 'x'), ('c', 'z', 'y', 'x'), ('t', 'c', 'y', 'x')], str(val_axes)
     else:
-        assert val_axes == ('t', 'c', 'z', 'y', 'x')
+        assert val_axes == ('t', 'c', 'z', 'y', 'x'), str(val_axes)
 
 
-# TODO downscale only in spatial dimensions
-def _downscale(data, downscaler, kwargs):
-    data = downscaler(data, **kwargs).astype(data.dtype)
+def _downscale(data, axes_names, downscaler, kwargs):
+    is_spatial = [ax in ('z', 'y', 'x') for ax in axes_names]
+    # downscaling is easy if we only have spatial axes
+    if all(is_spatial):
+        data = downscaler(data, **kwargs).astype(data.dtype)
+    else:
+        spatial_start = [i for i, spatial in enumerate(is_spatial) if spatial][0]
+        assert spatial_start in (1, 2), str(spatial_start)
+        if spatial_start == 1:
+            downscaled_data = []
+            for d in data:
+                ds = downscaler(d, **kwargs).astype(data.dtype)
+                downscaled_data.append(ds[None])
+            data = np.concatenate(downscaled_data, axis=0)
+        else:
+            downscaled_data = []
+            for time_slice in data:
+                downscaled_channel = []
+                for channel_slice in time_slice:
+                    ds = downscaler(channel_slice, **kwargs).astype(data.dtype)
+                    downscaled_channel.append(ds[None])
+                downscaled_channel = np.concatenate(downscaled_channel, axis=0)
+                downscaled_data.append(downscaled_channel[None])
+            data = np.concatenate(downscaled_data, axis=0)
     return data
 
 
-# TODO expose dimension separator as param
 def write_ome_zarr(data, path, axes_names, name, n_scales,
                    key=None, chunks=None,
                    downscaler=skimage.transform.rescale,
-                   kwargs={"scale": (0.5, 0.5, 0.5), "order": 0, "preserve_range": True}):
+                   kwargs={"scale": (0.5, 0.5, 0.5), "order": 0, "preserve_range": True},
+                   dimension_separator="/"):
     """Write numpy data to ome.zarr format.
     """
-
+    assert dimension_separator in (".", "/")
     assert 2 <= data.ndim <= 5
     _validate_axes_names(data.ndim, axes_names)
 
     chunks = _get_chunks(axes_names) if chunks is None else chunks
-    store = zarr.NestedDirectoryStore(path, dimension_separator="/")
+    if dimension_separator == "/":
+        store = zarr.NestedDirectoryStore(path, dimension_separator=dimension_separator)
+    else:
+        store = zarr.DirectoryStore(path, dimension_separator=dimension_separator)
 
     with zarr.open(store, mode='a') as f:
         g = f if key is None else f.require_group(key)
-        g.create_dataset('s0', data=data, chunks=chunks, dimension_separator="/")
+        g.create_dataset('s0', data=data, chunks=chunks, dimension_separator=dimension_separator)
         for ii in range(1, n_scales):
-            data = _downscale(data, downscaler, kwargs)
-            g.create_dataset(f's{ii}', data=data, chunks=chunks, dimension_separator="/")
+            data = _downscale(data, axes_names, downscaler, kwargs)
+            g.create_dataset(f's{ii}', data=data, chunks=chunks, dimension_separator=dimension_separator)
         function_name = f'{downscaler.__module__}.{downscaler.__name__}'
         create_ngff_metadata(g, name, axes_names,
                              type_=function_name, metadata=kwargs)
