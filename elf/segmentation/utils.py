@@ -159,6 +159,17 @@ def normalize_input(input_, eps=1e-7):
     return input_
 
 
+def map_background_to_zero(seg, background_label=None):
+    if background_label is None:
+        ids, sizes = np.unique(seg, return_counts=True)
+        background_label = ids[np.argmax(sizes)]
+    zero_mask = seg == 0
+    seg[seg == background_label] = 0
+    if zero_mask.sum():
+        seg[zero_mask] = background_label
+    return seg
+
+
 #
 # segmentation boundary utils
 #
