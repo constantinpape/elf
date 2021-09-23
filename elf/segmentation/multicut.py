@@ -191,7 +191,8 @@ def get_multicut_solver(name, **kwargs):
                'blockwise-multicut': partial(blockwise_multicut, **kwargs),
                'greedy-fixation': partial(multicut_greedy_fixation, **kwargs),
                'cut-glue-cut': partial(multicut_cgc, **kwargs),
-               'ilp': partial(multicut_ilp, **kwargs)}
+               'ilp': partial(multicut_ilp, **kwargs),
+               'rama': partial(multicut_rama, **kwargs)}
     try:
         solver = solvers[name]
     except KeyError:
