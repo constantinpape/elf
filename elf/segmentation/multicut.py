@@ -6,6 +6,11 @@ import nifty.graph.opt.multicut as nmc
 
 from .blockwise_mc_impl import blockwise_mc_impl
 
+try:
+    import rama_py
+except ImportError:
+    rama_py = None
+
 
 #
 # cost functionality
@@ -382,3 +387,29 @@ def multicut_ilp(graph, costs, time_limit=None, **kwargs):
     solver = objective.multicutIlpFactory().create(objective)
     visitor = _get_visitor(objective, time_limit, **kwargs)
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
+
+
+# TODO options
+def multicut_rama(graph, costs, time_limit=None, **kwargs):
+    """ Solve multicut problem with RAMA solver.
+
+    Introduced in "RAMA: A Rapid Multicut Algorithm on GPU":
+    https://arxiv.org/abs/2109.01838
+
+    Requires the rama_py package, see https://github.com/pawelswoboda/RAMA.
+
+    Arguments:
+        graph [nifty.graph] - graph of multicut problem
+        costs [np.ndarray] - edge costs of multicut problem
+        time_limit [float] - time limit for inference in seconds (default: None)
+    """
+
+    if rama_py is None:
+        raise RuntimeError("Need rama_py to use multicut_rama function")
+    uv_ids = graph.uvIds()
+    opts = rama_py.multicut_solver_options()
+    node_labels = rama_py.rama_cuda(
+        uv_ids[:, 0].tolist(), uv_ids[:, 1].tolist(), costs.tolist(), opts
+    )[0]
+    assert len(node_labels) == graph.numberOfNodes, f"{len(node_labels)}, {graph.numberOfNodes}"
+    return node_labels
