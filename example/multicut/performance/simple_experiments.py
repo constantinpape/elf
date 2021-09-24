@@ -17,9 +17,16 @@ def simple_performance_experiments(problem, solvers):
     results = {}
     print("Measure performance for sample:", problem)
     for solver_name in solvers:
-        solver = get_multicut_solver(solver_name)
+        # get the mode for RAMA solvers
+        if solver_name.startswith("rama"):
+            _, mode = solver_name.split("_")
+            solver = get_multicut_solver("rama")
+            kwargs = {"mode": mode}
+        else:
+            solver = get_multicut_solver(solver_name)
+            kwargs = {}
         t0 = time.time()
-        node_labels = solver(graph, costs)
+        node_labels = solver(graph, costs, **kwargs)
         t0 = time.time() - t0
         energy = objective.evalNodeLabels(node_labels)
         print("Solver", solver_name, "runtime:", t0, "s, energy:", energy)
@@ -33,7 +40,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     # default_solvers = ["decomposition", "kernighan-lin", "greedy-additive", "greedy-fixation"]
-    default_solvers = ["decomposition", "kernighan-lin", "greedy-additive", "greedy-fixation", "rama"]
+    default_solvers = ["decomposition", "kernighan-lin", "greedy-additive", "greedy-fixation",
+                       "rama_P", "rama_PD+"]
     parser.add_argument("--solvers", "-s", default=default_solvers)
 
     default_problems = ["A_small", "B_small", "C_small",

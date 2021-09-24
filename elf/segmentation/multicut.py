@@ -390,8 +390,7 @@ def multicut_ilp(graph, costs, time_limit=None, **kwargs):
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-# TODO options
-def multicut_rama(graph, costs, time_limit=None, **kwargs):
+def multicut_rama(graph, costs, time_limit=None, mode=None, **kwargs):
     """ Solve multicut problem with RAMA solver.
 
     Introduced in "RAMA: A Rapid Multicut Algorithm on GPU":
@@ -403,12 +402,17 @@ def multicut_rama(graph, costs, time_limit=None, **kwargs):
         graph [nifty.graph] - graph of multicut problem
         costs [np.ndarray] - edge costs of multicut problem
         time_limit [float] - time limit for inference in seconds (default: None)
+        mode [str] - RAMA mode (default: None)
     """
 
     if rama_py is None:
         raise RuntimeError("Need rama_py to use multicut_rama function")
     uv_ids = graph.uvIds()
-    opts = rama_py.multicut_solver_options()
+    if mode is None:
+        opts = rama_py.multicut_solver_options()
+    else:
+        assert mode in ("P", "PD+", "D")
+        opts = rama_py.multicut_solver_options(mode)
     node_labels = rama_py.rama_cuda(
         uv_ids[:, 0].tolist(), uv_ids[:, 1].tolist(), costs.tolist(), opts
     )[0]
