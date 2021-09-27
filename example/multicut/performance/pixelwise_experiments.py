@@ -63,7 +63,7 @@ def pixelwise_performance_experiments(solvers):
 def main():
     parser = argparse.ArgumentParser()
 
-    default_solvers = ["mutex-watershed", "greedy-additive", "rama_P", "rama_PD+"]
+    default_solvers = ["mutex-watershed", "greedy-additive", "rama_P", "rama_PD"]
     parser.add_argument("--solvers", "-s", default=default_solvers)
 
     args = parser.parse_args()
