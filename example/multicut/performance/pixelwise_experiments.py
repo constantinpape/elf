@@ -13,6 +13,14 @@ from elf.segmentation.utils import load_mutex_watershed_problem
 # TODO include lifted multicut
 def pixelwise_performance_experiments(solvers):
     affs, offsets = load_mutex_watershed_problem()
+    # Since updating to the new RAMA version the memory footprint seems to have
+    # increased significantly and the full problem is not feasible on a GTX 2080 Ti (11 GB) any more
+    # only reducing to a significantly smaller problem makes it feasible
+    if True:
+        # this problem size is not feasible
+        # affs = affs[:, :5, :128, :256]
+        # this problem is feasible
+        affs = affs[:, :5, :128, :128]
     shape = affs.shape[1:]
     grid_graph = compute_grid_graph(shape)
 
@@ -63,7 +71,7 @@ def pixelwise_performance_experiments(solvers):
 def main():
     parser = argparse.ArgumentParser()
 
-    default_solvers = ["mutex-watershed", "greedy-additive", "rama_P", "rama_PD"]
+    default_solvers = ["rama_P", "rama_PD"]
     parser.add_argument("--solvers", "-s", default=default_solvers)
 
     args = parser.parse_args()
