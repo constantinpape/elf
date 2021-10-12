@@ -245,6 +245,7 @@ def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
 #
 # Grid Graph and Features
 #
+
 def compute_grid_graph(shape):
     """ Compute grid graph for the given shape.
     """
