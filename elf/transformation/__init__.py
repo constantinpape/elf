@@ -1,4 +1,5 @@
-from .affine import (compute_affine_matrix, scale_from_matrix, translation_from_matrix,
+from .affine import (affine_matrix_2d, affine_matrix_3d,
+                     compute_affine_matrix, scale_from_matrix, translation_from_matrix,
                      transform_subvolume_affine, transform_roi_with_affine)
 from .converter import (bdv_to_native,
                         elastix_to_bdv,
