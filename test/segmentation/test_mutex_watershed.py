@@ -48,8 +48,6 @@ class TestMutexWatershed(unittest.TestCase):
         self.assertEqual(len(node_labels), n_nodes)
         self.assertFalse(np.allclose(node_labels, 0))
 
-    # TODO remove expected failure once affogato is up-to-date
-    @unittest.expectedFailure  # the affogato version on conda is not up-to date
     def test_mutex_watershed_with_seeds(self):
         from elf.segmentation.mutex_watershed import mutex_watershed_with_seeds
         shape = (10, 256, 256)
@@ -68,8 +66,15 @@ class TestMutexWatershed(unittest.TestCase):
         self.assertGreater(len(np.unique(seg)), 10)
         # TODO check that seeds were actually taken into account
 
+    def test_semantic_mutex_watershed(self):
+        from elf.segmentation.mutex_watershed import semantic_mutex_watershed
+
+    def test_semantic_mutex_watershed_clustering(self):
+        from elf.segmentation.mutex_watershed import semantic_mutex_watershed_clustering
+
     def test_blockwise_mutex_watershed(self):
-        from elf.segmentation.mutex_watershed import blockwise_mutex_watershed
+        # from elf.segmentation.mutex_watershed import blockwise_mutex_watershed
+        pass
 
 
 if __name__ == '__main__':

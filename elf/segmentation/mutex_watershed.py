@@ -1,7 +1,9 @@
 import numpy as np
 from vigra.analysis import relabelConsecutive
-from affogato.segmentation import compute_mws_segmentation
-from affogato.segmentation import MWSGridGraph, compute_mws_clustering
+from affogato.segmentation import (compute_mws_clustering,
+                                   compute_mws_segmentation,
+                                   compute_semantic_mws_clustering,
+                                   MWSGridGraph)
 
 try:
     from .blockwise_mws_impl import blockwise_mws_impl
@@ -135,6 +137,86 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
         return seg, grid_graph
     else:
         return seg
+
+
+def semantic_mutex_watershed_clustering(uvs, mutex_uvs, weights, mutex_weights,
+                                        semantic_uts, semantic_weights,
+                                        n_nodes=None, kappa=1.0):
+    if n_nodes is None:
+        n_nodes = int(uvs.max()) + 1
+    instance_labels, semantic_labels = compute_semantic_mws_clustering(
+        n_nodes, uvs, mutex_uvs, semantic_uts, weights, mutex_weights, kappa * semantic_weights
+    )
+    return instance_labels, semantic_labels
+
+
+def _semantic_graph_problem(affs, semantic, offsets, strides, randomize_strides):
+    shape = semantic.shape[1:]
+    n_nodes = np.prod(shape)
+
+    # semantic uts and weights
+    semantic_argmax = np.argmax(semantic, axis=0)
+    nodes = np.arange(n_nodes).reshape(shape)
+    semantic_uts = np.stack((nodes.ravel(), semantic_argmax.ravel()), axis=1)
+    semantic_weights = np.max(semantic, axis=0).flatten()
+
+    shape = affs.shape[1:]
+    grid_graph = MWSGridGraph(shape)
+
+    # we set the number of attractive channels to the number of dims
+    n_attr = len(shape)
+
+    # nn uvs and weights
+    nn_affs = affs[:n_attr].copy()
+    nn_affs *= -1
+    nn_affs += 1
+    uvs, weights = grid_graph.compute_nh_and_weights(nn_affs, offsets[:n_attr])
+
+    # mutex uvs and weights
+    mutex_uvs, mutex_weights = grid_graph.compute_nh_and_weights(np.require(affs[n_attr:], requirements="C"),
+                                                                 offsets[n_attr:],
+                                                                 strides=strides,
+                                                                 randomize_strides=randomize_strides)
+    return n_nodes, uvs, mutex_uvs, weights, mutex_weights, semantic_uts, semantic_weights
+
+
+def semantic_mutex_watershed(affs, semantic_preds, offsets, strides,
+                             randomize_strides=False, mask=None, kappa=1.0):
+    """ Compute semantic mutex watershed segmentation. Computes instance and node labels.
+
+    Introduced in "The Semantic Mutex Watershed for Efficient Bottom-Up Semantic Instance Segmentation":
+    https://arxiv.org/pdf/1912.12717.pdf
+
+    This function changes the affinities inplace. To avoid this, pass a copy.
+
+    Arguments:
+        affs [np.ndarray] - input affinity map
+        semantic_preds [np.ndarray] - input semantic predictions
+        offsets [list[list[int]]] - pixel offsets corresponding to affinity channels
+        strides [list[int]] - strides used to sub-sample long range edges
+        randomize_strides [bool] - randomize the strides? (default: False)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
+        kappa [float] - weight factor for affinity and semantic weights (default: 1.0)
+    """
+    assert affs.shape[1:] == semantic_preds.shape[1:]
+    shape = affs.shape[1:]
+
+    (n_nodes,
+     uvs, mutex_uvs,
+     weights, mutex_weights,
+     semantic_uts, semantic_weights) = _semantic_graph_problem(
+         affs, semantic_preds, offsets, strides, randomize_strides
+     )
+
+    seg, sem = semantic_mutex_watershed_clustering(
+        uvs, mutex_uvs, weights, mutex_weights,
+        semantic_uts, semantic_weights,
+        kappa=kappa, n_nodes=n_nodes
+    )
+
+    seg = seg.reshape(shape)
+    sem = sem.reshape(shape)
+    return seg, sem
 
 
 def blockwise_mutex_watershed(affs, offsets, strides, block_shape,
