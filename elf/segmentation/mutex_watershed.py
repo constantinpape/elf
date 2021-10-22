@@ -142,6 +142,8 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
 def semantic_mutex_watershed_clustering(uvs, mutex_uvs, weights, mutex_weights,
                                         semantic_uts, semantic_weights,
                                         n_nodes=None, kappa=1.0):
+    assert mutex_uvs.ndim == uvs.ndim == semantic_uts.ndim == 2
+    assert mutex_uvs.shape[1] == uvs.shape[1] == semantic_uts.shape[1] == 2
     if n_nodes is None:
         n_nodes = int(uvs.max()) + 1
     instance_labels, semantic_labels = compute_semantic_mws_clustering(
@@ -150,17 +152,9 @@ def semantic_mutex_watershed_clustering(uvs, mutex_uvs, weights, mutex_weights,
     return instance_labels, semantic_labels
 
 
-def _semantic_graph_problem(affs, semantic, offsets, strides, randomize_strides):
-    shape = semantic.shape[1:]
-    n_nodes = np.prod(shape)
-
-    # semantic uts and weights
-    semantic_argmax = np.argmax(semantic, axis=0)
-    nodes = np.arange(n_nodes).reshape(shape)
-    semantic_uts = np.stack((nodes.ravel(), semantic_argmax.ravel()), axis=1)
-    semantic_weights = np.max(semantic, axis=0).flatten()
-
+def _affs_to_graph(affs, offsets, strides, randomize_strides):
     shape = affs.shape[1:]
+    n_nodes = np.prod(shape)
     grid_graph = MWSGridGraph(shape)
 
     # we set the number of attractive channels to the number of dims
@@ -177,7 +171,20 @@ def _semantic_graph_problem(affs, semantic, offsets, strides, randomize_strides)
                                                                  offsets[n_attr:],
                                                                  strides=strides,
                                                                  randomize_strides=randomize_strides)
-    return n_nodes, uvs, mutex_uvs, weights, mutex_weights, semantic_uts, semantic_weights
+    return n_nodes, uvs, mutex_uvs, weights, mutex_weights
+
+
+def _semantic_to_graph(semantic):
+    shape = semantic.shape[1:]
+    n_nodes = np.prod(shape)
+
+    # semantic uts and weights
+    semantic_argmax = np.argmax(semantic, axis=0)
+    nodes = np.arange(n_nodes).reshape(shape)
+    semantic_uts = np.stack((nodes.ravel(), semantic_argmax.ravel()), axis=1)
+    semantic_weights = np.max(semantic, axis=0).flatten()
+
+    return semantic_uts, semantic_weights
 
 
 def semantic_mutex_watershed(affs, semantic_preds, offsets, strides,
@@ -201,12 +208,9 @@ def semantic_mutex_watershed(affs, semantic_preds, offsets, strides,
     assert affs.shape[1:] == semantic_preds.shape[1:]
     shape = affs.shape[1:]
 
-    (n_nodes,
-     uvs, mutex_uvs,
-     weights, mutex_weights,
-     semantic_uts, semantic_weights) = _semantic_graph_problem(
-         affs, semantic_preds, offsets, strides, randomize_strides
-     )
+    (n_nodes, uvs, mutex_uvs,
+     weights, mutex_weights) = _affs_to_graph(affs, offsets, strides, randomize_strides)
+    semantic_uts, semantic_weights = _semantic_to_graph(semantic_preds)
 
     seg, sem = semantic_mutex_watershed_clustering(
         uvs, mutex_uvs, weights, mutex_weights,
