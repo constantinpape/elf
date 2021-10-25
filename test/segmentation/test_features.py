@@ -215,6 +215,35 @@ class TestFeatures(unittest.TestCase):
                                                       [-7, 9, 32], [11, 7, 9]],
                                              strides=[2, 4, 4])
 
+    def test_apply_mask_to_grid_graph_weights(self):
+        from elf.segmentation.features import (apply_mask_to_grid_graph_weights,
+                                               compute_grid_graph,
+                                               compute_grid_graph_affinity_features)
+        shape = (256, 256)
+        aff_shape = (2,) + shape
+        affs = np.random.rand(*aff_shape).astype("float32")
+        g = compute_grid_graph(shape)
+        _, weights = compute_grid_graph_affinity_features(g, affs)
+        mask = np.random.rand(*shape) > 0.5
+        weights = apply_mask_to_grid_graph_weights(g, mask, weights)
+        self.assertEqual(len(weights), g.numberOfEdges)
+
+    def test_apply_mask_to_grid_graph_edges_and_weights(self):
+        from elf.segmentation.features import (apply_mask_to_grid_graph_edges_and_weights,
+                                               compute_grid_graph,
+                                               compute_grid_graph_affinity_features)
+        shape = (256, 256)
+        offsets = [[-3, 0], [0, -3], [3, -3], [3, 9]]
+        aff_shape = (len(offsets),) + shape
+        affs = np.random.rand(*aff_shape).astype("float32")
+        g = compute_grid_graph(shape)
+        edges, weights = compute_grid_graph_affinity_features(g, affs, offsets=offsets)
+        n_edges_prev = len(edges)
+        mask = np.random.rand(*shape) > 0.5
+        edges, weights = apply_mask_to_grid_graph_edges_and_weights(g, mask, edges, weights)
+        self.assertEqual(len(weights), len(edges))
+        self.assertGreater(n_edges_prev, len(edges))
+
 
 if __name__ == '__main__':
     unittest.main()

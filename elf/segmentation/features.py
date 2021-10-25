@@ -340,6 +340,60 @@ def compute_grid_graph_affinity_features(grid_graph, affinities,
     return edges, features
 
 
+def apply_mask_to_grid_graph_weights(grid_graph, mask, weights, masked_edge_weight=0.0, transition_edge_weight=1.0):
+    """ Set the weights derived from a grid graph to a fixed value for edges that connect masked nodes
+    and edges that connect masked and unmasked nodes.
+
+    Parameters:
+        grid_graph [grid-graph] - the grid graph
+        mask [np.ndarray[bool]] - binary mask, foreground (=non-masked) is True
+        weights [np.ndarray[float]] - the edge weights
+        masked_edge_weight [float] - value for edges that connect two masked nodes (default: 0.0)
+        transition_edge_weight [float] - value for edges that connect a masked with a non-masked node (default: 1.0)
+    """
+    assert np.dtype(mask.dtype) == np.dtype("bool")
+    node_ids = grid_graph.projectNodeIdsToPixels()
+    assert node_ids.shape == mask.shape == tuple(grid_graph.shape),\
+        f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
+    masked_ids = node_ids[~mask]
+
+    edges = grid_graph.uvIds()
+    assert len(edges) == len(weights)
+    edge_state = np.isin(edges, masked_ids).sum(axis=1)
+    masked_edges = edge_state == 2
+    transition_edges = edge_state == 1
+    weights[masked_edges] = masked_edge_weight
+    weights[transition_edges] = transition_edge_weight
+    return weights
+
+
+def apply_mask_to_grid_graph_edges_and_weights(grid_graph, mask, edges, weights, transition_edge_weight=1.0):
+    """ Remove uv ids that connect masked nodes and set weights that connect masked to non-masked nodes to
+    a fixed value.
+
+    Parameters:
+        grid_graph [grid-graph] - the grid graph
+        mask [np.ndarray[bool]] - binary mask, foreground (=non-masked) is True
+        edges [np.ndarray[int]] - the edges (uv-ids)
+        weights [np.ndarray[float]] - the edge weights
+        transition_edge_weight [float] - value for edges that connect a masked with a non-masked node (default: 1.0)
+    """
+    assert np.dtype(mask.dtype) == np.dtype("bool")
+    node_ids = grid_graph.projectNodeIdsToPixels()
+    assert node_ids.shape == mask.shape == tuple(grid_graph.shape),\
+        f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
+    masked_ids = node_ids[~mask]
+
+    edge_state = np.isin(edges, masked_ids).sum(axis=1)
+    keep_edges = edge_state != 2
+
+    edges, weights, edge_state = edges[keep_edges], weights[keep_edges], edge_state[keep_edges]
+    transition_edges = edge_state == 1
+    weights[transition_edges] = transition_edge_weight
+
+    return edges, weights
+
+
 #
 # Lifted Features
 #
