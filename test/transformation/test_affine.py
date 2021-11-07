@@ -69,6 +69,7 @@ class TestAffine(unittest.TestCase):
     def test_affine_subvolume_2d_z5(self):
         self._test_affine_subvolume_2d_chunked('tmp.n5')
 
+    @unittest.skipUnless(nifty.Configuration.WITH_HDF5, "Needs nifty built with hdf5")
     def test_affine_subvolume_2d_h5(self):
         self._test_affine_subvolume_2d_chunked('tmp.h5')
 

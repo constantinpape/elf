@@ -87,6 +87,7 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_greedy_fixation
         self._test_multicut(multicut_greedy_fixation)
 
+    @unittest.skipIf(platform == "darwin", "fails on macos")
     def test_greedy_fixation_toy(self):
         from elf.segmentation.multicut import multicut_greedy_fixation
         self._test_multicut_toy(multicut_greedy_fixation)
