@@ -1,4 +1,5 @@
 import os
+from sys import platform
 
 import unittest
 import numpy as np
@@ -13,6 +14,7 @@ ILP_SOLVER = any((
 ))
 
 
+@unittest.skipIf(platform == "win32", "Download fails on windows")
 class TestMulticut(unittest.TestCase):
     upper_bound = -76900
     problem_path = './tmp_mc_problem.txt'
