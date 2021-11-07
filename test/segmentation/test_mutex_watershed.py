@@ -1,4 +1,6 @@
 import unittest
+from sys import platform
+
 import numpy as np
 try:
     import affogato
@@ -9,6 +11,7 @@ except ImportError:
 @unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
 class TestMutexWatershed(unittest.TestCase):
 
+    @unittest.skipIf(platform == "darwin", "Issue with GIL on mac")
     def test_mutex_watershed(self):
         from elf.segmentation.mutex_watershed import mutex_watershed
         shape = (10, 256, 256)
