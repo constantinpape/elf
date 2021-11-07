@@ -18,5 +18,3 @@ dependencies:
     - vigra
     - zarr
     - z5py
-    - pip:
-        - pyn5
