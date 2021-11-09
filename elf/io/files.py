@@ -26,6 +26,11 @@ def open_file(path, mode='a', ext=None):
         ext [str] - file extension. This can be used to force an extension
             if it cannot be inferred from the filename. (default: None)
     """
+    # Before checking the extension suffix, check for "protocol-style"
+    # cloud provider prefixes.
+    if "://" in path:
+        ext = path.split("://")[0] + "://"
+    
     ext = os.path.splitext(path)[1] if ext is None else ext
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
