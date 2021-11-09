@@ -76,7 +76,7 @@ except ImportError:
 # add bossdb extensions if we have intern
 try:
     import intern
-    register_filetype(InternFile, [".intern"], InternFile, InternDataset)
+    register_filetype(InternFile, ["bossdb://"], InternFile, InternDataset)
 except ImportError:
     pass
 
