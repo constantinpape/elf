@@ -72,6 +72,44 @@ try:
 except ImportError:
     mrcfile = None
 
+# add bossdb extensions if we have intern
+try:
+    from intern import array as _InternDataset
+
+    # Create a new class to be the intern analog of the h5 File class
+    
+    class _InternGroup:
+
+        def __init__(self, filename, mode='r', **kwargs):
+            self.filename = filename
+            self.mode = mode
+            self.array = _InternDataset(self.filename)
+        
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return
+
+        def __getitem__(self, key):
+            return self.array
+        
+        def __setitem__(self, key, value):
+            return None
+
+        def __delitem__(self, key):
+            return None
+        
+        def keys(self):
+            return [self.filename]
+    class _InternFile(_InternGroup):
+        pass
+        
+
+    register_filetype(_InternFile, [".intern"], _InternGroup, _InternDataset)
+
+except ImportError:
+    pass
 
 def identity(arg):
     return arg
