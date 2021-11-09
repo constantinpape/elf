@@ -5,6 +5,7 @@ from .extensions import (
 )
 from .knossos_wrapper import KnossosFile, KnossosDataset
 from .mrc_wrapper import MRCFile, MRCDataset
+from .intern_wrapper import InternFile, InternDataset
 
 
 def supported_extensions():
@@ -86,3 +87,8 @@ def is_mrc(node):
     """ Check if this is a MRCWrapper object.
     """
     return isinstance(node, (MRCFile, MRCDataset))
+
+def is_intern(node):
+    """ Check if this is a Intern wrapper object.
+    """
+    return isinstance(node, (InternFile, InternDataset))
