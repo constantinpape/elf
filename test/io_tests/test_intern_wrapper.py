@@ -17,9 +17,9 @@ class TestInternWrapper(unittest.TestCase):
 
         # Choosing a dataset at random to make sure we can access shape and dtype
         ds = InternDataset("bossdb://witvliet2020/Dataset_1/em")
-        self.assertEqual(ds.shape, (300, 36000, 22000))
+        self.assertEqual(ds.shape, (300, 26000, 22000))
         self.assertEqual(ds.dtype, np.uint8)
-        self.assertEqual(ds.size, 300 * 36000 * 22000)
+        self.assertEqual(ds.size, 300 * 26000 * 22000)
         self.assertEqual(ds.ndim, 3)
 
     def test_can_download_dataset(self):
