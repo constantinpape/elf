@@ -26,7 +26,7 @@ class InternDataset:
 
     @property
     def dtype(self):
-        return self._data.dtype
+        return np.dtype(self._data.dtype)
 
     @property
     def ndim(self):
