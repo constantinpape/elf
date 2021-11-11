@@ -4,14 +4,15 @@ name:
     elf-dev
 dependencies:
     - affogato
-    - imageio
     - h5py
+    - imageio
+    - intern
     - mrcfile
     - nifty >=1.1
     - numba
     - pandas
-    - python
     - pip
+    - python
     - scikit-image
     - skan
     - tqdm

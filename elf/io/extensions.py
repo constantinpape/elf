@@ -5,6 +5,7 @@ import numpy as np
 from .image_stack_wrapper import ImageStackFile, ImageStackDataset
 from .knossos_wrapper import KnossosFile, KnossosDataset
 from .mrc_wrapper import MRCFile, MRCDataset
+from .intern_wrapper import InternFile, InternDataset
 
 
 __all__ = [
@@ -72,6 +73,12 @@ try:
 except ImportError:
     mrcfile = None
 
+# add bossdb extensions if we have intern
+try:
+    import intern
+    register_filetype(InternFile, ["bossdb://"], InternFile, InternDataset)
+except ImportError:
+    pass
 
 def identity(arg):
     return arg
