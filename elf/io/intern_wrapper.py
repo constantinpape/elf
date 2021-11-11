@@ -3,11 +3,23 @@ from collections.abc import Mapping
 try:
     from intern import array
 except ImportError:
-    pass
+    intern = None
+
+
+def _check_intern_importable():
+    if intern is None:
+        raise ImportError(
+            "Could not import the `intern` library. This means you cannot "
+            "download or upload cloud datasets. To fix this, you can install "
+            "intern with: \n\n\t"
+            "pip install intern"
+        )
+    return True
 
 
 class InternDataset:
     def __init__(self, cloud_path):
+        _check_intern_importable()
         self._data = array(cloud_path)
 
     @property
@@ -49,6 +61,7 @@ class InternFile(Mapping):
     """
 
     def __init__(self, path, mode="r"):
+        _check_intern_importable()
         self.path = path
         self.mode = mode
 
