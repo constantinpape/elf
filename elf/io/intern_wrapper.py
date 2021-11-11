@@ -2,12 +2,14 @@ from collections.abc import Mapping
 
 try:
     from intern import array
+
+    intern_imported = True
 except ImportError:
-    intern = None
+    intern_imported = False
 
 
 def _check_intern_importable():
-    if intern is None:
+    if not intern_imported:
         raise ImportError(
             "Could not import the `intern` library. This means you cannot "
             "download or upload cloud datasets. To fix this, you can install "

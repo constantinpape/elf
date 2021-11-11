@@ -26,8 +26,15 @@ class TestInternWrapper(unittest.TestCase):
         from elf.io.intern_wrapper import InternDataset
 
         ds = InternDataset("bossdb://witvliet2020/Dataset_1/em")
-        cutout = ds[210:211, 7000:7064, 7000:7064]
-        self.assertEqual(cutout.shape, (1, 64, 64))
+        cutout = ds[210:212, 7000:7064, 7000:7064]
+        self.assertEqual(cutout.shape, (2, 64, 64))
+        # Pick a few random points to verify. (This is a static dataset so
+        # this won't fail unless the internet connection is broken.)
+        # These are known "magic numbers" from a known-working intern install.
+        self.assertEqual(cutout[0, 0, 0], 127)
+        self.assertEqual(cutout[0, 0, 42], 142)
+        self.assertEqual(cutout[0, 42, 1], 122)
+        self.assertEqual(cutout[1, 4, 7], 134)
 
     def test_file(self):
         from elf.io.intern_wrapper import InternFile, InternDataset
