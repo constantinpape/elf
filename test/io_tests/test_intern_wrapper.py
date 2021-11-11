@@ -5,12 +5,12 @@ from shutil import rmtree
 import numpy as np
 
 try:
-    import intern
+    from intern import array
 except ImportError:
-    intern = None
+    array = None
 
 
-@unittest.skipIf(intern is None, "Needs intern (pip install intern)")
+@unittest.skipIf(array is None, "Needs intern (pip install intern)")
 class TestInternWrapper(unittest.TestCase):
     def test_can_access_dataset(self):
         from elf.io.intern_wrapper import InternDataset
