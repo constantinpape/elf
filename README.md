@@ -20,7 +20,8 @@ It is used by several down-stream dependencies:
 - [paintera_tools](https://github.com/constantinpape/paintera_tools)
 - [pybdv](https://github.com/constantinpape/pybdv)
 - [ilastik](https://github.com/ilastik/ilastik)
-- [mobie-python](https://github.com/mobie/mobie-utils-python).
+- [mobie-python](https://github.com/mobie/mobie-utils-python)
+- [plantseg](https://github.com/hci-unihd/plant-seg)
 
 ## Installation
 
