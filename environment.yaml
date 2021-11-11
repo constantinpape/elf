@@ -4,8 +4,9 @@ name:
     elf-dev
 dependencies:
     - affogato
-    - imageio
     - h5py
+    - imageio
+    - intern
     - mrcfile
     - nifty
     - numba
