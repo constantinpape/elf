@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+import numpy as np
 
 try:
     from intern import array
