@@ -31,8 +31,8 @@ def open_file(path, mode='a', ext=None):
     # cloud provider prefixes.
     if "://" in path:
         ext = path.split("://")[0] + "://"
-    
-    ext = os.path.splitext(path)[1] if ext is None else ext
+
+    ext = os.path.splitext(path.rstrip("/"))[1] if ext is None else ext
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
     except KeyError:
@@ -40,7 +40,7 @@ def open_file(path, mode='a', ext=None):
             f"Could not infer file type from extension {ext}, "
             f"because it is not in the supported extensions: "
             f"{' '.join(supported_extensions())}. "
-            f"You may need to install additional dependencies (h5py, z5py, zarr)."
+            f"You may need to install additional dependencies (h5py, z5py, zarr, intern)."
         )
     return constructor(path, mode=mode)
 
