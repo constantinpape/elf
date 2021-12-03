@@ -306,7 +306,7 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
 
 
 def compute_grid_graph_affinity_features(grid_graph, affinities,
-                                         offsets=None, strides=None,
+                                         offsets=None, strides=None, mask=None,
                                          randomize_strides=False):
     """ Compute edge features from affinities for the given grid_graph.
 
@@ -330,6 +330,12 @@ def compute_grid_graph_affinity_features(grid_graph, affinities,
         assert strides is None
         features = grid_graph.affinitiesToEdgeMap(affinities)
         edges = grid_graph.uvIds()
+    elif mask is not None:
+        assert strides is None and not randomize_strides, "Strides and mask cannot be used at the same time"
+        n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithMask(affinities,
+                                                                          offsets=offsets,
+                                                                          mask=mask)
+        edges, features = edges[:n_edges], features[:n_edges]
     else:
         n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithOffsets(affinities,
                                                                              offsets=offsets,
