@@ -1,15 +1,9 @@
 import unittest
 from sys import platform
-
 import numpy as np
-try:
-    import affogato
-except ImportError:
-    affogato = None
 
 
 @unittest.skipIf(platform == "darwin", "Issue with GIL on mac")
-@unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
 class TestMutexWatershed(unittest.TestCase):
 
     def test_mutex_watershed(self):
