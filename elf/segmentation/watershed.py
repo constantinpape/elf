@@ -60,7 +60,7 @@ def non_maximum_suppression(dt, seeds):
     """
     seeds = np.array(np.where(seeds)).transpose()
     seeds = nonMaximumDistanceSuppression(dt, seeds)
-    vol = np.zeros(dt.shape, dtype='bool')
+    vol = np.zeros(dt.shape, dtype="bool")
     coords = tuple(seeds[:, i] for i in range(seeds.shape[1]))
     vol[coords] = 1
     return vol
@@ -98,15 +98,15 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
 
     # check the mask if it was passed
     if mask is not None:
-        if mask.shape != input_.shape or mask.dtype != np.dtype('bool'):
+        if mask.shape != input_.shape or mask.dtype != np.dtype("bool"):
             raise ValueError("Invalid mask")
 
         # return all zeros for empty mask
         if mask.sum() == 0:
-            return np.zeros_like(mask, dtype='uint32'), 0
+            return np.zeros_like(mask, dtype="uint32"), 0
 
     # threshold the input and compute distance transform
-    thresholded = (input_ > threshold).astype('uint32')
+    thresholded = (input_ > threshold).astype("uint32")
 
     dt = vigra.filters.distanceTransform(thresholded, pixel_pitch=pixel_pitch)
 
@@ -124,7 +124,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     seeds = np.isnan(seeds)
     if apply_nonmax_suppression:
         seeds = non_maximum_suppression(dt, seeds)
-    seeds = vigra.analysis.labelMultiArrayWithBackground(seeds.view('uint8'))
+    seeds = vigra.analysis.labelMultiArrayWithBackground(seeds.view("uint8"))
 
     # normalize and invert distance transform
     dt = 1. - (dt - dt.min()) / dt.max()
@@ -160,9 +160,9 @@ def stacked_watershed(input_, ws_function=distance_transform_watershed,
         int - max id of watershed segmentation
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    out = np.zeros(input_.shape, dtype='uint64')
+    out = np.zeros(input_.shape, dtype="uint64")
 
-    if mask is not None and (mask.shape != input_.shape or mask.dtype != np.dtype('bool')):
+    if mask is not None and (mask.shape != input_.shape or mask.dtype != np.dtype("bool")):
         raise ValueError("Invalid mask")
 
     def _wsz(z):
@@ -173,7 +173,7 @@ def stacked_watershed(input_, ws_function=distance_transform_watershed,
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
         tasks = [tp.submit(_wsz, z) for z in range(len(input_))]
-        offsets = np.array([t.result() for t in tasks], dtype='uint64')
+        offsets = np.array([t.result() for t in tasks], dtype="uint64")
 
     offsets = np.roll(offsets, 1)
     offsets[0] = 0

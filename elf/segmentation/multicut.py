@@ -27,7 +27,7 @@ def _weight_edges(costs, edge_sizes, weighting_exponent):
 
 def _weight_populations(costs, edge_sizes, edge_populations, weighting_exponent):
     # check that the population indices cover each edge at most once
-    covered = np.zeros(len(costs), dtype='uint8')
+    covered = np.zeros(len(costs), dtype="uint8")
     for edge_pop in edge_populations:
         covered[edge_pop] += 1
     assert (covered <= 1).all()
@@ -81,16 +81,16 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
             of the edges (default: NOne)
         weighting_exponent [float] - exponent used for weighting (default: 1.)
     """
-    schemes = (None, 'all', 'none', 'xyz', 'z')
+    schemes = (None, "all", "none", "xyz", "z")
     if weighting_scheme not in schemes:
-        schemes_str = ', '.join([str(scheme) for scheme in schemes])
+        schemes_str = ", ".join([str(scheme) for scheme in schemes])
         raise ValueError("Weighting scheme must be one of %s, got %s" % (schemes_str,
                                                                          str(weighting_scheme)))
 
-    if weighting_scheme is None or weighting_scheme == 'none':
+    if weighting_scheme is None or weighting_scheme == "none":
         edge_pop = edge_sizes_ = None
 
-    elif weighting_scheme == 'all':
+    elif weighting_scheme == "all":
         if edge_sizes is None:
             raise ValueError("Need edge sizes for weighting scheme all")
         if len(edge_sizes) != len(probs):
@@ -98,7 +98,7 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
         edge_sizes_ = edge_sizes
         edge_pop = None
 
-    elif weighting_scheme == 'xyz':
+    elif weighting_scheme == "xyz":
         if edge_sizes is None or z_edge_mask is None:
             raise ValueError("Need edge sizes and z edge mask for weighting scheme xyz")
         if len(edge_sizes) != len(probs) or len(z_edge_mask) != len(probs):
@@ -106,7 +106,7 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
         edge_pop = [z_edge_mask, np.logical_not(z_edge_mask)]
         edge_sizes_ = edge_sizes
 
-    elif weighting_scheme == 'z':
+    elif weighting_scheme == "z":
         edge_pop = [z_edge_mask, np.logical_not(z_edge_mask)]
         edge_sizes_ = edge_sizes.copy()
         edge_sizes_[edge_pop[1]] = 1.
@@ -136,21 +136,21 @@ def _to_objective(graph, costs):
 
 
 def _get_solver_factory(objective, internal_solver, warmstart=True, warmstart_kl=False):
-    if internal_solver == 'kernighan-lin':
+    if internal_solver == "kernighan-lin":
         sub_solver = objective.kernighanLinFactory(warmStartGreedy=warmstart)
-    elif internal_solver == 'greedy-additive':
+    elif internal_solver == "greedy-additive":
         sub_solver = objective.greedyAdditiveFactory()
-    elif internal_solver == 'greedy-fixation':
+    elif internal_solver == "greedy-fixation":
         sub_solver = objective.greedyFixationFactory()
-    elif internal_solver == 'cut-glue-cut':
+    elif internal_solver == "cut-glue-cut":
         if not nifty.Configuration.WITH_QPBO:
             raise RuntimeError("multicut_cgc requires nifty built with QPBO")
         sub_solver = objective.cgcFactory(warmStartGreedy=warmstart, warmStartKl=warmstart_kl)
-    elif internal_solver == 'ilp':
+    elif internal_solver == "ilp":
         if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
             raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
         sub_solver = objective.multicutIlpFactory()
-    elif internal_solver in ('fusion-move', 'decomposition'):
+    elif internal_solver in ("fusion-move", "decomposition"):
         raise NotImplementedError(f"Using {internal_solver} as internal solver is currently not supported.")
     else:
         raise ValueError(f"{internal_solver} cannot be used as internal solver.")
@@ -158,11 +158,11 @@ def _get_solver_factory(objective, internal_solver, warmstart=True, warmstart_kl
 
 
 def _get_visitor(objective, time_limit=None, **kwargs):
-    logging_interval = kwargs.pop('logging_interval', None)
-    log_level = kwargs.pop('log_level', 'INFO')
+    logging_interval = kwargs.pop("logging_interval", None)
+    log_level = kwargs.pop("log_level", "INFO")
     if time_limit is not None or logging_interval is not None:
-        logging_interval = int(np.iinfo('int32').max) if logging_interval is None else logging_interval
-        time_limit = float('inf') if time_limit is None else time_limit
+        logging_interval = int(np.iinfo("int32").max) if logging_interval is None else logging_interval
+        time_limit = float("inf") if time_limit is None else time_limit
         log_level = getattr(nifty.LogLevel, log_level, nifty.LogLevel.INFO)
 
         # I can't see a real difference between loggingVisitor and verboseVisitor.
@@ -184,15 +184,15 @@ def _get_visitor(objective, time_limit=None, **kwargs):
 def get_multicut_solver(name, **kwargs):
     """ Get multicut solver by name.
     """
-    solvers = {'kernighan-lin': partial(multicut_kernighan_lin, **kwargs),
-               'greedy-additive': partial(multicut_gaec, **kwargs),
-               'decomposition': partial(multicut_decomposition, **kwargs),
-               'fusion-moves': partial(multicut_fusion_moves, **kwargs),
-               'blockwise-multicut': partial(blockwise_multicut, **kwargs),
-               'greedy-fixation': partial(multicut_greedy_fixation, **kwargs),
-               'cut-glue-cut': partial(multicut_cgc, **kwargs),
-               'ilp': partial(multicut_ilp, **kwargs),
-               'rama': partial(multicut_rama, **kwargs)}
+    solvers = {"kernighan-lin": partial(multicut_kernighan_lin, **kwargs),
+               "greedy-additive": partial(multicut_gaec, **kwargs),
+               "decomposition": partial(multicut_decomposition, **kwargs),
+               "fusion-moves": partial(multicut_fusion_moves, **kwargs),
+               "blockwise-multicut": partial(blockwise_multicut, **kwargs),
+               "greedy-fixation": partial(multicut_greedy_fixation, **kwargs),
+               "cut-glue-cut": partial(multicut_cgc, **kwargs),
+               "ilp": partial(multicut_ilp, **kwargs),
+               "rama": partial(multicut_rama, **kwargs)}
     try:
         solver = solvers[name]
     except KeyError:
@@ -302,7 +302,7 @@ def multicut_cgc(graph, costs, time_limit=None, warmstart=True, warmstart_kl=Tru
 
 
 def multicut_decomposition(graph, costs, time_limit=None,
-                           n_threads=1, internal_solver='kernighan-lin',
+                           n_threads=1, internal_solver="kernighan-lin",
                            **kwargs):
     """ Solve multicut problem with decomposition solver.
 
@@ -314,8 +314,7 @@ def multicut_decomposition(graph, costs, time_limit=None,
         costs [np.ndarray] - edge costs of multicut problem
         time_limit [float] - time limit for inference in seconds (default: None)
         n_threads [int] - number of threads (default: 1)
-        internal_solver [str] - name of solver used for connected components
-            (default: 'kernighan-lin')
+        internal_solver [str] - name of solver used for connected components (default: "kernighan-lin")
     """
     objective = _to_objective(graph, costs)
     solver_factory = _get_solver_factory(objective, internal_solver)
@@ -329,7 +328,7 @@ def multicut_decomposition(graph, costs, time_limit=None,
 
 
 def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
-                          internal_solver='kernighan-lin',
+                          internal_solver="kernighan-lin",
                           warmstart=True, warmstart_kl=True,
                           seed_fraction=.05, num_it=1000, num_it_stop=25, sigma=2.,
                           **kwargs):
@@ -343,8 +342,7 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
         costs [np.ndarray] - edge costs of multicut problem
         time_limit [float] - time limit for inference in seconds (default: None)
         n_threasd [int] - number of threads (default: 1)
-        internal_solver [str] - name of solver used for connected components
-            (default: 'kernighan-lin')
+        internal_solver [str] - name of solver used for connected components (default: "kernighan-lin")
         warmstart [bool] - whether to warmstart with gaec solution (default: True)
         warmstart_kl [bool] - also use kernighan lin to warmstart (default: True)
         seed_fraction [float] - fraction of nodes used as seeds for proposal generation
