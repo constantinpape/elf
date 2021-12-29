@@ -1,9 +1,7 @@
 import unittest
-from sys import platform
 import numpy as np
 
 
-@unittest.skipIf(platform == "darwin", "Issue with GIL on mac")
 class TestEmbeddings(unittest.TestCase):
     def test_embeddings_to_affinities(self):
         from elf.segmentation.embeddings import embeddings_to_affinities

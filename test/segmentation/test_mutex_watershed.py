@@ -1,9 +1,7 @@
 import unittest
-from sys import platform
 import numpy as np
 
 
-@unittest.skipIf(platform == "darwin", "Issue with GIL on mac")
 class TestMutexWatershed(unittest.TestCase):
 
     def test_mutex_watershed(self):
