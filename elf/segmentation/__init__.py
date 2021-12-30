@@ -9,3 +9,4 @@ from .lifted_multicut import get_lifted_multicut_solver
 from .multicut import get_multicut_solver, compute_edge_costs
 from .watershed import distance_transform_watershed, stacked_watershed
 from .workflows import edge_training, multicut_segmentation, multicut_workflow, simple_multicut_workflow
+from .gasp import GaspFromAffinities, run_GASP
