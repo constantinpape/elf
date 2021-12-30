@@ -48,7 +48,7 @@ def _best_dice_numpy(gt, seg):
     return np.mean(best_dices)
 
 
-def _best_dice_nifty(gt, seg):
+def _best_dice_nifty(gt, seg, average_scores=True):
     gt_labels, gt_counts = np.unique(gt, return_counts=True)
     seg_labels, seg_counts = np.unique(seg, return_counts=True)
     seg_counts = {seg_id: cnt for seg_id, cnt in zip(seg_labels, seg_counts)}
@@ -73,7 +73,10 @@ def _best_dice_nifty(gt, seg):
                   for seg_id, count in zip(ovlp_ids, ovlp_counts)]
         dice_scores.append(np.max(scores))
 
-    return np.mean(dice_scores)
+    if average_scores:
+        return np.mean(dice_scores)
+    else:
+        return dice_scores
 
 
 def symmetric_best_dice_score(segmentation, groundtruth, impl="nifty"):
