@@ -26,9 +26,9 @@ def intersection_over_pred(overlap):
     return overlap / n_pixels_pred
 
 
-MATCHING_CRITERIA = {'iou': intersection_over_union,
-                     'iot': intersection_over_true,
-                     'iop': intersection_over_pred}
+MATCHING_CRITERIA = {"iou": intersection_over_union,
+                     "iot": intersection_over_true,
+                     "iop": intersection_over_pred}
 
 
 def precision(tp, fp, fn):
@@ -50,9 +50,9 @@ def f1(tp, fp, fn):
 
 def label_overlap(seg_a, seg_b):
     p_ids, p_counts = contigency_table(seg_a, seg_b)[2:]
-    p_ids = p_ids.astype('uint64')
+    p_ids = p_ids.astype("uint64")
     max_a, max_b = int(p_ids[:, 0].max()), int(p_ids[:, 1].max())
-    overlap = np.zeros((max_a + 1, max_b + 1), dtype='uint64')
+    overlap = np.zeros((max_a + 1, max_b + 1), dtype="uint64")
     index = (p_ids[:, 0], p_ids[:, 1])
     overlap[index] = p_counts
     return overlap
@@ -89,7 +89,7 @@ def _compute_tps(scores, n_matched, threshold):
     return tp
 
 
-def matching(segmentation, groundtruth, threshold=0.5, criterion='iou'):
+def matching(segmentation, groundtruth, threshold=0.5, criterion="iou"):
     """ Scores from matching objects in segmentation and groundtruth.
 
     Implementation based on:
@@ -99,17 +99,17 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion='iou'):
         segmentation [np.ndarray] - candidate segmentation to evaluate
         groundtruth [np.ndarray] - groundtruth segmentation
         threshold [float] - overlap threshold (default: 0.5)
-        criterion [str] - matching criterion. Can be one of 'iou', 'iop', 'iot'. (default: 'iou')
+        criterion [str] - matching criterion. Can be one of "iou", "iop", "iot". (default: "iou")
     """
 
     n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion)
     tp = _compute_tps(scores, n_matched, threshold)
     fp = n_pred - tp
     fn = n_true - tp
-    stats = {'precision': precision(tp, fp, fn),
-             'recall': recall(tp, fp, fn),
-             'accuracy': accuracy(tp, fp, fn),
-             'f1': f1(tp, fp, fn)}
+    stats = {"precision": precision(tp, fp, fn),
+             "recall": recall(tp, fp, fn),
+             "accuracy": accuracy(tp, fp, fn),
+             "f1": f1(tp, fp, fn)}
     return stats
 
 
@@ -124,8 +124,7 @@ def mean_average_precision(segmentation, groundtruth,
             by default np.arange(0.5, 1., 0.05) is used (default: None)
         return_aps [bool] - whether to return intermediate aps (default: false)
     """
-    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth,
-                                                        criterion='iou')
+    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion="iou")
     if thresholds is None:
         thresholds = np.arange(0.5, 1., 0.05)
 
