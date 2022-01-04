@@ -16,12 +16,13 @@ requires = [
 extras = {
     "hdf5": "h5py",
     "zarr": "zarr",
-    "n5": "pyn5"
+    "n5": "pyn5",
+    "cloud": "intern"
 }
 
 # dependencies only available via conda,
 # we still collect them here, because the conda recipe
-# gets it's requirements from setuptools.
+# gets its requirements from setuptools.
 conda_only = ["vigra", "nifty", "z5py"]
 
 # collect all dependencies for conda

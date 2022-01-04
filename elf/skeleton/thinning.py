@@ -19,7 +19,7 @@ def thinning(obj, resolution, *args, **kwargs):
     vol = skeletonize_3d(obj)
 
     # use skan to extact skeleon node coordinates and edges
-    adj_mat, nodes, _ = csr.skeleton_to_csgraph(vol, spacing=resolution)
+    adj_mat, nodes = csr.skeleton_to_csgraph(vol, spacing=resolution)
     graph = csr.csr_to_nbgraph(adj_mat)
 
     n_nodes = len(nodes)

@@ -109,19 +109,19 @@ def mutex_watershed_with_seeds(affs, offsets, seeds, strides,
 
     # compute nn and mutex nh
     if seed_state is not None:
-        attractive_edges, attractive_weights = seed_state['attractive']
+        attractive_edges, attractive_weights = seed_state["attractive"]
         grid_graph.set_seed_state(attractive_edges, attractive_weights)
     grid_graph.add_attractive_seed_edges = True
-    uvs, weights = grid_graph.compute_nh_and_weights(1. - np.require(affs[:ndim], requirements='C'),
+    uvs, weights = grid_graph.compute_nh_and_weights(1. - np.require(affs[:ndim], requirements="C"),
                                                      offsets[:ndim])
 
     if seed_state is not None:
-        repulsive_edges, repulsive_weights = seed_state['repulsive']
+        repulsive_edges, repulsive_weights = seed_state["repulsive"]
         grid_graph.clear_seed_state()
         grid_graph.set_seed_state(repulsive_edges, repulsive_weights)
     grid_graph.add_attractive_seed_edges = False
     mutex_uvs, mutex_weights = grid_graph.compute_nh_and_weights(np.require(affs[ndim:],
-                                                                            requirements='C'),
+                                                                            requirements="C"),
                                                                  offsets[ndim:], strides,
                                                                  randomize_strides)
 

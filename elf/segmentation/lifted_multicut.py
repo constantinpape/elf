@@ -9,9 +9,9 @@ from .blockwise_lmc_impl import blockwise_lmc_impl
 def get_lifted_multicut_solver(name, **kwargs):
     """ Get lifted multicut solver by name.
     """
-    solvers = {'kernighan-lin': partial(lifted_multicut_kernighan_lin, **kwargs),
-               'greedy-additive': partial(lifted_multicut_gaec, **kwargs),
-               'fusion-moves': partial(lifted_multicut_fusion_moves, **kwargs)}
+    solvers = {"kernighan-lin": partial(lifted_multicut_kernighan_lin, **kwargs),
+               "greedy-additive": partial(lifted_multicut_gaec, **kwargs),
+               "fusion-moves": partial(lifted_multicut_fusion_moves, **kwargs)}
     try:
         solver = solvers[name]
     except KeyError:

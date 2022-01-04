@@ -5,6 +5,7 @@ from .extensions import (
 )
 from .knossos_wrapper import KnossosFile, KnossosDataset
 from .mrc_wrapper import MRCFile, MRCDataset
+from .intern_wrapper import InternFile, InternDataset
 
 
 def supported_extensions():
@@ -26,7 +27,12 @@ def open_file(path, mode='a', ext=None):
         ext [str] - file extension. This can be used to force an extension
             if it cannot be inferred from the filename. (default: None)
     """
-    ext = os.path.splitext(path)[1] if ext is None else ext
+    # Before checking the extension suffix, check for "protocol-style"
+    # cloud provider prefixes.
+    if "://" in path:
+        ext = path.split("://")[0] + "://"
+
+    ext = os.path.splitext(path.rstrip("/"))[1] if ext is None else ext
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
     except KeyError:
@@ -34,7 +40,7 @@ def open_file(path, mode='a', ext=None):
             f"Could not infer file type from extension {ext}, "
             f"because it is not in the supported extensions: "
             f"{' '.join(supported_extensions())}. "
-            f"You may need to install additional dependencies (h5py, z5py, zarr)."
+            f"You may need to install additional dependencies (h5py, z5py, zarr, intern)."
         )
     return constructor(path, mode=mode)
 
@@ -81,3 +87,8 @@ def is_mrc(node):
     """ Check if this is a MRCWrapper object.
     """
     return isinstance(node, (MRCFile, MRCDataset))
+
+def is_intern(node):
+    """ Check if this is a Intern wrapper object.
+    """
+    return isinstance(node, (InternFile, InternDataset))

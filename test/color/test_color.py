@@ -21,7 +21,7 @@ class TestColor(unittest.TestCase):
         from elf.color import glasbey
         id_list = [5, 12, 15, 25, 50]
         for nids in tqdm(id_list):
-            color_table = glasbey(nids)
+            color_table = glasbey(nids, "dark2")
             self.check_lut(color_table, nids)
 
     def test_random_colors(self):

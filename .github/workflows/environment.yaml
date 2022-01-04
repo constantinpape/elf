@@ -3,20 +3,19 @@ channels:
 name:
     elf-dev
 dependencies:
-    - affogato
-    - imageio
+    - affogato >=0.3.2
     - h5py
+    - imageio
+    - intern
     - mrcfile
-    - nifty
-    - numba <=0.50  # need to pin this due to skan
+    - nifty >=1.1
+    - numba
     - pandas
-    - python
     - pip
+    - python
     - scikit-image
     - skan
     - tqdm
     - vigra
     - zarr
     - z5py
-    - pip:
-        - pyn5

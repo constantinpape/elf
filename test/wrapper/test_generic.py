@@ -29,6 +29,16 @@ class TestGenericWrapper(unittest.TestCase):
         from elf.wrapper import ThresholdWrapper
         self._test_generic(ThresholdWrapper, lambda x: np.greater(x, .5), threshold=.5)
 
+    def test_roi_wrapper(self):
+        from elf.wrapper import RoiWrapper
+
+        x = np.random.rand(*self.shape)
+        bbs = [np.s_[:], np.s_[:16, :128, :128], np.s_[0], np.s_[1:29, 3:17, 137:211], np.s_[:, 5:47, 77:73]]
+        for bb in bbs:
+            res = RoiWrapper(x, bb)[:]
+            exp = x[bb]
+            self.assertTrue(np.allclose(res, exp))
+
 
 if __name__ == '__main__':
     unittest.main()

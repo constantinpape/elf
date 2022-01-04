@@ -2,6 +2,7 @@ import os
 import unittest
 from shutil import rmtree
 
+import nifty
 import numpy as np
 from scipy.ndimage import affine_transform
 from elf.io import open_file
@@ -68,6 +69,7 @@ class TestAffine(unittest.TestCase):
     def test_affine_subvolume_2d_z5(self):
         self._test_affine_subvolume_2d_chunked('tmp.n5')
 
+    @unittest.skipUnless(nifty.Configuration.WITH_HDF5, "Needs nifty built with hdf5")
     def test_affine_subvolume_2d_h5(self):
         self._test_affine_subvolume_2d_chunked('tmp.h5')
 
@@ -123,6 +125,7 @@ class TestAffine(unittest.TestCase):
     def test_affine_subvolume_3d_z5(self):
         self._test_affine_subvolume_3d_chunked('tmp.n5')
 
+    @unittest.skipUnless(nifty.Configuration.WITH_HDF5, "Needs nifty built with hdf5")
     def test_affine_subvolume_3d_h5(self):
         self._test_affine_subvolume_3d_chunked('tmp.h5')
 

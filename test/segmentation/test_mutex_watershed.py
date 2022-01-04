@@ -1,12 +1,7 @@
 import unittest
 import numpy as np
-try:
-    import affogato
-except ImportError:
-    affogato = None
 
 
-@unittest.skipUnless(affogato, "Need affogato for mutex watershed functionality")
 class TestMutexWatershed(unittest.TestCase):
 
     def test_mutex_watershed(self):

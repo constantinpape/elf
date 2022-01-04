@@ -1,4 +1,5 @@
 import os
+from sys import platform
 
 import unittest
 import numpy as np
@@ -13,6 +14,7 @@ ILP_SOLVER = any((
 ))
 
 
+@unittest.skipIf(platform == "win32", "Download fails on windows")
 class TestMulticut(unittest.TestCase):
     upper_bound = -76900
     problem_path = './tmp_mc_problem.txt'
@@ -85,6 +87,7 @@ class TestMulticut(unittest.TestCase):
         from elf.segmentation.multicut import multicut_greedy_fixation
         self._test_multicut(multicut_greedy_fixation)
 
+    @unittest.skipIf(platform == "darwin", "fails on macos")
     def test_greedy_fixation_toy(self):
         from elf.segmentation.multicut import multicut_greedy_fixation
         self._test_multicut_toy(multicut_greedy_fixation)

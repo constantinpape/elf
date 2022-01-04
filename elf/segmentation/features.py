@@ -125,9 +125,9 @@ def _filter_2d(input_, filter_name, sigma, n_threads):
 
 
 def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_threads=None,
-                                           filters={'gaussianSmoothing': [1.6, 4.2, 8.3],
-                                                    'laplacianOfGaussian': [1.6, 4.2, 8.3],
-                                                    'hessianOfGaussianEigenvalues': [1.6, 4.2, 8.3]}):
+                                           filters={"gaussianSmoothing": [1.6, 4.2, 8.3],
+                                                    "laplacianOfGaussian": [1.6, 4.2, 8.3],
+                                                    "hessianOfGaussianEigenvalues": [1.6, 4.2, 8.3]}):
     """ Compute boundary features accumulated over filter responses on input.
 
     Arguments:
@@ -275,14 +275,14 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
     if image.ndim == gndim:
         if offsets is not None:
             raise NotImplementedError
-        modes = ('l1', 'l2', 'min', 'max', 'sum', 'prod', 'interpixel')
+        modes = ("l1", "l2", "min", "max", "sum", "prod", "interpixel")
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
         features = grid_graph.imageToEdgeMap(image, mode)
         edges = grid_graph.uvIds()
 
     elif image.ndim == gndim + 1:
-        modes = ('l1', 'l2', 'cosine')
+        modes = ("l1", "l2", "cosine")
         if mode not in modes:
             raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
 
@@ -346,6 +346,60 @@ def compute_grid_graph_affinity_features(grid_graph, affinities,
     return edges, features
 
 
+def apply_mask_to_grid_graph_weights(grid_graph, mask, weights, masked_edge_weight=0.0, transition_edge_weight=1.0):
+    """ Set the weights derived from a grid graph to a fixed value for edges that connect masked nodes
+    and edges that connect masked and unmasked nodes.
+
+    Parameters:
+        grid_graph [grid-graph] - the grid graph
+        mask [np.ndarray[bool]] - binary mask, foreground (=non-masked) is True
+        weights [np.ndarray[float]] - the edge weights
+        masked_edge_weight [float] - value for edges that connect two masked nodes (default: 0.0)
+        transition_edge_weight [float] - value for edges that connect a masked with a non-masked node (default: 1.0)
+    """
+    assert np.dtype(mask.dtype) == np.dtype("bool")
+    node_ids = grid_graph.projectNodeIdsToPixels()
+    assert node_ids.shape == mask.shape == tuple(grid_graph.shape),\
+        f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
+    masked_ids = node_ids[~mask]
+
+    edges = grid_graph.uvIds()
+    assert len(edges) == len(weights)
+    edge_state = np.isin(edges, masked_ids).sum(axis=1)
+    masked_edges = edge_state == 2
+    transition_edges = edge_state == 1
+    weights[masked_edges] = masked_edge_weight
+    weights[transition_edges] = transition_edge_weight
+    return weights
+
+
+def apply_mask_to_grid_graph_edges_and_weights(grid_graph, mask, edges, weights, transition_edge_weight=1.0):
+    """ Remove uv ids that connect masked nodes and set weights that connect masked to non-masked nodes to
+    a fixed value.
+
+    Parameters:
+        grid_graph [grid-graph] - the grid graph
+        mask [np.ndarray[bool]] - binary mask, foreground (=non-masked) is True
+        edges [np.ndarray[int]] - the edges (uv-ids)
+        weights [np.ndarray[float]] - the edge weights
+        transition_edge_weight [float] - value for edges that connect a masked with a non-masked node (default: 1.0)
+    """
+    assert np.dtype(mask.dtype) == np.dtype("bool")
+    node_ids = grid_graph.projectNodeIdsToPixels()
+    assert node_ids.shape == mask.shape == tuple(grid_graph.shape),\
+        f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
+    masked_ids = node_ids[~mask]
+
+    edge_state = np.isin(edges, masked_ids).sum(axis=1)
+    keep_edges = edge_state != 2
+
+    edges, weights, edge_state = edges[keep_edges], weights[keep_edges], edge_state[keep_edges]
+    transition_edges = edge_state == 1
+    weights[transition_edges] = transition_edge_weight
+
+    return edges, weights
+
+
 #
 # Lifted Features
 #
@@ -366,7 +420,7 @@ def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
 
 def feats_to_costs_default(lifted_labels, lifted_features):
     # we assume that we only have different classes for a given lifted
-    # edge here (mode = 'different') and then set all edges to be repulsive
+    # edge here (mode = "different") and then set all edges to be repulsive
 
     # the higher the class probability, the more repulsive the edges should be,
     # so we just multiply both probabilities
@@ -378,7 +432,7 @@ def feats_to_costs_default(lifted_labels, lifted_features):
 def lifted_problem_from_probabilities(rag, watershed, input_maps,
                                       assignment_threshold, graph_depth,
                                       feats_to_costs=feats_to_costs_default,
-                                      mode='different', n_threads=None):
+                                      mode="different", n_threads=None):
     """ Compute lifted problem from probability maps by mapping them to superpixels.
 
     Arguments:
@@ -392,7 +446,7 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
         graph_depth [int] - maximal graph depth up to which
             lifted edges will be included
         feats_to_costs [callable] - function to calculate the lifted costs from the
-            class assignment probabilities. This becomes as inputs 'lifted_labels',
+            class assignment probabilities. This becomes as inputs "lifted_labels",
             which stores the two classes assigned to a lifted edge, and `lifted_features`,
             which stores the two assignment probabilities. (default: feats_to_costs_default).
         mode [str] - mode for insertion of lifted edges. Can be
@@ -421,11 +475,11 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
     # more than one class ?
 
     n_nodes = int(watershed.max()) + 1
-    node_labels = np.zeros(n_nodes, dtype='uint64')
-    node_features = np.zeros(n_nodes, dtype='float32')
+    node_labels = np.zeros(n_nodes, dtype="uint64")
+    node_features = np.zeros(n_nodes, dtype="float32")
     # TODO we could allow for more features that could then be used for the cost estimation
     for class_id, inp in enumerate(input_maps):
-        mean_prob = vigra.analysis.extractRegionFeatures(inp, watershed, features=['mean'])['mean']
+        mean_prob = vigra.analysis.extractRegionFeatures(inp, watershed, features=["mean"])["mean"]
         # we can in principle map multiple classes here, and right now will just override
         class_mask = mean_prob > assignment_threshold
         node_labels[class_mask] = class_id
@@ -450,7 +504,7 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
 def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
                                      overlap_threshold, graph_depth, same_segment_cost,
                                      different_segment_cost,
-                                     mode='all', n_threads=None):
+                                     mode="all", n_threads=None):
     """ Compute lifted problem from segmentation by mapping segments to
         watershed superpixels.
 
@@ -481,7 +535,7 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
 
     # initialise the arrays for node labels, to be
     # dense in the watershed id space (even if some ws-ids are not present)
-    node_labels = np.zeros(n_labels, dtype='uint64')
+    node_labels = np.zeros(n_labels, dtype="uint64")
 
     # extract the overlap values and node labels from the overlap
     # computation results
@@ -505,7 +559,7 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
     assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()),
                                                              rag.numberOfNodes)
     lifted_labels = node_labels[lifted_uvs]
-    lifted_costs = np.zeros(len(lifted_labels), dtype='float64')
+    lifted_costs = np.zeros(len(lifted_labels), dtype="float64")
 
     same_mask = lifted_labels[:, 0] == lifted_labels[:, 1]
     lifted_costs[same_mask] = same_segment_cost
@@ -576,7 +630,7 @@ def get_stitch_edges(rag, seg, block_shape, n_threads=None, verbose=False):
 
     stitch_edges = np.concatenate([st for st in stitch_edges if st is not None])
     stitch_edges = np.unique(stitch_edges)
-    full_edges = np.zeros(rag.numberOfEdges, dtype='bool')
+    full_edges = np.zeros(rag.numberOfEdges, dtype="bool")
     full_edges[stitch_edges] = 1
     return full_edges
 
@@ -604,7 +658,7 @@ def compute_z_edge_mask(rag, watershed):
     This function does not check wether the input watersheds are
     actually flat!
     """
-    node_z_coords = np.zeros(rag.numberOfNodes, dtype='uint32')
+    node_z_coords = np.zeros(rag.numberOfNodes, dtype="uint32")
     for z in range(watershed.shape[0]):
         node_z_coords[watershed[z]] = z
     uv_ids = rag.uvIds()
