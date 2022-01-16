@@ -411,6 +411,7 @@ def multicut_rama(graph, costs, time_limit=None, mode=None, **kwargs):
     else:
         assert mode in ("P", "PD", "PD+", "D")
         opts = rama_py.multicut_solver_options(mode)
+    opts.verbose = False
     node_labels = rama_py.rama_cuda(
         uv_ids[:, 0], uv_ids[:, 1], costs, opts
     )[0]

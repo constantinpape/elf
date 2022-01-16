@@ -217,7 +217,16 @@ def map_background_to_zero(seg, background_label=None):
 #
 
 
-def smooth_edges(edges, gain=1.):
+def sharpen_edges(edges, percentile=95, clip=True):
+    """ Sharpen the edges by dividing with a high percentile.
+    """
+    edges /= np.percentile(edges, percentile)
+    if clip:
+        edges = np.clip(edges, 0.0, 1.0)
+    return edges
+
+
+def smooth_edges(edges, gain=1.0):
     """ Smooth edges, e.g. from "seg_to_edges"
     by applying negative exponential distance transform.
 
