@@ -328,6 +328,7 @@ def compute_grid_graph_affinity_features(grid_graph, affinities,
     if offsets is None:
         assert affinities.shape[0] == gndim
         assert strides is None
+        assert mask is None
         features = grid_graph.affinitiesToEdgeMap(affinities)
         edges = grid_graph.uvIds()
     elif mask is not None:

@@ -45,8 +45,8 @@ def apply_size_filter(segmentation, input_, size_filter, exclude=None):
         np.ndarray - size filtered segmentation
         int - max id of size filtered segmentation
     """
-    sizes = np.bincount(segmentation.flatten())
-    filter_ids = np.argwhere(sizes < size_filter)
+    ids, sizes = np.unique(segmentation, return_counts=True)
+    filter_ids = ids[sizes < size_filter]
     if exclude is not None:
         filter_ids = filter_ids[np.logical_not(np.in1d(filter_ids, exclude))]
     filter_mask = np.in1d(segmentation, filter_ids).reshape(segmentation.shape)
@@ -242,7 +242,7 @@ def from_affinities_to_boundary_prob_map(affinities, offsets, used_offsets=None,
     return prob_map
 
 
-class WatershedOnDistanceTransformFromAffinities(object):
+class WatershedOnDistanceTransformFromAffinities():
     def __init__(self, offsets,
                  used_offsets=None,
                  offset_weights=None,
