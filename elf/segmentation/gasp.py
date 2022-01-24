@@ -13,13 +13,14 @@ from affogato.affinities import compute_affinities
 from affogato.segmentation import compute_mws_segmentation_from_affinities
 
 from . import gasp_utils
+from .multicut import compute_edge_costs
 
 
 def run_GASP(
         graph,
         signed_edge_weights,
         linkage_criteria='mean',
-        add_cannot_link_constraints= False,
+        add_cannot_link_constraints=False,
         edge_sizes=None,
         is_mergeable_edge=None,
         use_efficient_implementations=True,
@@ -114,24 +115,26 @@ def run_GASP(
         assert aff_segm is not None, "For the efficient implementation of GASP, affogato module is needed"
         if linkage_criteria in ['mutex_watershed', 'abs_max']:
             node_labels = aff_segm.compute_mws_clustering(nb_nodes,
-                                             uv_ids[np.logical_not(mutex_edges)],
-                                             uv_ids[mutex_edges],
-                                             signed_edge_weights[np.logical_not(mutex_edges)],
-                                             -signed_edge_weights[mutex_edges])
+                                                          uv_ids[np.logical_not(mutex_edges)],
+                                                          uv_ids[mutex_edges],
+                                                          signed_edge_weights[np.logical_not(mutex_edges)],
+                                                          -signed_edge_weights[mutex_edges])
         else:
             graph_components = components(graph)
             graph_components.buildFromEdgeLabels(mutex_edges)
             node_labels = graph_components.componentLabels()
         runtime = time.time() - tick
     else:
-        cluster_policy = nifty_agglo.get_GASP_policy(graph, signed_edge_weights,
-                                                     edge_sizes=edge_sizes,
-                                                     linkage_criteria=linkage_criteria,
-                                                     linkage_criteria_kwargs=linkage_criteria_kwargs,
-                                                     add_cannot_link_constraints=add_cannot_link_constraints,
-                                                     is_mergeable_edge=is_mergeable_edge,
-                                                     merge_constrained_edges_at_the_end=merge_constrained_edges_at_the_end,
-                                                     collect_stats_for_exported_data=export_agglomeration_data)
+        cluster_policy = nifty_agglo.get_GASP_policy(
+            graph, signed_edge_weights,
+            edge_sizes=edge_sizes,
+            linkage_criteria=linkage_criteria,
+            linkage_criteria_kwargs=linkage_criteria_kwargs,
+            add_cannot_link_constraints=add_cannot_link_constraints,
+            is_mergeable_edge=is_mergeable_edge,
+            merge_constrained_edges_at_the_end=merge_constrained_edges_at_the_end,
+            collect_stats_for_exported_data=export_agglomeration_data
+        )
         agglomerativeClustering = nifty_agglo.agglomerativeClustering(cluster_policy)
 
         # Run clustering:
@@ -151,8 +154,6 @@ def run_GASP(
         return node_labels, runtime, out_dict
     else:
         return node_labels, runtime
-
-
 
 
 class GaspFromAffinities:
@@ -242,7 +243,6 @@ class GaspFromAffinities:
         self.used_offsets = used_offsets
         self.offsets_weights = offsets_weights
 
-
         assert isinstance(n_threads, int)
         self.n_threads = n_threads
 
@@ -296,10 +296,13 @@ class GaspFromAffinities:
             affinities_ = affinities
 
         if self.superpixel_generator is not None:
-            superpixel_segmentation = self.superpixel_generator(affinities_, *args_superpixel_gen, foreground_mask=foreground_mask)
+            superpixel_segmentation = self.superpixel_generator(
+                affinities_, *args_superpixel_gen, foreground_mask=foreground_mask
+            )
             return self.run_GASP_from_superpixels(affinities_, superpixel_segmentation,
                                                   mask_used_edges=mask_used_edges,
-                                                  affinities_weights=affinities_weights, foreground_mask=foreground_mask)
+                                                  affinities_weights=affinities_weights,
+                                                  foreground_mask=foreground_mask)
         else:
             return self.run_GASP_from_pixels(affinities_, mask_used_edges=mask_used_edges,
                                              affinities_weights=affinities_weights, foreground_mask=foreground_mask)
@@ -317,26 +320,28 @@ class GaspFromAffinities:
 
         image_shape = affinities.shape[1:]
 
-        #affinities = affinities - np.mean(affinities, axis=(1,2,3))[:,np.newaxis,np.newaxis, np.newaxis]
+        # affinities = affinities - np.mean(affinities, axis=(1,2,3))[:,np.newaxis,np.newaxis, np.newaxis]
         # Check if I should use efficient implementation of the MWS:
         run_kwargs = self.run_GASP_kwargs
         export_agglomeration_data = run_kwargs.get("export_agglomeration_data", False)
         # TODO: add implementation of single-linkage from pixels using affogato.segmentation.connected_components
-        if run_kwargs.get("use_efficient_implementations", True) and run_kwargs.get("linkage_criteria") in ['mutex_watershed', 'abs_max']:
-            assert compute_mws_segmentation_from_affinities is not None, "Efficient MWS implementation not available. Update the affogato repository "
+        if run_kwargs.get("use_efficient_implementations", True) and\
+           run_kwargs.get("linkage_criteria") in ['mutex_watershed', 'abs_max']:
+            assert compute_mws_segmentation_from_affinities is not None,\
+                "Efficient MWS implementation not available. Update the affogato repository "
             assert not export_agglomeration_data, "Exporting extra agglomeration data is not possible when using " \
                                                   "the efficient implementation of MWS."
             if self.set_only_direct_neigh_as_mergeable:
                 warnings.warn("With efficient implementation of MWS, it is not possible to set only direct neighbors"
                               "as mergeable.")
             tick = time.time()
-            segmentation, valid_edge_mask = compute_mws_segmentation_from_affinities(affinities, offsets,
-                                                     beta_parameter=self.beta_bias,
-                                                     foreground_mask=foreground_mask, edge_mask=mask_used_edges,
-                                                                    return_valid_edge_mask=True)
+            segmentation, valid_edge_mask = compute_mws_segmentation_from_affinities(
+                affinities, offsets, beta_parameter=self.beta_bias,
+                foreground_mask=foreground_mask, edge_mask=mask_used_edges,
+                return_valid_edge_mask=True)
             runtime = time.time() - tick
             if self.return_extra_outputs:
-                MC_energy = self.get_multicut_energy_segmentation(segmentation,affinities,
+                MC_energy = self.get_multicut_energy_segmentation(segmentation, affinities,
                                                                   offsets, valid_edge_mask)
                 out_dict = {'runtime': runtime,
                             'multicut_energy': MC_energy}
@@ -360,12 +365,11 @@ class GaspFromAffinities:
             )
 
         # Compute log costs:
-        log_costs = gasp_utils.probs_to_costs(1 - edge_weights, beta=self.beta_bias)
+        log_costs = compute_edge_costs(1 - edge_weights, beta=self.beta_bias)
         if self.use_logarithmic_weights:
             signed_weights = log_costs
         else:
-
-            #signed_weights = edge_weights + 0.3
+            # signed_weights = edge_weights + 0.3
             signed_weights = edge_weights - self.beta_bias
 
         # Run GASP:
@@ -373,11 +377,11 @@ class GaspFromAffinities:
             print("Start agglo...")
 
         outputs = run_GASP(graph,
-                                    signed_weights,
-                                    edge_sizes=edge_sizes,
-                                    is_mergeable_edge=is_local_edge,
-                                    verbose=self.verbose,
-                                    **self.run_GASP_kwargs)
+                           signed_weights,
+                           edge_sizes=edge_sizes,
+                           is_mergeable_edge=is_local_edge,
+                           verbose=self.verbose,
+                           **self.run_GASP_kwargs)
 
         if export_agglomeration_data:
             nodeSeg, runtime, exported_data = outputs
@@ -392,7 +396,6 @@ class GaspFromAffinities:
             fill_value=-1.,
             ignore_label=-1,
         )[..., 0].astype(np.int64)
-
 
         if self.return_extra_outputs:
             frustration = self.get_frustration(graph, nodeSeg, signed_weights)
@@ -413,7 +416,6 @@ class GaspFromAffinities:
                 warnings.warn("In order to export agglomeration data, also set the `return_extra_outputs` to True")
             return segmentation, runtime
 
-
     def run_GASP_from_superpixels(self, affinities, superpixel_segmentation, foreground_mask=None,
                                   mask_used_edges=None, affinities_weights=None):
         # TODO: compute affiniteis_weights automatically from segmentation if needed
@@ -421,14 +423,14 @@ class GaspFromAffinities:
         assert mask_used_edges is None, "Edge mask cannot be used when starting from a segmentation."
         assert self.set_only_direct_neigh_as_mergeable, "Not implemented atm from superpixels"
         featurer = gasp_utils.AccumulatorLongRangeAffs(self.offsets,
-                                            offsets_weights=self.offsets_weights,
-                                            used_offsets=self.used_offsets,
-                                            verbose=self.verbose,
-                                            n_threads=self.n_threads,
-                                            invert_affinities=False,
-                                            statistic='mean',
-                                            offset_probabilities=self.offsets_probabilities,
-                                            return_dict=True)
+                                                       offsets_weights=self.offsets_weights,
+                                                       used_offsets=self.used_offsets,
+                                                       verbose=self.verbose,
+                                                       n_threads=self.n_threads,
+                                                       invert_affinities=False,
+                                                       statistic='mean',
+                                                       offset_probabilities=self.offsets_probabilities,
+                                                       return_dict=True)
 
         # Compute graph and edge weights by accumulating over the affinities:
         featurer_outputs = featurer(affinities, superpixel_segmentation,
@@ -438,9 +440,8 @@ class GaspFromAffinities:
         edge_sizes = featurer_outputs['edge_sizes']
         is_local_edge = featurer_outputs['is_local_edge']
 
-
         # Optionally, use logarithmic weights and apply bias parameter
-        log_costs = gasp_utils.probs_to_costs(1 - edge_indicators, beta=self.beta_bias)
+        log_costs = compute_edge_costs(1 - edge_indicators, beta=self.beta_bias)
         if self.use_logarithmic_weights:
             signed_weights = log_costs
         else:
@@ -460,7 +461,6 @@ class GaspFromAffinities:
         else:
             exported_data = {}
             node_labels, runtime = outputs
-
 
         # Map node labels back to the original superpixel segmentation:
         final_segm = ntools.mapFeaturesToLabelArray(
@@ -486,7 +486,6 @@ class GaspFromAffinities:
                 final_segm[zero_mask] = max_label + 1
             final_segm[background_mask] = 0
 
-
         if self.return_extra_outputs:
             MC_energy = self.get_multicut_energy(graph, node_labels, signed_weights, edge_sizes)
             out_dict = {"multicut_energy": MC_energy,
@@ -503,7 +502,6 @@ class GaspFromAffinities:
                 warnings.warn("In order to export agglomeration data, also set the `return_extra_outputs` to True")
             return final_segm, runtime
 
-
     def get_multicut_energy(self, graph, node_segm, edge_weights, edge_sizes=None):
         if edge_sizes is None:
             edge_sizes = np.ones_like(edge_weights)
@@ -514,7 +512,7 @@ class GaspFromAffinities:
         if edge_mask is None:
             edge_mask = np.ones_like(affinities, dtype='bool')
 
-        log_affinities = gasp_utils.probs_to_costs(1 - affinities, beta=self.beta_bias)
+        log_affinities = compute_edge_costs(1 - affinities, beta=self.beta_bias)
 
         # Find affinities "on cut":
         affs_not_on_cut, _ = compute_affinities(pixel_segm.astype('uint64'), offsets.tolist(), False, 0)
@@ -522,10 +520,9 @@ class GaspFromAffinities:
 
     def get_frustration(self, graph, node_segm, edge_weights):
         edge_labels = graph.nodeLabelsToEdgeLabels(node_segm)
-        pos_frus = ((edge_weights>0) * edge_labels).sum()
-        neg_frus = ((edge_weights<0) * (1-edge_labels)).sum()
+        pos_frus = ((edge_weights > 0) * edge_labels).sum()
+        neg_frus = ((edge_weights < 0) * (1-edge_labels)).sum()
         return [pos_frus, neg_frus]
-
 
 
 class SegmentationFeeder:
