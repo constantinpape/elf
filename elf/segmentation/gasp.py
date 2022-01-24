@@ -528,7 +528,7 @@ class GaspFromAffinities():
 
 
 
-class SegmentationFeeder():
+class SegmentationFeeder:
     """
     A simple function that expects affinities and initial segmentation (with optional foreground mask)
     and can be used as "superpixel_generator" for GASP
