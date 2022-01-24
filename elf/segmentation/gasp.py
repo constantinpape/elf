@@ -155,7 +155,7 @@ def run_GASP(
 
 
 
-class GaspFromAffinities():
+class GaspFromAffinities:
     def __init__(self,
                  offsets,
                  beta_bias=0.5,
