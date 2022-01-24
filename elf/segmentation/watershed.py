@@ -193,3 +193,118 @@ def stacked_watershed(input_, ws_function=distance_transform_watershed,
 
     max_id = int(out[-1].max())
     return out, max_id
+
+
+def from_affinities_to_boundary_prob_map(affinities, offsets, used_offsets=None, offset_weights=None):
+    """
+    Compute a boundary-probability map from merge affinities (1.0 indicates merge, 0.0 indicates split).
+    For every pixel, the value of the probability map is given by the minimum affinity associated to that pixel.
+
+    Only the offsets specified in `used_offsets` will be considered while taking the minimum (usually, best results are
+    achieved when using only affinities associated to local or short-range offsets).
+
+    It is also possible to weight different offsets differently when taking the minimum (`offset_weights`). By default,
+    all affinities are used and weighted with equal weight = 1.0.
+
+    :param affinities: Expected shape of the array: (channels,z,x,y) or (channels,x,y)
+    :param offsets: np.array indicating the offsets associated to the passed affinities
+    :param used_offsets: list of offset indices that will be actually used to compute the prob. map
+    :param offset_weights: list of weights for the used offsets (by default all weights are 1.0)
+    :return: Boundary-probability map
+    """
+    if isinstance(offsets, list):
+        offsets = np.array(offsets)
+
+    inverted_affs = 1. - affinities
+    if used_offsets is None:
+        used_offsets = range(offsets.shape[0])
+    if offset_weights is None:
+        offset_weights = [1.0 for _ in range(len(used_offsets))]
+    assert len(used_offsets) == len(offset_weights)
+    rolled_affs = []
+    for i, offs_idx in enumerate(used_offsets):
+        offset = offsets[offs_idx]
+        shifts = tuple([int(off / 2) for off in offset])
+
+        padding = [[0, 0] for _ in range(len(shifts))]
+        for ax, shf in enumerate(shifts):
+            if shf < 0:
+                padding[ax][1] = -shf
+            elif shf > 0:
+                padding[ax][0] = shf
+        padded_inverted_affs = np.pad(inverted_affs, pad_width=((0, 0),) + tuple(padding), mode='constant')
+        crop_slices = tuple(
+            slice(padding[ax][0], padded_inverted_affs.shape[ax + 1] - padding[ax][1]) for ax in range(3))
+        rolled_affs.append(
+            np.roll(padded_inverted_affs[offs_idx], shifts, axis=(0, 1, 2))[crop_slices] * offset_weights[i])
+    prob_map = np.stack(rolled_affs).max(axis=0)
+
+    return prob_map
+
+
+class WatershedOnDistanceTransformFromAffinities:
+    def __init__(self, offsets,
+                 used_offsets=None,
+                 offset_weights=None,
+                 return_hmap=False,
+                 invert_affinities=False,
+                 stacked_2d=False,
+                 nb_threads=None,
+                 **watershed_kwargs):
+        """
+        A wrapper around the `distance_transform_watershed` function, so that it can be used as superpixel generator for
+        GASP or other segmentation workflows.
+
+        As input, it expects affinities with shape (nb_offsets, shape_x, shape_y, shape_z).
+
+
+        :param offsets:
+        :param used_offsets: See arguments of `from_affinities_to_boundary_prob_map` function
+        :param offset_weights: See arguments of `from_affinities_to_boundary_prob_map` function
+        :param return_hmap: Whether to return the computed boundary probability map together with the resulting segmentation.
+        :param invert_affinities: Whether the passed affinities should be inverted with (1. - given_affinities). False by default.
+        :param stacked_2d: Whether to compute the WS segmentation for 2D slices
+        :param watershed_kwargs: Arguments passed to the `distance_transform_watershed`
+        """
+        if isinstance(offsets, list):
+            offsets = np.array(offsets)
+        else:
+            assert isinstance(offsets, np.ndarray)
+
+        self.offsets = offsets
+        self.used_offsets = used_offsets
+        self.offset_weights = offset_weights
+        self.return_hmap = return_hmap
+        self.invert_affinities = invert_affinities
+        self.stacked_2d = stacked_2d
+        self.watershed_kwargs = watershed_kwargs
+        self.nb_threads = nb_threads
+
+    def __call__(self, affinities, foreground_mask=None):
+        assert affinities.shape[0] == len(self.offsets)
+        assert affinities.ndim == 4
+
+        if self.invert_affinities:
+            affinities = 1. - affinities
+
+        hmap = from_affinities_to_boundary_prob_map(affinities, self.offsets, self.used_offsets,
+                                       self.offset_weights)
+
+        background_mask = None if foreground_mask is None else np.logical_not(foreground_mask)
+        if self.stacked_2d:
+            segmentation, _ = stacked_watershed(hmap, ws_function=distance_transform_watershed,
+                      mask=background_mask, n_threads=self.nb_threads, **self.watershed_kwargs)
+        else:
+            segmentation, _ = distance_transform_watershed(hmap, mask=background_mask,
+                                                                           **self.watershed_kwargs)
+
+        # Map ignored pixels to -1:
+        if foreground_mask is not None:
+            assert foreground_mask.shape == segmentation.shape
+            segmentation = segmentation.astype('int64')
+            segmentation = np.where(foreground_mask, segmentation, np.ones_like(segmentation) * (-1))
+
+        if self.return_hmap:
+            return segmentation, hmap
+        else:
+            return segmentation
