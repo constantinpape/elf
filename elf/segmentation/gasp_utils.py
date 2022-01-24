@@ -12,7 +12,7 @@ from affogato.affinities import compute_affinities
 from .features import compute_grid_graph_affinity_features
 
 
-class AccumulatorLongRangeAffs(object):
+class AccumulatorLongRangeAffs:
     def __init__(self, offsets,
                  used_offsets=None,
                  offsets_weights=None,
@@ -272,6 +272,7 @@ def from_foreground_mask_to_edge_mask(foreground_mask, offsets, mask_used_edges=
         return valid_edges.astype('bool')
 
 
+# TODO use elf.features functionality instead
 def build_pixel_long_range_grid_graph_from_offsets(image_shape,
                                                    offsets,
                                                    affinities,
@@ -365,71 +366,3 @@ def find_indices_direct_neighbors_in_offsets(offsets):
         if np.abs(off).sum() == 1:
             indices_dir_neighbor.append(i)
     return is_dir_neighbor, indices_dir_neighbor
-
-
-def parse_data_slice(data_slice):
-    """Parse a dataslice as a list of slice objects."""
-    if data_slice is None:
-        return data_slice
-    elif isinstance(data_slice, (list, tuple)) and \
-            all([isinstance(_slice, slice) for _slice in data_slice]):
-        return list(data_slice)
-    else:
-        assert isinstance(data_slice, str)
-    # Get rid of whitespace
-    data_slice = data_slice.replace(' ', '')
-    # Split by commas
-    dim_slices = data_slice.split(',')
-    # Build slice objects
-    slices = []
-    for dim_slice in dim_slices:
-        indices = dim_slice.split(':')
-        if len(indices) == 2:
-            start, stop, step = indices[0], indices[1], None
-        elif len(indices) == 3:
-            start, stop, step = indices
-        else:
-            raise RuntimeError
-        # Convert to ints
-        start = int(start) if start != '' else None
-        stop = int(stop) if stop != '' else None
-        step = int(step) if step is not None and step != '' else None
-        # Build slices
-        slices.append(slice(start, stop, step))
-    # Done.
-    return tuple(slices)
-
-
-def probs_to_costs(probs,
-                   beta=.5,
-                   weighting_scheme=None,
-                   rag=None,
-                   segmentation=None,
-                   weight=16.):
-    """
-    :param probs: expected a probability map (0.0 merge or 1.0 split)
-    :param beta: bias factor (with 1.0 everything is repulsive, with 0. everything is attractive)
-    """
-    p_min = 0.001
-    p_max = 1. - p_min
-    # Costs: positive (merge), negative (split)
-    costs = (p_max - p_min) * probs + p_min
-
-    # probabilities to energies, second term is boundary bias
-    costs = np.log((1. - costs) / costs) + np.log((1. - beta) / beta)
-
-    if weighting_scheme is not None:
-        assert rag is not None
-        assert weighting_scheme in ('xyz', 'z', 'all')
-        assert segmentation is not None
-        shape = segmentation.shape
-        fake_data = np.zeros(shape, dtype='float32')
-        edge_sizes = nrag.accumulateEdgeMeanAndLength(rag, fake_data)[:, 1]
-
-        if weighting_scheme == 'all':
-            w = weight * edge_sizes / edge_sizes.max()
-        else:
-            raise NotImplementedError("Weighting scheme not implemented")
-        costs *= w
-
-    return costs

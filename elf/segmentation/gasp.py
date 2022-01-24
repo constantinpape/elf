@@ -13,6 +13,7 @@ from affogato.affinities import compute_affinities
 from affogato.segmentation import compute_mws_segmentation_from_affinities
 
 from . import gasp_utils
+from .multicut import compute_edge_costs
 
 
 def run_GASP(
@@ -124,14 +125,16 @@ def run_GASP(
             node_labels = graph_components.componentLabels()
         runtime = time.time() - tick
     else:
-        cluster_policy = nifty_agglo.get_GASP_policy(graph, signed_edge_weights,
-                                                     edge_sizes=edge_sizes,
-                                                     linkage_criteria=linkage_criteria,
-                                                     linkage_criteria_kwargs=linkage_criteria_kwargs,
-                                                     add_cannot_link_constraints=add_cannot_link_constraints,
-                                                     is_mergeable_edge=is_mergeable_edge,
-                                                     merge_constrained_edges_at_the_end=merge_constrained_edges_at_the_end,
-                                                     collect_stats_for_exported_data=export_agglomeration_data)
+        cluster_policy = nifty_agglo.get_GASP_policy(
+            graph, signed_edge_weights,
+            edge_sizes=edge_sizes,
+            linkage_criteria=linkage_criteria,
+            linkage_criteria_kwargs=linkage_criteria_kwargs,
+            add_cannot_link_constraints=add_cannot_link_constraints,
+            is_mergeable_edge=is_mergeable_edge,
+            merge_constrained_edges_at_the_end=merge_constrained_edges_at_the_end,
+            collect_stats_for_exported_data=export_agglomeration_data
+        )
         agglomerativeClustering = nifty_agglo.agglomerativeClustering(cluster_policy)
 
         # Run clustering:
@@ -362,7 +365,7 @@ class GaspFromAffinities:
             )
 
         # Compute log costs:
-        log_costs = gasp_utils.probs_to_costs(1 - edge_weights, beta=self.beta_bias)
+        log_costs = compute_edge_costs(1 - edge_weights, beta=self.beta_bias)
         if self.use_logarithmic_weights:
             signed_weights = log_costs
         else:
@@ -438,7 +441,7 @@ class GaspFromAffinities:
         is_local_edge = featurer_outputs['is_local_edge']
 
         # Optionally, use logarithmic weights and apply bias parameter
-        log_costs = gasp_utils.probs_to_costs(1 - edge_indicators, beta=self.beta_bias)
+        log_costs = compute_edge_costs(1 - edge_indicators, beta=self.beta_bias)
         if self.use_logarithmic_weights:
             signed_weights = log_costs
         else:
@@ -509,7 +512,7 @@ class GaspFromAffinities:
         if edge_mask is None:
             edge_mask = np.ones_like(affinities, dtype='bool')
 
-        log_affinities = gasp_utils.probs_to_costs(1 - affinities, beta=self.beta_bias)
+        log_affinities = compute_edge_costs(1 - affinities, beta=self.beta_bias)
 
         # Find affinities "on cut":
         affs_not_on_cut, _ = compute_affinities(pixel_segm.astype('uint64'), offsets.tolist(), False, 0)
