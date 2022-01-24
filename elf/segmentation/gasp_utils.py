@@ -2,7 +2,6 @@ import time
 import numpy as np
 import vigra
 import warnings
-from concurrent import futures
 
 import nifty
 from nifty import graph as ngraph
@@ -195,9 +194,11 @@ def build_lifted_graph_from_rag(rag,
     -------
 
     """
-    # TODO: in order to support an edge_mask, getting the lifted edges is the easy part, but then I also need to accumulate
-    #   affinities properly (and ignore those not in the mask)
-    # TODO: add options `set_only_local_connections_as_mergeable` similarly to `build_pixel_long_range_grid_graph_from_offsets`
+    # TODO: in order to support an edge_mask,
+    # getting the lifted edges is the easy part, but then I also need to accumulate
+    # affinities properly (and ignore those not in the mask)
+    # TODO: add options `set_only_local_connections_as_mergeable`
+    # similarly to `build_pixel_long_range_grid_graph_from_offsets`
 
     if not has_background_label:
         nb_local_edges = rag.numberOfEdges
@@ -328,7 +329,8 @@ def build_pixel_long_range_grid_graph_from_offsets(image_shape,
     is_local_edge = np.ones(graph.numberOfEdges, dtype='bool')
     if set_only_direct_neigh_as_mergeable:
         # Get edge ids of local edges:
-        # Warning: do not use grid_graph.projectEdgeIdsToPixels because edges ids could be inconsistent with those created
+        # Warning: do not use grid_graph.projectEdgeIdsToPixels because edges
+        # ids could be inconsistent with those created
         # with compute_grid_graph_affinity_features assuming the given offsets!
         is_dir_neighbor, _ = find_indices_direct_neighbors_in_offsets(offsets)
         projected_local_edge_ids = grid_graph.projectEdgeIdsToPixelsWithOffsets(np.array(offsets))[is_dir_neighbor]
@@ -431,4 +433,3 @@ def probs_to_costs(probs,
         costs *= w
 
     return costs
-

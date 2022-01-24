@@ -261,8 +261,10 @@ class WatershedOnDistanceTransformFromAffinities:
         :param offsets:
         :param used_offsets: See arguments of `from_affinities_to_boundary_prob_map` function
         :param offset_weights: See arguments of `from_affinities_to_boundary_prob_map` function
-        :param return_hmap: Whether to return the computed boundary probability map together with the resulting segmentation.
-        :param invert_affinities: Whether the passed affinities should be inverted with (1. - given_affinities). False by default.
+        :param return_hmap: Whether to return the computed boundary probability map
+            together with the resulting segmentation.
+        :param invert_affinities: Whether the passed affinities
+            should be inverted with (1. - given_affinities). False by default.
         :param stacked_2d: Whether to compute the WS segmentation for 2D slices
         :param watershed_kwargs: Arguments passed to the `distance_transform_watershed`
         """
@@ -287,16 +289,18 @@ class WatershedOnDistanceTransformFromAffinities:
         if self.invert_affinities:
             affinities = 1. - affinities
 
-        hmap = from_affinities_to_boundary_prob_map(affinities, self.offsets, self.used_offsets,
-                                       self.offset_weights)
+        hmap = from_affinities_to_boundary_prob_map(
+            affinities, self.offsets, self.used_offsets, self.offset_weights
+        )
 
         background_mask = None if foreground_mask is None else np.logical_not(foreground_mask)
         if self.stacked_2d:
-            segmentation, _ = stacked_watershed(hmap, ws_function=distance_transform_watershed,
-                      mask=background_mask, n_threads=self.nb_threads, **self.watershed_kwargs)
+            segmentation, _ = stacked_watershed(
+                hmap, ws_function=distance_transform_watershed,
+                mask=background_mask, n_threads=self.nb_threads, **self.watershed_kwargs
+            )
         else:
-            segmentation, _ = distance_transform_watershed(hmap, mask=background_mask,
-                                                                           **self.watershed_kwargs)
+            segmentation, _ = distance_transform_watershed(hmap, mask=background_mask, **self.watershed_kwargs)
 
         # Map ignored pixels to -1:
         if foreground_mask is not None:
