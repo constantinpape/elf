@@ -242,7 +242,7 @@ def from_affinities_to_boundary_prob_map(affinities, offsets, used_offsets=None,
     return prob_map
 
 
-class WatershedOnDistanceTransformFromAffinities():
+class WatershedOnDistanceTransformFromAffinities:
     def __init__(self, offsets,
                  used_offsets=None,
                  offset_weights=None,
