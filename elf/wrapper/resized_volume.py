@@ -1,5 +1,6 @@
 import numpy as np
 import vigra
+from skimage.transform import resize
 
 from .base import WrapperBase
 from ..util import normalize_index, squeeze_singletons
@@ -47,24 +48,27 @@ class ResizedVolume(WrapperBase):
     def scale(self):
         return self._scale
 
+    def _interpolate_vigra(self, data, shape):
+        data = vigra.sampling.resize(data.astype("float32"), shape=shape, order=self.order)
+        np.clip(data, self.min, self.max, out=data)
+        return data.astype(self.dtype)
+
+    def _interpolate_skimage(self, data, shape):
+        if self.order > 0:
+            data = resize(data, shape, order=self.order)
+        else:
+            data = resize(data, shape, order=self.order, anti_aliasing=False, preserve_range=True)
+        return data.astype(self.dtype)
+
     def _interpolate(self, data, shape):
-        # vigra can't deal with singleton dimensions, so we need to handle this seperately
-        have_squeezed = False
-        # check for singleton axes
+        # vigra can't deal with singletons, so we use skimage in that case, but stil use
+        # vigra otherwise due to better performance
         singletons = tuple(sh == 1 for sh in data.shape)
         if any(singletons):
-            assert all(sh == 1 for is_single, sh in zip(singletons, shape) if is_single)
-            inflate = tuple(slice(None) if sh > 1 else None for sh in data.shape)
-            data = data.squeeze()
-            shape = tuple(sh for is_single, sh in zip(singletons, shape) if not is_single)
-            have_squeezed = True
-
-        data = vigra.sampling.resize(data.astype('float32'), shape=shape, order=self.order)
-        np.clip(data, self.min, self.max, out=data)
-
-        if have_squeezed:
-            data = data[inflate]
-        return data.astype(self.dtype)
+            data = self._interpolate_skimage(data, shape)
+        else:
+            data = self._interpolate_vigra(data, shape)
+        return data
 
     def __getitem__(self, key):
         index, to_squeeze = normalize_index(key, self.shape)
