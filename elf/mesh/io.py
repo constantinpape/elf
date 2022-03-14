@@ -5,7 +5,7 @@ def read_numpy(path):
     """ Read mesh from compressed numpy format
     """
     mesh = np.load(path)
-    return mesh['verts'], mesh['faces'], mesh['normals']
+    return mesh["verts"], mesh["faces"], mesh["normals"]
 
 
 def write_numpy(path, verts, faces, normals):
@@ -28,19 +28,19 @@ def read_obj(path):
     with open(path) as f:
         for line in f:
             # normal
-            if line.startswith('vn'):
+            if line.startswith("vn"):
                 normals.append([float(ll) for ll in line.split()[1:]])
             # vertex texture, hard-coded to vt 0.0 0.0 in paintera
-            elif line.startswith('vt'):
+            elif line.startswith("vt"):
                 pass
             # vertex
-            elif line.startswith('v'):
+            elif line.startswith("v"):
                 verts.append([float(ll) for ll in line.split()[1:]])
             # face
-            elif line.startswith('f'):
-                faces.append([int(ll.split('/')[0]) for ll in line.split()[1:]])
+            elif line.startswith("f"):
+                faces.append([int(ll.split("/")[0]) for ll in line.split()[1:]])
                 try:
-                    face_normals.append([int(ll.split('/')[2]) for ll in line.split()[1:]])
+                    face_normals.append([int(ll.split("/")[2]) for ll in line.split()[1:]])
                 except IndexError:
                     pass
 
@@ -52,15 +52,15 @@ def read_obj(path):
 def write_obj(path, verts, faces, normals, face_normals=None, zero_based_face_index=False):
     """ Write mesh to obj
     """
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         for vert in verts:
-            f.write(" ".join(map(str, ['v'] + vert.tolist())))
+            f.write(" ".join(map(str, ["v"] + vert.tolist())))
             f.write("\n")
 
         f.write("\n")
 
         for normal in normals:
-            f.write(" ".join(map(str, ['vn'] + normal.tolist())))
+            f.write(" ".join(map(str, ["vn"] + normal.tolist())))
             f.write("\n")
 
         f.write("\n")
@@ -79,3 +79,27 @@ def write_obj(path, verts, faces, normals, face_normals=None, zero_based_face_in
                 f.write(" ".join(["f"] + ["/".join([str(fa), "1", str(no)])
                                           for fa, no in zip(face, normal)]))
                 f.write("\n")
+
+
+# https://web.archive.org/web/20161221115231/http://www.cs.virginia.edu/~gfx/Courses/2001/Advanced.spring.01/plylib/Ply.txt
+def write_ply(path, verts, faces):
+    header = f"""ply
+format ascii 1.0
+element vertex {len(verts)}
+property float x
+property float y
+property float z
+element face {len(faces)}
+property list uchar int vertex_indices
+end_header
+"""
+    with open(path, "w") as f:
+        f.write(header)
+        for vert in verts:
+            line = " ".join(map(str, vert[::-1].tolist()))
+            f.write(line)
+            f.write("\n")
+        for face in faces:
+            line = " ".join(map(str, face.tolist()))
+            f.write(line)
+            f.write("\n")
