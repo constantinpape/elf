@@ -81,6 +81,44 @@ def write_obj(path, verts, faces, normals, face_normals=None, zero_based_face_in
                 f.write("\n")
 
 
+# WIP
+def write_vrml(path, verts, faces, normals):
+    # header = f"""#VRML V2.0 utf8
+    header = """#VRML V1.0 ascii
+DEF Object0Data Separator {
+	NormalBinding { value PER_VERTEX }
+	DEF Obj0Mesh0Data  Coordinate3 {
+		point [
+"""
+    with open(path, "w") as f:
+        f.write(header)
+
+        # write the vertices
+        for vert in verts:
+            line = " ".join(map(str, vert[::-1].tolist()))
+            f.write(line)
+            f.write("\n")
+        f.write("]}\n")
+
+        # write the normals
+        f.write("DEF Obj0Mesh0NData Normal {\n")
+        f.write("vector [\n")
+        for norm in normals:
+            line = " ".join(map(str, norm[::-1].tolist()))
+            f.write(line)
+            f.write("\n")
+        f.write("]}\n")
+
+        # write the faces
+        f.write("IndexedFaceSet {\n")
+        f.write("coordIndex [\n")
+        for face in faces:
+            line = " ".join(map(str, face.tolist()))
+            f.write(line)
+            f.write("\n")
+        f.write("]}\n")
+
+
 # https://web.archive.org/web/20161221115231/http://www.cs.virginia.edu/~gfx/Courses/2001/Advanced.spring.01/plylib/Ply.txt
 def write_ply(path, verts, faces):
     header = f"""ply
@@ -93,13 +131,17 @@ element face {len(faces)}
 property list uchar int vertex_indices
 end_header
 """
+    # indexing is zero-based
+    if 0 not in faces:
+        faces = faces - 1
     with open(path, "w") as f:
         f.write(header)
         for vert in verts:
-            line = " ".join(map(str, vert[::-1].tolist()))
+            line = " ".join(map(str, vert.tolist()))
             f.write(line)
             f.write("\n")
         for face in faces:
-            line = " ".join(map(str, face.tolist()))
+            this_face = [len(face)] + face.tolist()
+            line = " ".join(map(str, this_face))
             f.write(line)
             f.write("\n")
