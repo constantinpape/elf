@@ -44,8 +44,7 @@ def read_obj(path):
                 except IndexError:
                     pass
 
-    return (np.array(verts), np.array(faces),
-            np.array(normals), np.array(face_normals))
+    return np.array(verts), np.array(faces), np.array(normals), np.array(face_normals)
 
 
 # TODO support different format for faces
@@ -81,8 +80,48 @@ def write_obj(path, verts, faces, normals, face_normals=None, zero_based_face_in
                 f.write("\n")
 
 
+def read_ply(path):
+    """Read mesh from ply data format.
+    """
+    verts = []
+    faces = []
+
+    is_header = True
+    n_verts, n_faces = None, None
+    line_id = 0
+
+    with open(path) as f:
+        for line in f:
+            # parse the header
+            if is_header:
+                if line.startswith("element vertex"):
+                    n_verts = int(line.split()[-1])
+                elif line.startswith("element face"):
+                    n_faces = int(line.split()[-1])
+                elif line.startswith("end_header"):
+                    assert n_verts is not None
+                    assert n_faces is not None
+                    is_header = False
+            else:
+                if line_id < n_verts:  # parse a vertex
+                    verts.append(list(map(float, line.split()[:3])))
+                else:  # parse a face
+                    face = line.split()
+                    n = int(face[0])
+                    face = list(map(int, face[1:n+1]))
+                    faces.append(face)
+                line_id += 1
+
+    assert len(verts) == n_verts
+    assert len(faces) == n_faces
+    return np.array(verts), np.array(faces)
+
+
 # https://web.archive.org/web/20161221115231/http://www.cs.virginia.edu/~gfx/Courses/2001/Advanced.spring.01/plylib/Ply.txt
 def write_ply(path, verts, faces):
+    """Write mesh to ply data format.
+    """
+
     header = f"""ply
 format ascii 1.0
 element vertex {len(verts)}
