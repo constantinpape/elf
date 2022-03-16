@@ -15,7 +15,7 @@ def supported_extensions():
 
 
 # TODO support pathlib path
-def open_file(path, mode='a', ext=None):
+def open_file(path, mode="a", ext=None, **kwargs):
     """ Open a hdf5, zarr, n5 or knossos file on the filesystem.
 
     The formats and extensions supported depend on the available libraries.
@@ -42,7 +42,7 @@ def open_file(path, mode='a', ext=None):
             f"{' '.join(supported_extensions())}. "
             f"You may need to install additional dependencies (h5py, z5py, zarr, intern)."
         )
-    return constructor(path, mode=mode)
+    return constructor(path, mode=mode, **kwargs)
 
 
 def is_group(node):
@@ -87,6 +87,7 @@ def is_mrc(node):
     """ Check if this is a MRCWrapper object.
     """
     return isinstance(node, (MRCFile, MRCDataset))
+
 
 def is_intern(node):
     """ Check if this is a Intern wrapper object.
