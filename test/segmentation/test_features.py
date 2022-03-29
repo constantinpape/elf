@@ -6,7 +6,7 @@ class TestFeatures(unittest.TestCase):
 
     def make_seg(self, shape):
         size = np.prod([sh for sh in shape])
-        seg = np.zeros(size, dtype='uint32')
+        seg = np.zeros(size, dtype="uint32")
         current_id = 1
         change_prob = .99
         for i in range(seg.size):
@@ -19,7 +19,7 @@ class TestFeatures(unittest.TestCase):
         from elf.segmentation.features import compute_rag, compute_region_features
 
         shape = (32, 128, 128)
-        inp = np.random.rand(*shape).astype('float32')
+        inp = np.random.rand(*shape).astype("float32")
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
         uv_ids = rag.uvIds()
@@ -28,11 +28,37 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(len(uv_ids), len(feats))
         self.assertFalse(np.allclose(feats, 0))
 
+    def test_compute_affinity_features(self):
+        from elf.segmentation.features import compute_rag, compute_affinity_features
+
+        shape = (16, 64, 64)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1], [-3, 0, 0], [0, -3, 0], [0, 0, -3]]
+        inp = np.random.rand(*((len(offsets),) + shape)).astype("float32")
+
+        feats = compute_affinity_features(rag, inp, offsets)
+        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertFalse(np.allclose(feats, 0))
+
+    def test_compute_boundary_features(self):
+        from elf.segmentation.features import compute_rag, compute_boundary_features
+
+        shape = (16, 64, 64)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+
+        inp = np.random.rand(*shape).astype("float32")
+        feats = compute_boundary_features(rag, inp)
+        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertFalse(np.allclose(feats, 0))
+
     def test_boundary_features_with_filters(self):
         from elf.segmentation.features import compute_rag, compute_boundary_features_with_filters
 
         shape = (64, 128, 128)
-        inp = np.random.rand(*shape).astype('float32')
+        inp = np.random.rand(*shape).astype("float32")
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
 
@@ -52,7 +78,7 @@ class TestFeatures(unittest.TestCase):
         rag = compute_rag(seg)
 
         n_classes = 3
-        input_maps = [np.random.rand(*shape).astype('float32') for _ in range(n_classes)]
+        input_maps = [np.random.rand(*shape).astype("float32") for _ in range(n_classes)]
 
         assignment_threshold = .5
         graph_depth = 4
@@ -105,7 +131,7 @@ class TestFeatures(unittest.TestCase):
         # test
         g = compute_grid_graph(shape)
         aff_shape = (ndim,) + shape
-        affs = np.random.rand(*aff_shape).astype('float32')
+        affs = np.random.rand(*aff_shape).astype("float32")
 
         # for the case without offsets, the edges returned must correspond
         # to the edges of the grid graph
@@ -117,7 +143,7 @@ class TestFeatures(unittest.TestCase):
 
         # test - with offsets
         aff_shape = (len(offsets),) + shape
-        affs = np.random.rand(*aff_shape).astype('float32')
+        affs = np.random.rand(*aff_shape).astype("float32")
         edges, feats = compute_grid_graph_affinity_features(g, affs, offsets=offsets)
         self.assertEqual(len(edges), len(feats))
         self.assertEqual(edges.shape[1], 2)
@@ -162,14 +188,14 @@ class TestFeatures(unittest.TestCase):
             # all distances must be greater than 0
             self.assertTrue((feats >= 0).all())
             # cosine distance is bounded at 1
-            if dist == 'cosine':
+            if dist == "cosine":
                 self.assertTrue((feats <= 1).all())
 
         # test
         g = compute_grid_graph(shape)
         im_shape = (6,) + shape
-        im = np.random.rand(*im_shape).astype('float32')
-        for dist in ('l1', 'l2', 'cosine'):
+        im = np.random.rand(*im_shape).astype("float32")
+        for dist in ("l1", "l2", "cosine"):
             edges, feats = compute_grid_graph_image_features(g, im, dist)
             # for the case without offsets, the edges returned must correspond
             # to the edges of the grid graph
@@ -245,5 +271,5 @@ class TestFeatures(unittest.TestCase):
         self.assertGreater(n_edges_prev, len(edges))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
