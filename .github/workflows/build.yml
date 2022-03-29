@@ -34,9 +34,9 @@ jobs:
         shell: bash -l {0}
         run: pip install -e .
 
-      # pyn5 can only be installed on linux
+      # pyn5 can only be installed on linux and for python 3.8
       - name: Install pyn5
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == "ubuntu-latest" && matrix.python-version == "3.8"
         shell: bash -l {0}
         run: pip install pyn5
       
