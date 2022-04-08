@@ -17,7 +17,7 @@ class TestMrcWrapper(unittest.TestCase):
 
     def setUp(self):
         os.makedirs(self.tmp_dir)
-        shape = (64, 64, 64)
+        shape = (32, 64, 128)
         self.data = np.random.rand(*shape).astype('float32')
 
         with mrcfile.new(self.out) as f:

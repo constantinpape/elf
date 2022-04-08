@@ -1,4 +1,6 @@
 from collections.abc import Mapping
+import numpy as np
+
 try:
     import mrcfile
 except ImportError:
@@ -7,7 +9,11 @@ except ImportError:
 
 class MRCDataset:
     def __init__(self, data_object):
-        self._data = data_object
+        im = data_object
+        # need to swap and flip to meet axes conventions
+        data0 = np.swapaxes(im,0,2)
+        data1 = np.fliplr(data0)
+        self._data = np.swapaxes(data1,0,2)
 
     @property
     def dtype(self):
