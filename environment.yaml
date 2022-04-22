@@ -13,6 +13,7 @@ dependencies:
     - pandas
     - pip
     - scikit-image
+    - scikit-learn
     - skan
     - tqdm
     - vigra
