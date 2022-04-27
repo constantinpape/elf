@@ -181,25 +181,6 @@ def _get_visitor(objective, time_limit=None, **kwargs):
         return None
 
 
-def get_multicut_solver(name, **kwargs):
-    """ Get multicut solver by name.
-    """
-    solvers = {"kernighan-lin": partial(multicut_kernighan_lin, **kwargs),
-               "greedy-additive": partial(multicut_gaec, **kwargs),
-               "decomposition": partial(multicut_decomposition, **kwargs),
-               "fusion-moves": partial(multicut_fusion_moves, **kwargs),
-               "blockwise-multicut": partial(blockwise_multicut, **kwargs),
-               "greedy-fixation": partial(multicut_greedy_fixation, **kwargs),
-               "cut-glue-cut": partial(multicut_cgc, **kwargs),
-               "ilp": partial(multicut_ilp, **kwargs),
-               "rama": partial(multicut_rama, **kwargs)}
-    try:
-        solver = solvers[name]
-    except KeyError:
-        raise KeyError("Solver %s is not supported" % name)
-    return solver
-
-
 def blockwise_multicut(graph, costs, segmentation,
                        internal_solver, block_shape,
                        n_threads, n_levels=1, halo=None, **kwargs):
@@ -417,3 +398,30 @@ def multicut_rama(graph, costs, time_limit=None, mode=None, **kwargs):
     )[0]
     assert len(node_labels) == graph.numberOfNodes, f"{len(node_labels)}, {graph.numberOfNodes}"
     return node_labels
+
+
+_solvers = {"kernighan-lin": multicut_kernighan_lin,
+            "greedy-additive": multicut_gaec,
+            "decomposition": multicut_decomposition,
+            "fusion-moves": multicut_fusion_moves,
+            "blockwise-multicut": blockwise_multicut,
+            "greedy-fixation": multicut_greedy_fixation,
+            "cut-glue-cut": multicut_cgc,
+            "ilp": multicut_ilp,
+            "rama": multicut_rama}
+
+
+def get_available_solver_names():
+    """ Get available multicut solver names
+    """
+    return _solvers.keys()
+
+
+def get_multicut_solver(name, **kwargs):
+    """ Get multicut solver by name.
+    """
+    try:
+        solver = partial(_solvers[name], **kwargs)
+    except KeyError:
+        raise KeyError("Solver %s is not supported" % name)
+    return solver
