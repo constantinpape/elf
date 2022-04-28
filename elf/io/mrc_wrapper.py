@@ -11,9 +11,9 @@ class MRCDataset:
     def __init__(self, data_object):
         im = data_object
         # need to swap and flip to meet axes conventions
-        data0 = np.swapaxes(im,0,2)
+        data0 = np.swapaxes(im, 0, -1)
         data1 = np.fliplr(data0)
-        self._data = np.swapaxes(data1,0,2)
+        self._data = np.swapaxes(data1, 0, -1)
 
     @property
     def dtype(self):
@@ -48,6 +48,7 @@ class MRCDataset:
 class MRCFile(Mapping):
     """ Wrapper for an mrc file
     """
+
     def __init__(self, path, mode='r'):
         self.path = path
         self.mode = mode
