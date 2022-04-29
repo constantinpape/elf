@@ -17,14 +17,19 @@ class TestMrcWrapper(unittest.TestCase):
 
     def setUp(self):
         os.makedirs(self.tmp_dir)
-        shape = (64, 64, 64)
+        shape = (16, 32, 64)
         self.data = np.random.rand(*shape).astype('float32')
 
+        # change axes order to fit MRC convention
+        data0 = np.swapaxes(self.data, 0, -1)
+        data1 = np.fliplr(data0)
+        out_data = np.swapaxes(data1, 0, -1)
+
         with mrcfile.new(self.out) as f:
-            f.set_data(self.data)
+            f.set_data(out_data)
 
         with mrcfile.new(self.out_compressed, compression='gzip') as f:
-            f.set_data(self.data)
+            f.set_data(out_data)
 
     def tearDown(self):
         rmtree(self.tmp_dir)
