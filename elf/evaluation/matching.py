@@ -48,27 +48,64 @@ def f1(tp, fp, fn):
     return (2*tp)/(2*tp+fp+fn) if tp > 0 else 0
 
 
-def label_overlap(seg_a, seg_b):
+def label_overlap(seg_a, seg_b, ignore_label=0):
+    """ Number of overlapping elements for objects in two label images
+
+    Arguments:
+        seg_a [np.ndarray] - candidate segmentation to evaluate
+        seg_b [np.ndarray] - candidate segmentation to compare to
+        ignore_label [int] - overlap of any objects with this label are not
+            taken into account in the output. `None` indicates that no label
+            should be ignored. It is assumed that the `ignore_label` has the
+            same meaning in both segmentations.
+
+    Returns:
+        np.ndarray[uint64] - each cell i,j has the count of overlapping elements
+            of object i in `seg_a` with obj j in `seg_b`. Note: indices in the
+            returned matrix do not correspond to object ids anymore.
+        tuple[int, int] - index of ignore label in label_overlap output matrix
+    """
     p_ids, p_counts = contigency_table(seg_a, seg_b)[2:]
     p_ids = p_ids.astype("uint64")
-    max_a, max_b = int(p_ids[:, 0].max()), int(p_ids[:, 1].max())
-    overlap = np.zeros((max_a + 1, max_b + 1), dtype="uint64")
-    index = (p_ids[:, 0], p_ids[:, 1])
+
+    # unique object_ids in a, b
+    u_oids_a, u_oids_b = np.unique(p_ids[:, 0]), np.unique(p_ids[:, 1])
+    n_objs_a, n_objs_b = len(u_oids_a), len(u_oids_b)
+
+    # mapping from unique indexes to continuous 0...N
+    idx_map_a = dict(zip(u_oids_a, range(n_objs_a)))
+    idx_map_b = dict(zip(u_oids_b, range(n_objs_b)))
+
+    # matrix with max_remapped index in each dimension
+    overlap = np.zeros((n_objs_a, n_objs_b), dtype="uint64")
+
+    # remap indices and set costs in matrix
+    index = ([idx_map_a[idx] for idx in p_ids[:, 0]], [idx_map_b[idx] for idx in p_ids[:, 1]])
     overlap[index] = p_counts
-    return overlap
+
+    # determine remapped row, column indices of ignore_label
+    ignore_idx = (None, None)
+    if ignore_label is not None:
+        ignore_idx = (idx_map_a.get(ignore_label), idx_map_b.get(ignore_label))
+
+    return overlap, ignore_idx
 
 
-def _compute_scores(segmentation, groundtruth, criterion):
+def _compute_scores(segmentation, groundtruth, criterion, ignore_label=0):
     # compute overlap from the contingency table
-    overlap = label_overlap(segmentation, groundtruth)
+    overlap, ignore_idx = label_overlap(segmentation, groundtruth, ignore_label)
 
     # compute scores with the matcher
     matcher = MATCHING_CRITERIA[criterion]
     scores = matcher(overlap)
     assert 0 <= np.min(scores) <= np.max(scores) <= 1, f"{np.min(scores)}, {np.max(scores)}"
 
-    # ignore background
-    scores = scores[1:, 1:]
+    # remove ignore_label (remapped to continuous object_ids)
+    if ignore_idx[0] is not None:
+        scores = np.delete(scores, ignore_idx[0], axis=0)
+    if ignore_idx[1] is not None:
+        scores = np.delete(scores, ignore_idx[1], axis=1)
+
     n_pred, n_true = scores.shape
     n_matched = min(n_true, n_pred)
 
@@ -89,7 +126,7 @@ def _compute_tps(scores, n_matched, threshold):
     return tp
 
 
-def matching(segmentation, groundtruth, threshold=0.5, criterion="iou"):
+def matching(segmentation, groundtruth, threshold=0.5, criterion="iou", ignore_label=0):
     """ Scores from matching objects in segmentation and groundtruth.
 
     Implementation based on:
@@ -100,9 +137,13 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion="iou"):
         groundtruth [np.ndarray] - groundtruth segmentation
         threshold [float] - overlap threshold (default: 0.5)
         criterion [str] - matching criterion. Can be one of "iou", "iop", "iot". (default: "iou")
+        ignore_label [int] - overlap of any objects with this label are not
+            taken into account in the output. `None` indicates that no label
+            should be ignored. It is assumed that the `ignore_label` has the
+            same meaning in both segmentations.
     """
 
-    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion)
+    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion, ignore_label)
     tp = _compute_tps(scores, n_matched, threshold)
     fp = n_pred - tp
     fn = n_true - tp
