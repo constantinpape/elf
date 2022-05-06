@@ -55,6 +55,18 @@ class TestMatching(unittest.TestCase):
         expected = {'precision': 0.25, 'recall': 1.0, 'accuracy': 0.25, 'f1': 0.4}
         self.assertEqual(scores, expected)
 
+    def test_ignore_label_none(self):
+        from elf.evaluation import matching
+
+        scores = matching([0, 1], [1, 2], ignore_label=0)
+        self.assertEqual(scores['precision'], 1.0)
+        self.assertEqual(scores['recall'], 0.5)
+        self.assertEqual(scores['accuracy'], 0.5)
+        self.assertAlmostEqual(scores['f1'], 2.0 / 3.0)
+
+        scores = matching([0, 1], [1, 2], ignore_label=None)
+        check_scores(scores, self.assertEqual, 1.)
+
     def test_map(self):
         from elf.evaluation import mean_average_precision
         shape = (256, 256)
