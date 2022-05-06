@@ -2,36 +2,74 @@ import unittest
 import numpy as np
 
 
+def check_scores(scores, func, exp):
+    func(scores['precision'], exp)
+    func(scores['recall'], exp)
+    func(scores['accuracy'], exp)
+    func(scores['f1'], exp)
+
+
 class TestMatching(unittest.TestCase):
     def test_matching(self):
         from elf.evaluation import matching
         shape = (256, 256)
 
-        def _check_scores(scores, func, exp):
-            func(scores['precision'], exp)
-            func(scores['recall'], exp)
-            func(scores['accuracy'], exp)
-            func(scores['f1'], exp)
-
         # random data
         x = np.random.randint(0, 10, size=shape)
         y = np.random.randint(0, 10, size=shape)
         scores = matching(x, y)
-        _check_scores(scores, self.assertGreaterEqual, 0.)
+
+        check_scores(scores, self.assertGreaterEqual, 0.)
+        check_scores(scores, self.assertLess, 1.0)
 
         # same data
         scores = matching(x, x)
-        _check_scores(scores, self.assertEqual, 1.)
+        check_scores(scores, self.assertEqual, 1.)
+
+    def test_matching_threshold(self):
+        from elf.evaluation import matching
+
+        scores = matching([0, 0, 1, 1, 1, 2], [0, 0, 1, 1, 2, 2], threshold=0.7)
+        check_scores(scores, self.assertEqual, 0.)
+        scores = matching([0, 0, 1, 1, 1, 2], [0, 0, 1, 1, 2, 2], threshold=0.5)
+        check_scores(scores, self.assertEqual, 1.)
+
+    def test_matching_non_continuous_labels(self):
+        from elf.evaluation import matching
+
+        scores = matching([0, 0, 500, 500, 500, 2], [0, 0, 1, 1, 2, 2])
+        check_scores(scores, self.assertEqual, 1.)
+
+    def test_matching_ignore_zero_label_default(self):
+        from elf.evaluation import matching
+
+        scores = matching([0, 0, 1], [0, 1, 1], threshold=0.9)
+        check_scores(scores, self.assertEqual, 0.)
+        scores = matching([0, 0, 1], [0, 1, 1], threshold=0.5)
+        check_scores(scores, self.assertEqual, 1.)
+
+    def test_matching_example(self):
+        from elf.evaluation import matching
+
+        scores = matching([0, 1, 2, 3, 4], [0, 1, 0, 0, 0])
+        expected = {'precision': 0.25, 'recall': 1.0, 'accuracy': 0.25, 'f1': 0.4}
+        self.assertEqual(scores, expected)
+
+    def test_ignore_label_none(self):
+        from elf.evaluation import matching
+
+        scores = matching([0, 1], [1, 2], ignore_label=0)
+        self.assertEqual(scores['precision'], 1.0)
+        self.assertEqual(scores['recall'], 0.5)
+        self.assertEqual(scores['accuracy'], 0.5)
+        self.assertAlmostEqual(scores['f1'], 2.0 / 3.0)
+
+        scores = matching([0, 1], [1, 2], ignore_label=None)
+        check_scores(scores, self.assertEqual, 1.)
 
     def test_map(self):
         from elf.evaluation import mean_average_precision
         shape = (256, 256)
-
-        def _check_scores(scores, func, exp):
-            func(scores['precision'], exp)
-            func(scores['recall'], exp)
-            func(scores['accuracy'], exp)
-            func(scores['f1'], exp)
 
         # random data
         x = np.random.randint(0, 10, size=shape)
