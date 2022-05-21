@@ -123,6 +123,7 @@ def set_camera(viewer, well_start, well_stop, well_len, well_spacing, site_spaci
     viewer.camera.zoom /= (well_len * max_plate_width)
 
 
+# TODO enable non-square wells
 def view_plate(
     image_data,
     label_data=None,
@@ -141,8 +142,8 @@ def view_plate(
         label_data dict[str, [dict[str, list[np.array]]]]: list of label sources,
             each list contains a dict which maps the well names (e.g. A1, B3) to
             the label data for this well (one array per well position) (default: None)
-        image_settings dict[str, dict]: list of image settings (default: None)
-        image_settings dict[str, dict]: list of label settings (default: None)
+        image_settings dict[str, dict]: image settings for the channels (default: None)
+        label_settings dict[str, dict]: settings for the label channels (default: None)
         zero_based bool: whether the well indexing is zero-based (default: True)
         well_sources int: spacing between wells, in pixels (default: 12)
         site_spacing int: spacing between sites, in pixels (default: 4)
@@ -191,5 +192,71 @@ def view_plate(
     # set the camera so that the initial view is centered around the existing wells
     # and zoom out so that the central well is fully visible
     set_camera(viewer, well_start, well_stop, well_len, well_spacing, site_spacing, shape)
+
+    napari.run()
+
+
+def add_positional_sources(positional_sources, positions, add_source, source_settings=None):
+    if source_settings is None:
+        source_settings = {}
+    for channel_name, sources in positional_sources.items():
+        settings = source_settings.get(channel_name, {})
+        channel_layers = []
+        for sample, source in sources.items():
+            layer = add_source(source, name=f"{channel_name}_{sample}", **settings)
+            position = positions[sample]
+            if len(source.shape) > len(position):
+                ndim_non_spatial = len(source.shape) - len(position)
+                position = ndim_non_spatial * [0] + list(position)
+            layer.translate = list(position)
+            channel_layers.append(layer)
+            shape = source.shape
+        link_layers(channel_layers)
+    return shape
+
+
+def set_camera_positional(viewer, positions, shape):
+    coords = list(positions.values())
+    y = [coord[0] for coord in coords]
+    x = [coord[1] for coord in coords]
+    ymin, ymax = min(y), max(y)
+    xmin, xmax = min(x), max(x)
+
+    camera_center = [(ymax - ymin) // 2, (xmax - xmin) // 2]
+    viewer.camera.center = camera_center
+
+    extent = (ymax - ymin, xmax - xmin)
+    max_extent = max(extent)
+    zoom_out = max_extent / shape[np.argmax(extent)]
+    viewer.camera.zoom /= zoom_out
+
+
+def view_positional_images(image_data, positions, label_data=None, image_settings=None, label_settings=None):
+    """Similar to 'view_plate', but using position data parsed to the function to place the images
+
+    Args:
+        image_data dict[str, dict[str, np.ndarray]]: the image data (outer dict is channels, inner is sample)
+        positions [str, tuple]: the position for each sample
+        label_data dict[str, dict[str, np.ndarray]]: the label data (outer dict is channels, inner is sample)
+        image_settings dict[str, dict]: image settings for the channels (default: None)
+        label_settings dict[str, dict]: settings for the label channels (default: None)
+    """
+    all_samples = []
+    for sources in image_data.values():
+        all_samples.extend(list(sources.keys()))
+    if label_data is not None:
+        for sources in label_data.values():
+            all_samples.extend(list(sources.keys()))
+
+    # make sure we have positional data for all the samples
+    assert all(sample in positions for sample in all_samples)
+
+    viewer = napari.Viewer()
+
+    shape = add_positional_sources(image_data, positions, viewer.add_image, image_settings)
+    if label_data is not None:
+        add_positional_sources(label_data, positions, viewer.add_labels, label_settings)
+
+    set_camera_positional(viewer, positions, shape)
 
     napari.run()
