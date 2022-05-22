@@ -26,9 +26,9 @@ It is used by several down-stream dependencies:
 
 ## Installation
 
-Install the package from source via
+Install the package from source and in development mode via
 ```
-python setup.py install
+pip install -e .
 ```
 or via conda
 ```
