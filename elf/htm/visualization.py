@@ -24,10 +24,12 @@ def parse_wells(well_names, zero_based):
 
 
 def get_world_position(
-    well_x, well_y, pos, well_len, well_spacing, site_spacing, shape
+    well_x, well_y, pos, well_shape, well_spacing, site_spacing, shape
 ):
-    i = well_x * well_len + pos // well_len
-    j = well_y * well_len + pos % well_len
+    unraveled = np.unravel_index([pos], well_shape)
+    pos_x, pos_y = unraveled[0][0], unraveled[1][0]
+    i = well_x * well_shape[0] + pos_x
+    j = well_y * well_shape[1] + pos_y
     # print(well_x, well_y, pos, ":", i, j)
 
     sx = shape[-2]
@@ -41,7 +43,7 @@ def get_world_position(
 
 
 def add_grid_sources(
-    grid_sources, well_positions, well_len, well_spacing, site_spacing, add_source, source_settings=None
+    grid_sources, well_positions, well_shape, well_spacing, site_spacing, add_source, source_settings=None
 ):
     if source_settings is None:
         source_settings = {}
@@ -61,66 +63,83 @@ def add_grid_sources(
                         shape = tuple(sc * sh for sc, sh in zip(shape, scale))
                 else:
                     assert source.shape == shape, f"{source.shape}, {shape}"
-                world_pos = get_world_position(well_x, well_y, pos, well_len, well_spacing, site_spacing, shape)
-                # print(well_name, pos, ":", world_pos)
+                world_pos = get_world_position(well_x, well_y, pos, well_shape, well_spacing, site_spacing, shape)
                 layer.translate = world_pos
                 channel_layers.append(layer)
         link_layers(channel_layers)
     return shape
 
 
-def add_plate_layout(
-    viewer, well_names, well_positions, well_len, well_spacing, site_spacing, shape
-):
-    well_boxes = []
-    for well_name in well_names:
-        well_x, well_y = well_positions[well_name]
-        xmin, ymin = get_world_position(
-            well_x, well_y, 0, well_len, well_spacing, site_spacing, shape
-        )[-2:]
-        xmin -= well_spacing // 2
-        ymin -= well_spacing // 2
-
-        xmax, ymax = get_world_position(
-            well_x + 1, well_y + 1, 0, well_len, well_spacing, site_spacing, shape
-        )[-2:]
-        xmin -= well_spacing // 2
-        ymin -= well_spacing // 2
-
-        well_boxes.append(np.array([[xmin, ymin], [xmax, ymax]]))
-
-    properties = {"names": well_names}
+def _add_layout(viewer, name, box_names, boxes, edge_width, measurements=None, color="coral"):
+    properties = {"names": box_names}
+    text = "{names}"
+    if measurements is not None:
+        text += " - "
+        for measure_name, measure_values in measurements.items():
+            this_measurements = [measure_values[box_name] for box_name in box_names]
+            properties[measure_name] = this_measurements
+            if isinstance(this_measurements[0], float):
+                text += f"{measure_name}: {{{measure_name}:0.2f}},"
+            else:
+                text += f"{measure_name}: {{{measure_name}}},"
+        # get rid of the last comma
+        text = text[:-1]
     text_properties = {
-        "text": "{names}",
+        "text": text,
         "anchor": "upper_left",
         "translation": [-5, 0],
         "size": 32,
         "color": "coral"
     }
-
-    viewer.add_shapes(well_boxes,
-                      name="wells",
+    viewer.add_shapes(boxes,
+                      name=name,
                       properties=properties,
                       text=text_properties,
                       shape_type="rectangle",
-                      edge_width=well_spacing // 2,
+                      edge_width=edge_width,
                       edge_color="coral",
                       face_color="transparent")
 
 
-def set_camera(viewer, well_start, well_stop, well_len, well_spacing, site_spacing, shape):
+def add_plate_layout(
+    viewer, well_names, well_positions, well_shape, well_spacing, site_spacing, shape,
+    measurements=None
+):
+    well_boxes = []
+    for well_name in well_names:
+        well_x, well_y = well_positions[well_name]
+        xmin, ymin = get_world_position(
+            well_x, well_y, 0, well_shape, well_spacing, site_spacing, shape
+        )[-2:]
+        xmin -= well_spacing // 2
+        ymin -= well_spacing // 2
+
+        xmax, ymax = get_world_position(
+            well_x + 1, well_y + 1, 0, well_shape, well_spacing, site_spacing, shape
+        )[-2:]
+        xmin -= well_spacing // 2
+        ymin -= well_spacing // 2
+
+        well_boxes.append(np.array([[xmin, ymin], [xmax, ymax]]))
+    _add_layout(viewer, "wells", well_names, well_boxes, well_spacing // 2,
+                measurements=measurements)
+
+
+def set_camera(viewer, well_start, well_stop, well_shape, well_spacing, site_spacing, shape):
     pix_start = get_world_position(
-        well_start[0], well_start[1], 0, well_len, well_spacing, site_spacing, shape
+        well_start[0], well_start[1], 0, well_shape, well_spacing, site_spacing, shape
     )[-2:]
     pix_stop = get_world_position(
-        well_stop[0], well_stop[1], 0, well_len, well_spacing, site_spacing, shape
+        well_stop[0], well_stop[1], 0, well_shape, well_spacing, site_spacing, shape
     )[-2:]
     camera_center = tuple((start + stop) // 2 for start, stop in zip(pix_start, pix_stop))
     viewer.camera.center = camera_center
 
     # zoom out so that we see all wells
-    max_plate_width = max([wstop - wstart for wstart, wstop in zip(well_start, well_stop)])
-    viewer.camera.zoom /= (well_len * max_plate_width)
+    plate_extent = [wstop - wstart for wstart, wstop in zip(well_start, well_stop)]
+    max_extent = max(plate_extent)
+    max_len = well_shape[np.argmax(plate_extent)]
+    viewer.camera.zoom /= (max_len * max_extent)
 
 
 def view_plate(
@@ -128,9 +147,12 @@ def view_plate(
     label_data=None,
     image_settings=None,
     label_settings=None,
+    well_measurements=None,
+    well_shape=None,
     zero_based=True,
     well_spacing=16,
     site_spacing=4,
+    show=True,
 ):
     """Visualize data from a multi-well plate using napari.
 
@@ -141,18 +163,29 @@ def view_plate(
         label_data dict[str, [dict[str, list[np.array]]]]: list of label sources,
             each list contains a dict which maps the well names (e.g. A1, B3) to
             the label data for this well (one array per well position) (default: None)
-        image_settings dict[str, dict]: list of image settings (default: None)
-        image_settings dict[str, dict]: list of label settings (default: None)
+        image_settings dict[str, dict]: image settings for the channels (default: None)
+        label_settings dict[str, dict]: settings for the label channels (default: None)
+        well_measurements dict[str, dict[str, [float, int, str]]]: measurements associated with the wells
+        well_shape tuple[int]: the 2D shape of a well in terms of images, if not given will be derived.
+            Well shape can only be derived for square wells and must be passed otherwise (default: None)
         zero_based bool: whether the well indexing is zero-based (default: True)
         well_sources int: spacing between wells, in pixels (default: 12)
         site_spacing int: spacing between sites, in pixels (default: 4)
+        show bool: whether to show the viewer (default: True)
     """
     # find the number of positions per well
     first_channel_sources = next(iter(image_data.values()))
     pos_per_well = len(next(iter(first_channel_sources.values())))
-    # only square number of wells allowed
-    assert pos_per_well in (4, 9, 25, 36)
-    well_len = int(np.sqrt(pos_per_well))
+
+    # find the well shape
+    if well_shape is None:  # well shape can only be derived for square wells
+        assert pos_per_well in (1, 4, 9, 25, 36, 49), f"well is not square: {pos_per_well}"
+        well_len = int(np.sqrt(pos_per_well))
+        well_shape = (well_len, well_len)
+    else:
+        assert len(well_shape) == 2
+        pos_per_well_exp = np.prod(list(well_shape))
+        assert pos_per_well_exp == pos_per_well, f"{pos_per_well_exp} != {pos_per_well}"
 
     def process_sources(sources, well_names):
         for well_sources in sources.values():
@@ -176,20 +209,121 @@ def view_plate(
     # start the veiwer and add all sources
     viewer = napari.Viewer()
     shape = add_grid_sources(
-        image_data, well_positions, well_len, well_spacing, site_spacing, viewer.add_image, image_settings
+        image_data, well_positions, well_shape, well_spacing, site_spacing, viewer.add_image, image_settings
     )
     if label_data is not None:
         add_grid_sources(
-            label_data, well_positions, well_len, well_spacing, site_spacing, viewer.add_labels, label_settings
+            label_data, well_positions, well_shape, well_spacing, site_spacing, viewer.add_labels, label_settings
         )
 
     # add shape layer corresponding to the well positions
     add_plate_layout(
-        viewer, well_names, well_positions, well_len, well_spacing, site_spacing, shape
+        viewer, well_names, well_positions, well_shape, well_spacing, site_spacing, shape,
+        measurements=well_measurements
     )
 
     # set the camera so that the initial view is centered around the existing wells
     # and zoom out so that the central well is fully visible
-    set_camera(viewer, well_start, well_stop, well_len, well_spacing, site_spacing, shape)
+    set_camera(viewer, well_start, well_stop, well_shape, well_spacing, site_spacing, shape)
 
-    napari.run()
+    if show:
+        napari.run()
+    return viewer
+
+
+def add_positional_sources(positional_sources, positions, add_source, source_settings=None):
+    if source_settings is None:
+        source_settings = {}
+    for channel_name, sources in positional_sources.items():
+        settings = source_settings.get(channel_name, {})
+        channel_layers = []
+        for sample, source in sources.items():
+            layer = add_source(source, name=f"{channel_name}_{sample}", **settings)
+            position = positions[sample]
+            if len(source.shape) > len(position):
+                ndim_non_spatial = len(source.shape) - len(position)
+                position = ndim_non_spatial * [0] + list(position)
+            layer.translate = list(position)
+            channel_layers.append(layer)
+            shape = source.shape
+        link_layers(channel_layers)
+    return shape
+
+
+def set_camera_positional(viewer, positions, shape):
+    coords = list(positions.values())
+    y = [coord[0] for coord in coords]
+    x = [coord[1] for coord in coords]
+    ymin, ymax = min(y), max(y)
+    xmin, xmax = min(x), max(x)
+
+    camera_center = [(ymax - ymin) // 2, (xmax - xmin) // 2]
+    viewer.camera.center = camera_center
+
+    extent = (ymax - ymin, xmax - xmin)
+    max_extent = max(extent)
+    zoom_out = max_extent / shape[np.argmax(extent)]
+    viewer.camera.zoom /= zoom_out
+
+
+def add_positional_layout(viewer, positions, shape, measurements=None, spacing=16):
+    boxes = []
+    sample_names = []
+    for sample, position in positions.items():
+        ymin, xmin = position
+        ymax, xmax = ymin + shape[0], xmin + shape[1]
+
+        xmin -= spacing
+        ymin -= spacing
+        xmax += spacing
+        ymax += spacing
+
+        boxes.append(np.array([[ymin, xmin], [ymax, xmax]]))
+        sample_names.append(sample)
+    _add_layout(viewer, "samples", sample_names, boxes, spacing // 2,
+                measurements=measurements)
+
+
+def view_positional_images(
+    image_data,
+    positions,
+    label_data=None,
+    image_settings=None,
+    label_settings=None,
+    sample_measurements=None,
+    show=True,
+):
+    """Similar to 'view_plate', but using position data parsed to the function to place the images
+
+    Args:
+        image_data dict[str, dict[str, np.ndarray]]: the image data (outer dict is channels, inner is sample)
+        positions [str, tuple]: the position for each sample
+        label_data dict[str, dict[str, np.ndarray]]: the label data (outer dict is channels, inner is sample)
+        image_settings dict[str, dict]: image settings for the channels (default: None)
+        label_settings dict[str, dict]: settings for the label channels (default: None)
+        sample_measurements dict[str, dict[str, [float, int, str]]]: measurements associated with the samples
+        show bool: whether to show the viewer (default: True)
+    """
+    all_samples = []
+    for sources in image_data.values():
+        all_samples.extend(list(sources.keys()))
+    if label_data is not None:
+        for sources in label_data.values():
+            all_samples.extend(list(sources.keys()))
+
+    # make sure we have positional data for all the samples
+    assert all(sample in positions for sample in all_samples)
+
+    viewer = napari.Viewer()
+
+    shape = add_positional_sources(image_data, positions, viewer.add_image, image_settings)
+    if label_data is not None:
+        add_positional_sources(label_data, positions, viewer.add_labels, label_settings)
+
+    add_positional_layout(viewer, positions, shape, measurements=sample_measurements)
+
+    set_camera_positional(viewer, positions, shape)
+
+    if show:
+        napari.run()
+    return viewer
