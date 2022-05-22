@@ -231,6 +231,40 @@ def set_camera_positional(viewer, positions, shape):
     viewer.camera.zoom /= zoom_out
 
 
+def add_positional_layout(viewer, positions, shape, spacing=16):
+    boxes = []
+    sample_names = []
+    for sample, position in positions.items():
+        ymin, xmin = position
+        ymax, xmax = ymin + shape[0], xmin + shape[1]
+
+        xmin -= spacing
+        ymin -= spacing
+        xmax += spacing
+        ymax += spacing
+
+        boxes.append(np.array([[ymin, xmin], [ymax, xmax]]))
+        sample_names.append(sample)
+
+    properties = {"names": sample_names}
+    text_properties = {
+        "text": "{names}",
+        "anchor": "upper_left",
+        "translation": [-5, 0],
+        "size": 32,
+        "color": "coral"
+    }
+
+    viewer.add_shapes(boxes,
+                      name="samples",
+                      properties=properties,
+                      text=text_properties,
+                      shape_type="rectangle",
+                      edge_width=spacing // 2,
+                      edge_color="coral",
+                      face_color="transparent")
+
+
 def view_positional_images(image_data, positions, label_data=None, image_settings=None, label_settings=None):
     """Similar to 'view_plate', but using position data parsed to the function to place the images
 
@@ -256,6 +290,8 @@ def view_positional_images(image_data, positions, label_data=None, image_setting
     shape = add_positional_sources(image_data, positions, viewer.add_image, image_settings)
     if label_data is not None:
         add_positional_sources(label_data, positions, viewer.add_labels, label_settings)
+
+    add_positional_layout(viewer, positions, shape)
 
     set_camera_positional(viewer, positions, shape)
 
