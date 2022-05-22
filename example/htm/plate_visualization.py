@@ -37,7 +37,11 @@ def main():
 
     image_channels = ["serum", "nuclei", "marker"]
     label_channels = ["segmentation/cells", "segmentation/nuclei"]
-    image_settings = {"serum": {"colormap": "green"}, "nuclei": {"colormap": "blue"}, "marker": {"colormap": "red"}}
+    image_settings = {
+        "serum": {"colormap": "green", "blending": "additive"},
+        "nuclei": {"colormap": "blue", "blending": "additive"},
+        "marker": {"colormap": "red", "blending": "additive"}
+    }
 
     folder = args.folder
     image_data = {name: load_channel(folder, name) for name in image_channels}
