@@ -10,6 +10,7 @@ from glob import glob
 
 import elf.htm as htm
 import h5py
+import numpy as np
 from tqdm import tqdm
 
 
@@ -36,6 +37,7 @@ def create_positions(samples):
     well_ids = {name: ii for ii, name in enumerate(well_names)}
 
     positions = {}
+    scores = {}
     for sample in samples:
         well, pos = sample.split("_")
         well_id = well_ids[well]
@@ -50,8 +52,9 @@ def create_positions(samples):
         x = well_x + pos_x * im_w + pos_x * im_spacing
 
         positions[sample] = (y, x)
+        scores[sample] = np.random.rand()
 
-    return positions
+    return positions, {"score": scores}
 
 
 def main():
@@ -68,8 +71,8 @@ def main():
     image_data = {name: load_channel(folder, name) for name in image_channels}
     label_data = {name: load_channel(folder, name) for name in label_channels}
 
-    positions = create_positions(list(image_data["serum"].keys()))
-    htm.view_positional_images(image_data, positions, label_data, image_settings)
+    positions, scores = create_positions(list(image_data["serum"].keys()))
+    htm.view_positional_images(image_data, positions, label_data, image_settings, sample_measurements=scores)
 
 
 if __name__ == "__main__":

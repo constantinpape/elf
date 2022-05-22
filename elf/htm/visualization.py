@@ -69,8 +69,40 @@ def add_grid_sources(
     return shape
 
 
+def _add_layout(viewer, name, box_names, boxes, edge_width, measurements=None, color="coral"):
+    properties = {"names": box_names}
+    text = "{names}"
+    if measurements is not None:
+        text += " - "
+        for measure_name, measure_values in measurements.items():
+            this_measurements = [measure_values[box_name] for box_name in box_names]
+            properties[measure_name] = this_measurements
+            if isinstance(this_measurements[0], float):
+                text += f"{measure_name}: {{{measure_name}:0.2f}},"
+            else:
+                text += f"{measure_name}: {{{measure_name}}},"
+        # get rid of the last comma
+        text = text[:-1]
+    text_properties = {
+        "text": text,
+        "anchor": "upper_left",
+        "translation": [-5, 0],
+        "size": 32,
+        "color": "coral"
+    }
+    viewer.add_shapes(boxes,
+                      name=name,
+                      properties=properties,
+                      text=text_properties,
+                      shape_type="rectangle",
+                      edge_width=edge_width,
+                      edge_color="coral",
+                      face_color="transparent")
+
+
 def add_plate_layout(
-    viewer, well_names, well_positions, well_len, well_spacing, site_spacing, shape
+    viewer, well_names, well_positions, well_len, well_spacing, site_spacing, shape,
+    measurements=None
 ):
     well_boxes = []
     for well_name in well_names:
@@ -88,24 +120,8 @@ def add_plate_layout(
         ymin -= well_spacing // 2
 
         well_boxes.append(np.array([[xmin, ymin], [xmax, ymax]]))
-
-    properties = {"names": well_names}
-    text_properties = {
-        "text": "{names}",
-        "anchor": "upper_left",
-        "translation": [-5, 0],
-        "size": 32,
-        "color": "coral"
-    }
-
-    viewer.add_shapes(well_boxes,
-                      name="wells",
-                      properties=properties,
-                      text=text_properties,
-                      shape_type="rectangle",
-                      edge_width=well_spacing // 2,
-                      edge_color="coral",
-                      face_color="transparent")
+    _add_layout(viewer, "wells", well_names, well_boxes, well_spacing // 2,
+                measurements=measurements)
 
 
 def set_camera(viewer, well_start, well_stop, well_len, well_spacing, site_spacing, shape):
@@ -129,6 +145,7 @@ def view_plate(
     label_data=None,
     image_settings=None,
     label_settings=None,
+    well_measurements=None,
     zero_based=True,
     well_spacing=16,
     site_spacing=4,
@@ -145,6 +162,7 @@ def view_plate(
             the label data for this well (one array per well position) (default: None)
         image_settings dict[str, dict]: image settings for the channels (default: None)
         label_settings dict[str, dict]: settings for the label channels (default: None)
+        well_measurements dict[str, dict[str, [float, int, str]]]: measurements associated with the wells
         zero_based bool: whether the well indexing is zero-based (default: True)
         well_sources int: spacing between wells, in pixels (default: 12)
         site_spacing int: spacing between sites, in pixels (default: 4)
@@ -188,7 +206,8 @@ def view_plate(
 
     # add shape layer corresponding to the well positions
     add_plate_layout(
-        viewer, well_names, well_positions, well_len, well_spacing, site_spacing, shape
+        viewer, well_names, well_positions, well_len, well_spacing, site_spacing, shape,
+        measurements=well_measurements
     )
 
     # set the camera so that the initial view is centered around the existing wells
@@ -235,7 +254,7 @@ def set_camera_positional(viewer, positions, shape):
     viewer.camera.zoom /= zoom_out
 
 
-def add_positional_layout(viewer, positions, shape, spacing=16):
+def add_positional_layout(viewer, positions, shape, measurements=None, spacing=16):
     boxes = []
     sample_names = []
     for sample, position in positions.items():
@@ -249,27 +268,19 @@ def add_positional_layout(viewer, positions, shape, spacing=16):
 
         boxes.append(np.array([[ymin, xmin], [ymax, xmax]]))
         sample_names.append(sample)
-
-    properties = {"names": sample_names}
-    text_properties = {
-        "text": "{names}",
-        "anchor": "upper_left",
-        "translation": [-5, 0],
-        "size": 32,
-        "color": "coral"
-    }
-
-    viewer.add_shapes(boxes,
-                      name="samples",
-                      properties=properties,
-                      text=text_properties,
-                      shape_type="rectangle",
-                      edge_width=spacing // 2,
-                      edge_color="coral",
-                      face_color="transparent")
+    _add_layout(viewer, "samples", sample_names, boxes, spacing // 2,
+                measurements=measurements)
 
 
-def view_positional_images(image_data, positions, label_data=None, image_settings=None, label_settings=None, show=True):
+def view_positional_images(
+    image_data,
+    positions,
+    label_data=None,
+    image_settings=None,
+    label_settings=None,
+    sample_measurements=None,
+    show=True,
+):
     """Similar to 'view_plate', but using position data parsed to the function to place the images
 
     Args:
@@ -278,6 +289,7 @@ def view_positional_images(image_data, positions, label_data=None, image_setting
         label_data dict[str, dict[str, np.ndarray]]: the label data (outer dict is channels, inner is sample)
         image_settings dict[str, dict]: image settings for the channels (default: None)
         label_settings dict[str, dict]: settings for the label channels (default: None)
+        sample_measurements dict[str, dict[str, [float, int, str]]]: measurements associated with the samples
         show bool: whether to show the viewer (default: True)
     """
     all_samples = []
@@ -296,7 +308,7 @@ def view_positional_images(image_data, positions, label_data=None, image_setting
     if label_data is not None:
         add_positional_sources(label_data, positions, viewer.add_labels, label_settings)
 
-    add_positional_layout(viewer, positions, shape)
+    add_positional_layout(viewer, positions, shape, measurements=sample_measurements)
 
     set_camera_positional(viewer, positions, shape)
 
