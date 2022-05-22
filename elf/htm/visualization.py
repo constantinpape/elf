@@ -132,6 +132,7 @@ def view_plate(
     zero_based=True,
     well_spacing=16,
     site_spacing=4,
+    show=True,
 ):
     """Visualize data from a multi-well plate using napari.
 
@@ -147,6 +148,7 @@ def view_plate(
         zero_based bool: whether the well indexing is zero-based (default: True)
         well_sources int: spacing between wells, in pixels (default: 12)
         site_spacing int: spacing between sites, in pixels (default: 4)
+        show bool: whether to show the viewer (default: True)
     """
     # find the number of positions per well
     first_channel_sources = next(iter(image_data.values()))
@@ -193,7 +195,9 @@ def view_plate(
     # and zoom out so that the central well is fully visible
     set_camera(viewer, well_start, well_stop, well_len, well_spacing, site_spacing, shape)
 
-    napari.run()
+    if show:
+        napari.run()
+    return viewer
 
 
 def add_positional_sources(positional_sources, positions, add_source, source_settings=None):
@@ -265,7 +269,7 @@ def add_positional_layout(viewer, positions, shape, spacing=16):
                       face_color="transparent")
 
 
-def view_positional_images(image_data, positions, label_data=None, image_settings=None, label_settings=None):
+def view_positional_images(image_data, positions, label_data=None, image_settings=None, label_settings=None, show=True):
     """Similar to 'view_plate', but using position data parsed to the function to place the images
 
     Args:
@@ -274,6 +278,7 @@ def view_positional_images(image_data, positions, label_data=None, image_setting
         label_data dict[str, dict[str, np.ndarray]]: the label data (outer dict is channels, inner is sample)
         image_settings dict[str, dict]: image settings for the channels (default: None)
         label_settings dict[str, dict]: settings for the label channels (default: None)
+        show bool: whether to show the viewer (default: True)
     """
     all_samples = []
     for sources in image_data.values():
@@ -295,4 +300,6 @@ def view_positional_images(image_data, positions, label_data=None, image_setting
 
     set_camera_positional(viewer, positions, shape)
 
-    napari.run()
+    if show:
+        napari.run()
+    return viewer
