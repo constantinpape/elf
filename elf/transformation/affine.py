@@ -169,7 +169,7 @@ def scale_from_matrix(matrix):
     """ Return the scales from the affine matrix """
     ndim = matrix.shape[0] - 1
     scale = [np.linalg.norm(matrix[:ndim, d]) for d in range(ndim)]
-    return scale
+    return np.array(scale)
 
 
 # TODO need to figure out how to go from affine elements to euler angles
