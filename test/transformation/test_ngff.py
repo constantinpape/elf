@@ -2,6 +2,7 @@ import os
 import json
 import unittest
 from shutil import rmtree
+from sys import platform
 
 import numpy as np
 import requests
@@ -17,6 +18,7 @@ NGFF_EXAMPLES = {
 }
 
 
+@unittest.skipIf(platform == "win32", "Download fails on windows")
 class TestNgff(unittest.TestCase):
     versions = list(NGFF_EXAMPLES.keys())
     tmp_folder = "./tmp"
