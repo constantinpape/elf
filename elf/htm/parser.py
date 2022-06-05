@@ -1,3 +1,4 @@
+import json
 import os
 from glob import glob
 
@@ -55,13 +56,31 @@ def parse_simple_htm(folder, pattern="*.h5", exclude_names=None):
     return image_data, label_data
 
 
-# TODO
-def parse_batchlib():
+def _load_mobie_data():
     pass
 
 
+def parse_mobie(root, dataset, view_name):
+    metadata_file = os.path.join(root, dataset, "dataset.json")
+    assert os.path.exists(metadata_file), f"Can't find dataset metadata at {metadata_file}"
+    with open(metadata_file, "r") as f:
+        metadata = json.load(f)
+    sources = metadata["sources"]
+    views = metadata["views"]
+    assert view_name in views, f"Can't find the view {view_name} in the {dataset} dataset"
+    view = views[view_name]
+
+    source_displays = view["sourceDisplays"]
+    image_data = {}
+    label_data = {}
+
+    grid_transforms = view["sourceTransforms"]
+
+    return image_data, label_data
+
+
 # TODO
-def parse_mobie():
+def parse_batchlib():
     pass
 
 
