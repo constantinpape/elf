@@ -157,8 +157,8 @@ def view_plate(
     """Visualize data from a multi-well plate using napari.
 
     Args:
-        image_data dict[str, [dict[str, list[np.array]]]]: list of image sources,
-            each list contains a dict which maps the well names (e.g. A1, B3) to
+        image_data dict[str, [dict[str, list[np.array]]]]: dict of image sources,
+            each dict contains a dict which maps the well names (e.g. A1, B3) to
             the image data for this well (one array per well position)
         label_data dict[str, [dict[str, list[np.array]]]]: list of label sources,
             each list contains a dict which maps the well names (e.g. A1, B3) to
