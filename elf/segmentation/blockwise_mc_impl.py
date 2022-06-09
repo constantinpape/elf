@@ -70,6 +70,7 @@ def reduce_problem(graph, costs, merge_edges, n_threads):
 
     # get then new node labels
     new_labels = ufd.find(nodes)
+    new_labels = relabelConsecutive(new_labels, start_label=1, keep_zeros=True)[0]
 
     # merge the costs
     edge_mapping = nifty.tools.EdgeMapping(uv_ids, new_labels, numberOfThreads=n_threads)
