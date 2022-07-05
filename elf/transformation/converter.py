@@ -501,7 +501,7 @@ def native_to_bdv(matrix, resolution=None, invert=True):
     voxel space to physical space.
 
     Arguments:
-        trafo [listlike] - parameter vector of the bdv transformation
+        matrix [np.ndarray] - native affine transformation matrix
         resolution [listlike] - physical resolution of the data in bdv.
             If given, the transformation will be scaled to voxel sapec (default: None)
         invert [bool] - invert the resulting affine matrix.

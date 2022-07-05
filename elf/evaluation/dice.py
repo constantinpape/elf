@@ -5,18 +5,29 @@ import nifty.ground_truth as ngt
 # https://github.com/kreshuklab/sparse-object-embeddings/blob/master/pytorch3dunet/clustering/sbd.py
 
 
-def dice_score(segmentation, groundtruth):
+def dice_score(segmentation, groundtruth, threshold_seg=0, threshold_gt=0):
     """ Compute the dice score between binarized segmentation and ground-truth.
 
     Arguments:
         segmentation [np.ndarray] - candidate segmentation to evaluate
         groundtruth [np.ndarray] - groundtruth
+        threshold_seg [float] - the threshold applied to the segmentation.
+            If None the segmentation is not thresholded.
+        threshold_gt [float] - the threshold applied to the ground-truth.
+            If None the ground-truth is not thresholded.
 
     Returns:
         float - the dice score
     """
-    seg = segmentation > 0
-    gt = groundtruth > 0
+    assert segmentation.shape == groundtruth.shape, f"{segmentation.shape}, {groundtruth.shape}"
+    if threshold_seg is None:
+        seg = segmentation
+    else:
+        seg = segmentation > threshold_seg
+    if threshold_gt is None:
+        gt = groundtruth
+    else:
+        gt = groundtruth > threshold_gt
 
     nom = 2 * np.sum(gt * seg)
     denom = np.sum(gt) + np.sum(seg)
