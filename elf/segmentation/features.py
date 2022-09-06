@@ -434,7 +434,22 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
                                       assignment_threshold, graph_depth,
                                       feats_to_costs=feats_to_costs_default,
                                       mode="different", n_threads=None):
-    """ Compute lifted problem from probability maps by mapping them to superpixels.
+    """Compute lifted problem from probability maps by mapping them to superpixels.
+
+    Example: compute a lifted problem from two attributions (axon, dendrite) that induce
+    repulsive edges between different attributions. The construction of lifted eges and
+    features can be customized using the `feats_to_costs` and `mode` arguments.
+    ```
+    lifted_uvs, lifted_costs = lifted_problem_from_probabilties(
+       rag, superpixels,
+       input_maps=[
+         axon_probabilities,  # probabilty map for axon attribution
+         dendrite_probabilities  # probability map for dendrite attributtion
+       ],
+       assignment_threshold=0.6,  # probability threshold to assign superpixels to a class
+       graph_depth=10,  # the max. graph depth along which lifted edges are introduced 
+    ) 
+    ```
 
     Arguments:
         rag [RegionAdjacencyGraph] - the region adjacency graph
@@ -447,7 +462,7 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
         graph_depth [int] - maximal graph depth up to which
             lifted edges will be included
         feats_to_costs [callable] - function to calculate the lifted costs from the
-            class assignment probabilities. This becomes as inputs "lifted_labels",
+            class assignment probabilities. The input to the function are `lifted_labels`,
             which stores the two classes assigned to a lifted edge, and `lifted_features`,
             which stores the two assignment probabilities. (default: feats_to_costs_default).
         mode [str] - mode for insertion of lifted edges. Can be
@@ -456,6 +471,9 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
             "same" - lifted edges will only be inserted in between nodes attribted to the same class
             (default: "different")
         n_threads [int] - number of threads used for the calculation (default: None)
+    Returns:
+        np.ndarray - the lifted uv ids (= superpixel ids connected by the lifted edge)
+        np.ndarray - the lifted costs (= cost associated with each lifted edge)
     """
     assert ndist is not None, "Need nifty.distributed package"
 
@@ -506,13 +524,12 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
                                      overlap_threshold, graph_depth, same_segment_cost,
                                      different_segment_cost,
                                      mode="all", n_threads=None):
-    """ Compute lifted problem from segmentation by mapping segments to
-        watershed superpixels.
+    """ Compute lifted problem from segmentation by mapping segments to superpixels.
 
     Arguments:
         rag [RegionAdjacencyGraph] - the region adjacency graph
         watershed [np.ndarray] - the watershed over segmentation
-        input_segmentation [np.ndarray] - Segmentation used to determine node attribution.
+        input_segmentation [np.ndarray] - segmentation used to determine node attribution.
         overlap_threshold [float] - minimal overlap to assign a segment id to node
         graph_depth [int] - maximal graph depth up to which
             lifted edges will be included
@@ -524,6 +541,9 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
             "same" - lifted edges will only be inserted in between nodes attribted to the same class
             (default: "different")
         n_threads [int] - number of threads used for the calculation (default: None)
+    Returns:
+        np.ndarray - the lifted uv ids (= superpixel ids connected by the lifted edge)
+        np.ndarray - the lifted costs (= cost associated with each lifted edge)
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     assert input_segmentation.shape == watershed.shape
