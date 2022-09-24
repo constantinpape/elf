@@ -255,3 +255,66 @@ def sigma_to_halo(sigma, order):
     else:
         halo = [multiplier * int(ceil(3.0 * sig + 0.5 * order + 0.5)) for sig in sigma]
     return halo
+
+
+def _make_checkerboard(blocking):
+    blocks_a = [0]
+    blocks_b = []
+    processed_blocks = [0]
+    ndim = len(blocking.blockShape)
+
+    def recurse(current_block, insert_list):
+        other_list = blocks_a if insert_list is blocks_b else blocks_b
+        for dim in range(ndim):
+            ngb_id = blocking.getNeighborId(current_block, dim, False)
+            if ngb_id != -1 and (ngb_id not in processed_blocks):
+                insert_list.append(ngb_id)
+                processed_blocks.append(ngb_id)
+                recurse(ngb_id, other_list)
+
+    recurse(0, blocks_b)
+    all_blocks = blocks_a + blocks_b
+    expected = set(range(blocking.numberOfBlocks))
+    assert len(all_blocks) == len(expected), "%i, %i" % (len(all_blocks), len(expected))
+    assert len(set(all_blocks) - expected) == 0
+    assert len(blocks_a) == len(blocks_b), "%i, %i" % (len(blocks_a), len(blocks_b))
+    return blocks_a, blocks_b
+
+
+def _make_checkerboard_with_roi(blocking, roi_begin, roi_end):
+
+    # find the smallest roi coordinate
+    block0 = blocking.coordinatesToBlockId(roi_begin)
+
+    blocks_a = [block0]
+    blocks_b = []
+    processed_blocks = [block0]
+    ndim = len(blocking.blockShape)
+
+    blocks_in_roi = blocking.getBlockIdsOverlappingBoundingBox(roi_begin, roi_end)
+    assert block0 in blocks_in_roi
+
+    def recurse(current_block, insert_list):
+        other_list = blocks_a if insert_list is blocks_b else blocks_b
+        for dim in range(ndim):
+            ngb_id = blocking.getNeighborId(current_block, dim, False)
+            if (ngb_id != -1) and (ngb_id in blocks_in_roi) and (ngb_id not in processed_blocks):
+                insert_list.append(ngb_id)
+                processed_blocks.append(ngb_id)
+                recurse(ngb_id, other_list)
+
+    recurse(block0, blocks_b)
+    all_blocks = blocks_a + blocks_b
+    expected = set(blocks_in_roi)
+    assert len(all_blocks) == len(expected), "%i, %i" % (len(all_blocks), len(expected))
+    assert len(set(all_blocks) - expected) == 0
+    assert len(blocks_a) == len(blocks_b), "%i, %i" % (len(blocks_a), len(blocks_b))
+    return blocks_a, blocks_b
+
+
+def divide_blocks_into_checkerboard(blocking, roi_begin=None, roi_end=None):
+    assert (roi_begin is None) == (roi_end is None)
+    if roi_begin is None:
+        return _make_checkerboard(blocking)
+    else:
+        return _make_checkerboard_with_roi(blocking, roi_begin, roi_end)
