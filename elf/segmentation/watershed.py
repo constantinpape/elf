@@ -1,11 +1,15 @@
 import multiprocessing
 from concurrent import futures
+
+import nifty.tools as nt
 import numpy as np
 import vigra
-try:
-    from nifty.filters import nonMaximumDistanceSuppression
-except ImportError:
-    nonMaximumDistanceSuppression = None
+
+from nifty.filters import nonMaximumDistanceSuppression
+from tqdm import tqdm
+
+from ..util import divide_blocks_into_checkerboard
+
 try:
     import fastfilters as ff
 except ImportError:
@@ -70,7 +74,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
                                  sigma_weights=2., min_size=100,
                                  alpha=.9, pixel_pitch=None,
                                  apply_nonmax_suppression=False,
-                                 mask=None):
+                                 mask=None, seeds=None):
     """ Compute watershed segmentation based on distance transform seeds.
 
     Following the procedure outlined in "Multicut brings automated neurite segmentation closer to human performance":
@@ -88,6 +92,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
         apply_nonmax_suppression [bool] - whetther to apply non-maxmimum suppression to filter out seeds.
             Needs nifty. (default: False)
         mask [np.ndarray] - mask to exclude from segmentation (default: None)
+        seeds [np.ndarray] - initial seeds (default: None)
 
     Returns:
         np.ndarray - watershed segmentation
@@ -103,7 +108,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
 
         # return all zeros for empty mask
         if mask.sum() == 0:
-            return np.zeros_like(mask, dtype="uint32"), 0
+            return np.zeros_like(mask, dtype="uint64"), 0
 
     # threshold the input and compute distance transform
     thresholded = (input_ > threshold).astype("uint32")
@@ -119,12 +124,27 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     if sigma_seeds:
         dt = ff.gaussianSmoothing(dt, sigma_seeds)
 
+    # preprpocess initial seeds (if given)
+    if seeds is None:
+        initial_seeds = None
+    else:
+        initial_seed_ids = np.unique(seeds)
+        seed_max = initial_seed_ids[-1]
+        assert len(initial_seed_ids) == seed_max + 1,\
+            "The seeds passed to distance_transform_watershed must have consecutive ids and start from 1"
+        initial_seeds = seeds
+
     compute_maxima = vigra.analysis.localMaxima if dt.ndim == 2 else vigra.analysis.localMaxima3D
     seeds = compute_maxima(dt, marker=np.nan, allowAtBorder=True, allowPlateaus=True)
     seeds = np.isnan(seeds)
     if apply_nonmax_suppression:
         seeds = non_maximum_suppression(dt, seeds)
     seeds = vigra.analysis.labelMultiArrayWithBackground(seeds.view("uint8"))
+
+    if initial_seeds is not None:
+        seeds[seeds != 0] += seed_max
+        initial_seed_mask = initial_seeds != 0
+        seeds[initial_seed_mask] = initial_seeds[initial_seed_mask]
 
     # normalize and invert distance transform
     dt = 1. - (dt - dt.min()) / dt.max()
@@ -141,26 +161,38 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     if mask is not None:
         ws[inv_mask] = 0
 
+    ws = ws.astype("uint64")
     return ws, max_id
 
 
-def stacked_watershed(input_, ws_function=distance_transform_watershed,
-                      mask=None, n_threads=None, **ws_kwargs):
-    """ Run 2d watershed stacked along z-axis.
+def stacked_watershed(
+    input_,
+    ws_function=distance_transform_watershed,
+    mask=None,
+    n_threads=None,
+    verbose=False,
+    output=None,
+    **ws_kwargs
+):
+    """Run 2d watershed stacked along z-axis.
 
     Arguments:
         input_ [np.ndarray] - input height map.
         ws_function [callable] - watershed function (default: distance_transform_watershed)
         mask [np.ndarray] - mask to exclude from segmentation (default: None)
         n_threads [int] - number of threads (default: None)
-        ws_kwargs - keyworrd arguments for the watershed function
+        verbose [bool] - print progress (default: False)
+        output [arraylike] - output for the watershed, will be a numpy array by default (default: None)
+        ws_kwargs - keyword arguments for the watershed function
 
     Returns:
         np.ndarray - watershed segmentation
         int - max id of watershed segmentation
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    out = np.zeros(input_.shape, dtype="uint64")
+    if output is None:
+        output = np.zeros(input_.shape, dtype="uint64")
+    assert output.shape == input_.shape
 
     if mask is not None and (mask.shape != input_.shape or mask.dtype != np.dtype("bool")):
         raise ValueError("Invalid mask")
@@ -168,31 +200,143 @@ def stacked_watershed(input_, ws_function=distance_transform_watershed,
     def _wsz(z):
         zmask = None if mask is None else mask[z]
         wsz, max_id = ws_function(input_[z], mask=zmask, **ws_kwargs)
-        out[z] = wsz
+        output[z] = wsz
         return max_id
 
+    nz = len(input_)
+    slices = range(nz)
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        tasks = [tp.submit(_wsz, z) for z in range(len(input_))]
-        offsets = np.array([t.result() for t in tasks], dtype="uint64")
+        max_ids = list(tqdm(
+            tp.map(_wsz, slices), total=nz, desc="Run stacked watershed"
+        )) if verbose else list(tp.map(_wsz, slices))
+    offsets = np.array(max_ids, dtype="uint64")
 
     offsets = np.roll(offsets, 1)
     offsets[0] = 0
     offsets = np.cumsum(offsets)
 
     if mask is None:
-        out += offsets[:, None, None]
+        output += offsets[:, None, None]
 
     else:
 
         def _add_offset(z):
-            out[z][mask[z]] += offsets[z]
+            output[z][mask[z]] += offsets[z]
 
         with futures.ThreadPoolExecutor(n_threads) as tp:
             tasks = [tp.submit(_add_offset, z) for z in range(len(input_))]
             [t.result() for t in tasks]
 
-    max_id = int(out[-1].max())
-    return out, max_id
+    max_id = int(output[-1].max())
+    return output, max_id
+
+
+def blockwise_two_pass_watershed(
+    input_, block_shape, halo,
+    ws_function=distance_transform_watershed,
+    n_threads=None,
+    mask=None,
+    verbose=False,
+    output=None,
+    **kwargs
+):
+    """Run a 3d distance transform watershed blockwise and in two passes
+    to avoid block boundary artifacts.
+
+    Arguments:
+        input_ [np.ndarray] - input height map.
+        ws_function [callable] - watershed function (default: distance_transform_watershed)
+        mask [np.ndarray] - mask to exclude from segmentation (default: None)
+        n_threads [int] - number of threads (default: None)
+        verbose [bool] - print progress (default: False)
+        output [arraylike] - output for the watershed, will be a numpy array by default (default: None)
+        kwargs - keyword arguments for the watershed function
+
+    Returns:
+        np.ndarray - watershed segmentation
+        int - max id of watershed segmentation
+    """
+    assert input_.ndim == 3
+    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
+    if output is None:
+        output = np.zeros(input_.shape, dtype="uint64")
+    assert output.shape == input_.shape
+
+    blocking = nt.blocking([0, 0, 0], list(input_.shape), list(block_shape))
+    block_ids_pass_one, block_ids_pass_two = divide_blocks_into_checkerboard(blocking)
+
+    # pass 1: run on the "white" fields of the checkerboard
+    # run the watershed independently per block
+    def run_block_one(block_id):
+        block = blocking.getBlockWithHalo(block_id, list(halo))
+        outer_bb = tuple(slice(start, stop) for start, stop in zip(block.outerBlock.begin, block.outerBlock.end))
+        input_block = input_[outer_bb]
+        mask_block = None if mask is None else mask[outer_bb]
+        ws, _ = ws_function(input_block, mask=mask_block, **kwargs)
+
+        inner_bb = tuple(slice(start, stop) for start, stop in zip(block.innerBlock.begin, block.innerBlock.end))
+        local_bb = tuple(
+            slice(start, stop) for start, stop in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end)
+        )
+        ws = vigra.analysis.labelMultiArrayWithBackground(ws[local_bb].astype("uint32")).astype("uint64")
+
+        # use the lowest pixel id in this block as offset
+        # in order to guarantee that superpixel ids are unique
+        offset = block_id * np.prod(blocking.blockShape)
+        if mask_block is None:
+            ws += offset
+        else:
+            ws[mask_block[local_bb]] += offset
+        output[inner_bb] = ws
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        list(tqdm(
+            tp.map(run_block_one, block_ids_pass_one), total=len(block_ids_pass_one),
+            desc="Run pass one of two-pass watershed"
+        )) if verbose else list(tp.map(run_block_one, block_ids_pass_one))
+
+    # pass 2: run on the "black" fields of the checkerboard
+    # seed the watshed from the segments from "white"
+    def run_block_two(block_id):
+        block = blocking.getBlockWithHalo(block_id, list(halo))
+        outer_bb = tuple(slice(start, stop) for start, stop in zip(block.outerBlock.begin, block.outerBlock.end))
+        input_block = input_[outer_bb]
+        mask_block = None if mask is None else mask[outer_bb]
+        seeds_block = output[outer_bb]
+
+        # relabel the seeds to be consecutive and start from 1
+        seeds_block, seed_max, seed_id_mapping = vigra.analysis.relabelConsecutive(
+            seeds_block, start_label=1, keep_zeros=True
+        )
+
+        ws, ws_max_id = ws_function(input_block, mask=mask_block, seeds=seeds_block, **kwargs)
+
+        inner_bb = tuple(slice(start, stop) for start, stop in zip(block.innerBlock.begin, block.innerBlock.end))
+        local_bb = tuple(
+            slice(start, stop) for start, stop in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end)
+        )
+        ws = ws[local_bb]
+
+        offset = block_id * np.prod(blocking.blockShape)
+        # map ids corresponding to seeds back to the seed ids
+        id_mapping = {v: k for k, v in seed_id_mapping.items()}
+        assert 0 in id_mapping
+
+        # map the other seeds to their value + the block offset
+        id_mapping.update({seed_id: seed_id + offset for seed_id in range(seed_max + 1, ws_max_id + 1)})
+        # apply the mapping
+        ws = nt.takeDict(id_mapping, ws)
+
+        output[inner_bb] = ws
+
+    with futures.ThreadPoolExecutor(n_threads) as tp:
+        list(tqdm(
+            tp.map(run_block_two, block_ids_pass_two), total=len(block_ids_pass_two),
+            desc="Run pass two of two-pass watershed"
+        )) if verbose else list(tp.map(run_block_two, block_ids_pass_two))
+
+    _, max_id, _ = vigra.analysis.relabelConsecutive(output, out=output)
+    return output, max_id
 
 
 def from_affinities_to_boundary_prob_map(affinities, offsets, used_offsets=None, offset_weights=None):

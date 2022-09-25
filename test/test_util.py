@@ -1,10 +1,6 @@
 import unittest
+import nifty.tools as nt
 import numpy as np
-
-try:
-    import nifty.tools as nt
-except ImportError:
-    nt = None
 
 
 class TestUtil(unittest.TestCase):
@@ -25,7 +21,6 @@ class TestUtil(unittest.TestCase):
             self.assertEqual(out1.shape, out2.shape)
             self.assertTrue(np.allclose(out1, out2))
 
-    @unittest.skipUnless(nt, "Test needs nifty tools")
     def test_downscale_shape(self):
         from elf.util import downscale_shape
         n = 10
@@ -39,6 +34,25 @@ class TestUtil(unittest.TestCase):
                 ds_shape = downscale_shape(shape, scale)
                 exp_shape = tuple(nt.blocking(origin, list(shape), list(scale)).blocksPerAxis)
                 self.assertEqual(ds_shape, exp_shape)
+
+    def test_checkerboard(self):
+        from elf.util import divide_blocks_into_checkerboard
+        shape, block_shape = (512, 512), (128, 128)
+        blocking = nt.blocking([0, 0], shape, block_shape)
+        blocks_a, blocks_b = divide_blocks_into_checkerboard(blocking)
+
+        expected_pos_a = [
+            [0, 0], [0, 2],
+            [1, 1], [1, 3],
+            [2, 0], [2, 2],
+            [3, 1], [3, 3]
+        ]
+        for block_id in range(blocking.numberOfBlocks):
+            grid_pos = blocking.blockGridPosition(block_id)
+            if grid_pos in expected_pos_a:
+                self.assertIn(block_id, blocks_a)
+            else:
+                self.assertIn(block_id, blocks_b)
 
 
 if __name__ == '__main__':
