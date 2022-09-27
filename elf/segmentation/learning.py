@@ -19,7 +19,7 @@ def compute_edge_labels(rag, gt, ignore_label=None, n_threads=None):
     node_labels = nrag.gridRagAccumulateLabels(rag, gt, n_threads)
     uv_ids = rag.uvIds()
 
-    edge_labels = (node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]).astype('uint8')
+    edge_labels = (node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]).astype("uint8")
 
     if ignore_label is not None:
         mapped_uv_ids = node_labels[uv_ids]

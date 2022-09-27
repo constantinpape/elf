@@ -56,7 +56,8 @@ def simple_grid_view(image_data, label_data=None, settings=None, grid_shape=None
 
     # find the grid shape
     if grid_shape is None:  # grid shape can only be derived for square grids
-        assert n_images in (1, 4, 9, 25, 36, 49), f"grid is not square: {n_images}"
+        assert n_images in (1, 4, 9, 16, 25, 36, 49, 64, 81, 100),\
+            f"grid is not square or too large: {n_images}"
         grid_len = int(np.sqrt(n_images))
         grid_shape = (grid_len, grid_len)
     assert len(grid_shape) == 2
