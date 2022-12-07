@@ -5,7 +5,6 @@ from skimage.measure import label as label_reference
 from skimage.metrics import variation_of_information
 
 
-# TODO tests with mask
 class TestLabel(unittest.TestCase):
     def _check_labeling(self, data, res):
         exp = label_reference(data, connectivity=1)
@@ -58,6 +57,21 @@ class TestLabel(unittest.TestCase):
 
     def test_label_blobs_3d(self):
         self._test_blobs(ndim=3, size=256)
+
+    def test_label_with_mask(self):
+        from elf.parallel import label
+        data = binary_blobs(length=1024, n_dim=2, volume_fraction=0.3)
+        block_shape = (64, 64)
+
+        bb = np.s_[96:-96, 132:-87]
+        mask = np.zeros(data.shape, dtype="bool")
+        mask[bb] = 1
+
+        res = np.zeros(data.shape, dtype="uint32")
+        res = label(data, res, block_shape=block_shape, with_background=True, mask=mask)
+
+        self.assertTrue(np.allclose(res[~mask], 0))
+        self._check_labeling(data[bb], res[bb])
 
 
 if __name__ == "__main__":
