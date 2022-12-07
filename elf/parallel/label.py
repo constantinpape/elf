@@ -33,8 +33,10 @@ def cc_blocks(data, out, mask, blocking, with_background,
 
         # load the data from this block
         d = data[bb]
+
         # determine the background value
         bg_val = 0 if with_background else int(d.max() + 1)
+
         # set mask to background value
         if mask is not None:
             masked_vals = d[m]
