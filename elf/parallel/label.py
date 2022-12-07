@@ -27,7 +27,7 @@ def cc_blocks(data, out, mask, blocking, with_background,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -40,7 +40,7 @@ def cc_blocks(data, out, mask, blocking, with_background,
             masked_vals = d[m]
             d[m] = bg_val
 
-        d = label_impl(d, background=bg_val)
+        d = label_impl(d, background=bg_val, connectivity=1)
 
         # restore values under mask
         if mask is not None:
@@ -52,8 +52,10 @@ def cc_blocks(data, out, mask, blocking, with_background,
     # compute connected components for all blocks in parallel
     with futures.ThreadPoolExecutor(n_threads) as tp:
         if verbose:
-            print("Compute connected components for all blocks")
-            block_max_labels = list(tqdm(tp.map(_cc_block, range(n_blocks)), total=n_blocks))
+            block_max_labels = list(tqdm(
+                tp.map(_cc_block, range(n_blocks)),
+                total=n_blocks, desc="Label all sub-blocks")
+            )
         else:
             block_max_labels = list(tp.map(_cc_block, range(n_blocks)))
 
@@ -101,7 +103,7 @@ def merge_blocks(data, out, mask, offsets,
 
             # allocate full mask if we don't have a mask dataset
             if mask is None:
-                m = np.ones_like(d, dtype='bool')
+                m = np.ones_like(d, dtype="bool")
 
             # mask zero label if we have background
             if with_background:
@@ -138,9 +140,8 @@ def merge_blocks(data, out, mask, offsets,
     # compute the merge ids across all block faces
     with futures.ThreadPoolExecutor(n_threads) as tp:
         if verbose:
-            print("Merge labels across block faces")
             merge_labels = list(tqdm(tp.map(_merge_block_faces, range(n_blocks)),
-                                     total=n_blocks))
+                                     total=n_blocks, desc="Merge labels across block faces"))
         else:
             merge_labels = tp.map(_merge_block_faces, range(n_blocks))
     merge_labels = [res for res in merge_labels if res is not None]
@@ -174,7 +175,7 @@ def write_mapping(out, mask, offsets, mapping,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
         offset = offsets[block_id]
@@ -199,17 +200,15 @@ def write_mapping(out, mask, offsets, mapping,
     # compute connected components for all blocks in parallel
     with futures.ThreadPoolExecutor(n_threads) as tp:
         if verbose:
-            print("Write blocks")
-            list(tqdm(tp.map(_write_block, range(n_blocks)), total=n_blocks))
+            list(tqdm(tp.map(_write_block, range(n_blocks)), total=n_blocks, desc="Write blocks"))
         else:
             tp.map(_write_block, range(n_blocks))
 
     return out
 
 
-# FIXME this still does not merge over all block boundaries
 def label(data, out, with_background=True, block_shape=None,
-          n_threads=None, mask=None, verbose=False, roi=None):
+          n_threads=None, mask=None, verbose=False, roi=None, connectivity=1):
     """Label the data in parallel by applying blockwise connected component and
     merging the results over block boundaries.
 
@@ -223,20 +222,24 @@ def label(data, out, with_background=True, block_shape=None,
         mask [array_like] - mask to exclude data from the computation (default: None)
         verbose [bool] - verbosity flag (default: False)
         roi [tuple[slice]] - region of interest for this computation (default: None)
+        connectivity [int] - the number of nearest neighbor hops to consider for connection.
+            Currently only supports connectivity of 1. (default: 1)
     Returns:
         array_like - the output data
     """
+    if connectivity != 1:
+        raise NotImplementedError(
+            f"The only value for connectivity currently supported is 1, you passed {connectivity}."
+        )
 
     if data.shape != out.shape:
-        raise ValueError("Expect data and out of same shape, got %s and %s" % (str(data.shape),
-                                                                               str(out.shape)))
+        raise ValueError(f"Expect data and out of same shape, got {data.shape} and {out.shape}")
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi)
 
     # 1) compute connected components for all blocks
-    out, offsets = cc_blocks(data, out, mask, blocking, with_background,
-                             n_threads, verbose)
+    out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose)
 
     # turn block max labels into offsets
     last_block_val = offsets[-1]
