@@ -1,13 +1,7 @@
 import unittest
 import numpy as np
 
-try:
-    import nifty
-except ImportError:
-    nifty = None
 
-
-@unittest.skipUnless(nifty, "Need nifty")
 class TestOperations(unittest.TestCase):
     def _test_op_array(self, op, op_exp, inplace):
         shape = 3 * (64,)

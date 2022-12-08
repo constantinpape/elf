@@ -56,7 +56,7 @@ def visualize_tracks(viewer, segmentation, track_assignments,
         next_centers = compute_centers(tracking[t])
         line_tracks = [track_id for track_id in current_centers if track_id in next_centers]
         if selected_tracks:
-            line_tracks = set(line_tracks).intersection(set(selected_tracks))
+            line_tracks = list(set(line_tracks).intersection(set(selected_tracks)))
 
         if show_full_tracks:
             lines_t, line_colors_t = [], []
@@ -80,6 +80,7 @@ def visualize_tracks(viewer, segmentation, track_assignments,
         line_colors.extend(line_colors_t)
         current_centers = next_centers
 
+    assert len(lines) == len(line_colors)
     viewer.add_labels(tracking, color=color_map)
     viewer.add_shapes(
         lines,

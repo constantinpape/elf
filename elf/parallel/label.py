@@ -29,22 +29,19 @@ def cc_blocks(data, out, mask, blocking, with_background,
         if mask is not None:
             m = mask[bb].astype("bool")
             if m.sum() == 0:
-                return None
+                return 0
 
         # load the data from this block
-        d = data[bb]
+        d = data[bb].copy()
+
         # determine the background value
         bg_val = 0 if with_background else int(d.max() + 1)
+
         # set mask to background value
         if mask is not None:
-            masked_vals = d[m]
-            d[m] = bg_val
+            d[~m] = bg_val
 
         d = label_impl(d, background=bg_val, connectivity=1)
-
-        # restore values under mask
-        if mask is not None:
-            d[m] = masked_vals
 
         out[bb] = d
         return int(d.max())
@@ -219,7 +216,8 @@ def label(data, out, with_background=True, block_shape=None,
         block_shape [tuple] - shape of the blocks used for parallelisation,
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
+        mask [array_like] - mask to exclude data from the computation.
+            Data not in the mask will be ser ro zero in the result. (default: None)
         verbose [bool] - verbosity flag (default: False)
         roi [tuple[slice]] - region of interest for this computation (default: None)
         connectivity [int] - the number of nearest neighbor hops to consider for connection.
@@ -238,7 +236,7 @@ def label(data, out, with_background=True, block_shape=None,
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi)
 
-    # 1) compute connected components for all blocks
+    # 1.) compute connected components for all blocks
     out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose)
 
     # turn block max labels into offsets
