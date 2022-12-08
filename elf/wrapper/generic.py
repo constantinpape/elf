@@ -9,16 +9,11 @@ class NormalizeWrapper(SimpleTransformationWrapper):
     """
     eps = 1.e-6
 
-    def __init__(self, volume, dtype='float32'):
-        self._dtype = np.dtype(dtype)
-        super().__init__(volume, self._normalize)
-
-    @property
-    def dtype(self):
-        return self._dtype
+    def __init__(self, volume, dtype="float32"):
+        super().__init__(volume, self._normalize, dtype=np.dtype(dtype))
 
     def _normalize(self, input_):
-        input_ = input_.astype(self._dtype)
+        input_ = input_.astype(self.dtype)
         input_ -= input_.min()
         input_ /= (input_.max() + self.eps)
         return input_
@@ -29,16 +24,12 @@ class ThresholdWrapper(SimpleTransformationWrapper):
     """
 
     def __init__(self, volume, threshold, operator=np.greater):
-        super().__init__(volume, lambda x: operator(x, threshold))
+        super().__init__(volume, lambda x: operator(x, threshold), dtype=np.dtype("bool"))
         self._threshold = threshold
 
     @property
     def threshold(self):
         return self._threshold
-
-    @property
-    def dtype(self):
-        return np.bool
 
 
 class RoiWrapper(WrapperBase):

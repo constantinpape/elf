@@ -18,7 +18,7 @@ class TestGenericWrapper(unittest.TestCase):
         from elf.wrapper import NormalizeWrapper
 
         def normalize(x):
-            x = x.astype('float32')
+            x = x.astype("float32")
             x -= x.min()
             x /= x.max()
             return x
