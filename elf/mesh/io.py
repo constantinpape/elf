@@ -110,6 +110,8 @@ def read_ply(path):
                     n = int(face[0])
                     face = list(map(int, face[1:n+1]))
                     faces.append(face)
+                if len(faces) == n_faces:
+                    break
                 line_id += 1
 
     assert len(verts) == n_verts

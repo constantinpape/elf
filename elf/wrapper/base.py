@@ -62,8 +62,10 @@ class SimpleTransformationWrapper(WrapperBase):
             index = (slice(None),) + index
         out = self._volume[index]
         out = self.transformation(out)
-        # TODO take care of with channels
-        return squeeze_singletons(out, to_squeeze)
+        if self.with_channels and to_squeeze:
+            to_squeeze = tuple(sq + 1 for sq in to_squeeze)
+        out = squeeze_singletons(out, to_squeeze)
+        return out
 
 
 class TransformationWrapper(WrapperBase):
@@ -84,9 +86,11 @@ class TransformationWrapper(WrapperBase):
         index, to_squeeze = normalize_index(key, self.shape)
         out = self._volume[index]
         out = self.transformation(out, index)
-        return squeeze_singletons(out, to_squeeze)
+        out = squeeze_singletons(out, to_squeeze)
+        return out
 
 
+# TODO once there is a use-case implement multi trafo wrapper
 # class TransformationMultiWrapper(WrapperBase):
 #     """ Volume wrapper to apply transformation to multiple data blocks on the fly.
 #
