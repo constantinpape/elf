@@ -1,14 +1,8 @@
 import unittest
 import numpy as np
 
-try:
-    import nifty
-except ImportError:
-    nifty = None
-
 
 # TODO tests with mask and roi
-@unittest.skipUnless(nifty, "Need nifty")
 class TestStats(unittest.TestCase):
     def _test_stat(self, stat_impl, np_stats):
         shape = 3 * (64,)
@@ -50,5 +44,5 @@ class TestStats(unittest.TestCase):
         self._test_stat(min_and_max, [np.min, np.max])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

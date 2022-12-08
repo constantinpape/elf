@@ -57,5 +57,5 @@ class TestSizeFilter(unittest.TestCase):
         self.assertTrue(np.array_equal(filtered_res, filtered_exp))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

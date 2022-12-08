@@ -1,18 +1,10 @@
 import unittest
 from functools import partial
+
 import numpy as np
-
-try:
-    import nifty
-except ImportError:
-    nifty = None
-try:
-    import vigra
-except ImportError:
-    vigra = None
+import vigra
 
 
-@unittest.skipUnless(nifty and vigra, "Need nifty and vigra")
 class TestFilters(unittest.TestCase):
     # FIXME the block-wise halo computation is not as reliable as
     # I thought, should be investigated further, but for now
@@ -25,7 +17,7 @@ class TestFilters(unittest.TestCase):
         x = np.random.rand(*shape)
 
         exp = filt_exp(x, sigma)
-        return_channel = kwargs.get('return_channel', None)
+        return_channel = kwargs.get("return_channel", None)
         if return_channel is not None:
             exp = exp[..., return_channel]
         if n_channels > 1:
@@ -98,5 +90,5 @@ class TestFilters(unittest.TestCase):
                                 sigma=sigma, inplace=False, n_channels=3, outer_scale=outer_scale)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
