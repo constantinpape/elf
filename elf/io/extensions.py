@@ -69,7 +69,7 @@ except ImportError:
 # add mrc extensions if we have mrcfile
 try:
     import mrcfile
-    register_filetype(MRCFile, [".mrc"], MRCFile, MRCDataset)
+    register_filetype(MRCFile, [".mrc", ".rec"], MRCFile, MRCDataset)
 except ImportError:
     mrcfile = None
 
@@ -78,7 +78,8 @@ try:
     import intern
     register_filetype(InternFile, ["bossdb://"], InternFile, InternDataset)
 except ImportError:
-    pass
+    intern = None
+
 
 def identity(arg):
     return arg
