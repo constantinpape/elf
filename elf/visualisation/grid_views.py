@@ -12,8 +12,8 @@ from napari.experimental import link_layers
 def get_position(grid_shape, image_shape, i, spacing):
     unraveled = np.unravel_index([i], grid_shape)
     grid_x, grid_y = unraveled[0][0], unraveled[1][0]
-    x = (image_shape[0] + spacing) * grid_x
-    y = (image_shape[1] + spacing) * grid_y
+    x = (image_shape[-1] + spacing) * grid_x
+    y = (image_shape[-2] + spacing) * grid_y
     return x, y
 
 
@@ -29,7 +29,7 @@ def add_grid_sources(name, images, grid_shape, settings, add_source, spacing):
 
 def set_camera(viewer, grid_shape, image_shape, spacing):
     # find the full extent in pixels
-    extent = [gsh * (ish + spacing) for gsh, ish in zip(grid_shape, image_shape)]
+    extent = [gsh * (ish + spacing) for gsh, ish in zip(grid_shape, image_shape[-2:])]
 
     # set the camera center to the middle
     camera_center = tuple(ext // 2 for ext in extent)
