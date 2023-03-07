@@ -96,7 +96,6 @@ class ImageStackDataset:
         self._shape = (n_slices,) + self.im_shape
         self._chunks = (1,) + self.im_shape
         self._dtype = dtype
-        self._ndim = 3
         self._size = np.prod(list(self._shape))
 
     def initialize_from_stack(self, files):
@@ -107,7 +106,6 @@ class ImageStackDataset:
         # chunks are arbitrary
         self._chunks = None
         self._dtype = self._volume.dtype
-        self._ndim = 3
         self._size = np.prod(list(self._shape))
 
     @classmethod
@@ -133,7 +131,7 @@ class ImageStackDataset:
 
     @property
     def ndim(self):
-        return self._ndim
+        return len(self._shape)
 
     @property
     def chunks(self):
