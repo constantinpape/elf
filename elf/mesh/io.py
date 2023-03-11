@@ -38,7 +38,10 @@ def read_obj(path):
                 verts.append([float(ll) for ll in line.split()[1:]])
             # face
             elif line.startswith("f"):
-                faces.append([int(ll.split("/")[0]) for ll in line.split()[1:]])
+                this_face = [int(ll.split("/")[0]) for ll in line.split()[1:]]
+                if len(this_face) > 3:
+                    this_face = this_face[:3]
+                faces.append(this_face)
                 try:
                     face_normals.append([int(ll.split("/")[2]) for ll in line.split()[1:]])
                 except IndexError:

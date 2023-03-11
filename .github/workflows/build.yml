@@ -34,11 +34,12 @@ jobs:
         shell: bash -l {0}
         run: pip install -e .
 
-      # pyn5 can only be installed on linux
-      - name: Install pyn5
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash -l {0}
-        run: pip install pyn5
+      # pyn5 does not work for py3.9
+      # # pyn5 can only be installed on linux
+      # - name: Install pyn5
+      #   if: matrix.os == 'ubuntu-latest'
+      #   shell: bash -l {0}
+      #   run: pip install pyn5
       
       - name: Run tests
         shell: bash -l {0}
