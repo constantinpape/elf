@@ -20,13 +20,16 @@ def thinning(obj, resolution, *args, **kwargs):
 
     # use skan to extact skeleon node coordinates and edges
     adj_mat, nodes = csr.skeleton_to_csgraph(vol, spacing=resolution)
-    graph = csr.csr_to_nbgraph(adj_mat)
 
+    # convert nodes from tuple to numpy array
+    nodes = np.concatenate([n[:, None] for n in nodes], axis=1).astype("uint64")
+
+    # convert graph to uv-list representation
     n_nodes = len(nodes)
-    edges = np.array([[u, v] for u in range(n_nodes) for v in graph.neighbors(u)
-                      if u < v], dtype='uint64')
-    # node 0 is invalid
-    assert 0 not in edges
+    graph = csr.csr_to_nbgraph(adj_mat)
+    edges = np.array(
+        [[u, v] for u in range(n_nodes) for v in graph.neighbors(u) if u < v], dtype="uint64"
+    )
 
     # return node coordinate list and edges
-    return nodes.astype('uint64'), edges
+    return nodes, edges

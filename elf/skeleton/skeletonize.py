@@ -1,7 +1,7 @@
 from .thinning import thinning
 
 # TODO get a teasar impl
-METHODS = {'thinning': thinning}
+METHODS = {"thinning": thinning}
 DEFAULT_PARAMS = {}
 
 
@@ -14,7 +14,7 @@ def get_method_params(name):
 
 
 def skeletonize(obj, resolution=None, boundary_distances=None,
-                method='thinning', **method_params):
+                method="thinning", **method_params):
     """ Skeletonize object defined by binary mask.
 
     Arguments:
@@ -28,8 +28,7 @@ def skeletonize(obj, resolution=None, boundary_distances=None,
     """
     impl = METHODS.get(method, None)
     if impl is None:
-        raise ValueError("Inalid method %s, expect one of %s" % (method,
-                                                                 ", ".join(get_method_names())))
+        raise ValueError(f"Inalid method {method}, expect one of {', '.join(get_method_names())}")
     params = DEFAULT_PARAMS.get(method, {})
     params.update(method_params)
 
