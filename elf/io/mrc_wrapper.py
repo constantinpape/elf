@@ -55,9 +55,9 @@ class MRCFile(Mapping):
         if mrcfile is None:
             raise AttributeError("mrcfile is not available")
         try:
-            self._f = mrcfile.mmap(self.path, self.mode)
+            self._f = mrcfile.mmap(self.path, self.mode, permissive='True')
         except ValueError:
-            self._f = mrcfile.open(self.path, self.mode)
+            self._f = mrcfile.open(self.path, self.mode, permissive='True')
 
     def __getitem__(self, key):
         if key != 'data':
