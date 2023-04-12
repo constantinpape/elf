@@ -30,8 +30,7 @@ def mesh_to_segmentation(mesh_file, resolution,
     hasher = PositionMap(1)
 
     voxels = set()
-    faces = tqdm(mesh.faces) if verbose else mesh.faces
-    for face in faces:
+    for face in tqdm(mesh.faces, disable=not verbose):
         voxel = hasher.keysfor(mesh.facepoints(face))
         if reverse_coordinates:
             voxel = [vox[::-1] for vox in voxel]
@@ -55,7 +54,7 @@ def mesh_to_segmentation(mesh_file, resolution,
     if verbose:
         print("Computing segmentation volume of shape", shape)
 
-    seg = np.ones(shape, dtype='uint8')
+    seg = np.ones(shape, dtype="uint8")
     coords = tuple(
         voxels[:, ii] for ii in range(voxels.shape[1])
     )

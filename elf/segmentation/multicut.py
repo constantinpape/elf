@@ -78,7 +78,7 @@ def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
             only necessary for weighting schemes z or xyz (default: None)
         beta [float] - boundary bias (default: .5)
         weighting_scheme [str] - scheme for weighting the edge costs based on size
-            of the edges (default: NOne)
+            of the edges (default: None)
         weighting_exponent [float] - exponent used for weighting (default: 1.)
     """
     schemes = (None, "all", "none", "xyz", "z")
