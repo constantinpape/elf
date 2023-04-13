@@ -3,10 +3,14 @@
 # simplified version of elf.htm
 #
 
-import napari
 import numpy as np
 
-from napari.experimental import link_layers
+try:
+    import napari
+    from napari.experimental import link_layers
+except ImportError:
+    napari = None
+    link_layers = None
 
 
 def get_position(grid_shape, image_shape, i, spacing):
@@ -50,6 +54,7 @@ def simple_grid_view(image_data, label_data=None, settings=None, grid_shape=None
         spacing [int] -
         show [bool] -
     """
+    assert napari is not None and link_layers is not None, "Require napari"
 
     n_images = len(next(iter(image_data.values())))
     image_shape = next(iter(image_data.values()))[0].shape

@@ -44,5 +44,10 @@ setup(
     install_requires=requires,
     extras_require=extras,
     url="https://github.com/constantinpape/elf",
-    license="MIT"
+    license="MIT",
+    entry_points={
+        "console_scripts": [
+            "view_container = elf.visualisation.view_container:main",
+        ]
+    },
 )
