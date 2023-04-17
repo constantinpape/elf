@@ -103,7 +103,6 @@ def size_filter(data, out, min_size=None, max_size=None,
 
     def filter_function(block_seg, block_mask):
         bg_mask = np.isin(block_seg, filter_ids)
-        assert bg_mask.shape == block_mask.shape
         if block_mask is not None:
             bg_mask[~block_mask] = False
         block_seg[bg_mask] = 0
