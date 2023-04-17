@@ -6,3 +6,4 @@ from .relabel import relabel_consecutive
 from .stats import mean, std, mean_and_std, max, min, min_and_max
 from .unique import unique
 from .label import label
+from .size_filter import size_filter
