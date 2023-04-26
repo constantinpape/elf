@@ -13,6 +13,7 @@ except ImportError:
 class TestMrcWrapper(unittest.TestCase):
     tmp_dir = './tmp'
     out = './tmp/data.mrc'
+    out_old = './tmp/data_old.mrc'
     out_compressed = './tmp/data_compressed.mrc'
 
     def setUp(self):
@@ -70,6 +71,26 @@ class TestMrcWrapper(unittest.TestCase):
             ds = f['data']
             self.check_dataset(ds)
 
+    def test_old_serialem(self):
+        a = mrcfile.open(self.out_old, 'w+')
+        a.header.machst = [11, 0, 0, 0]
+        a.close()
+
+        with self.assertRaises(ValueError):
+            b = mrcfile.open(self.out_old)
+
+        os.remove(self.out_old)
+
+        a = mrcfile.open(self.out_old, 'w+')
+        a.header.machst = [68, 0, 0, 0]
+        a.data = self.data
+        a.close()
+
+        with self.assertRaises(RuntimeWarning):
+            from elf.io.mrc_wrapper import MRCFile
+            with MRCFile(self.out_old) as f:
+                ds = f['data']
+                self.check_dataset(ds)
 
 if __name__ == '__main__':
     unittest.main()
