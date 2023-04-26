@@ -77,7 +77,9 @@ class TestMrcWrapper(unittest.TestCase):
         a.close()
 
         with self.assertRaises(ValueError):
-            b = mrcfile.open(self.out_old)
+            from elf.io.mrc_wrapper import MRCFile
+            with MRCFile(self.out_old) as f:
+                ds = f['data']
 
         os.remove(self.out_old)
 
