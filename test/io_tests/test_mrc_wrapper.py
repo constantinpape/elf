@@ -3,6 +3,7 @@ import unittest
 from shutil import rmtree
 
 import numpy as np
+
 try:
     import mrcfile
 except ImportError:
@@ -24,13 +25,13 @@ class TestMrcWrapper(unittest.TestCase):
         # change axes order to fit MRC convention
         data0 = np.swapaxes(self.data, 0, -1)
         data1 = np.fliplr(data0)
-        out_data = np.swapaxes(data1, 0, -1)
+        self.out_data = np.swapaxes(data1, 0, -1)
 
         with mrcfile.new(self.out) as f:
-            f.set_data(out_data)
+            f.set_data(self.out_data)
 
         with mrcfile.new(self.out_compressed, compression='gzip') as f:
-            f.set_data(out_data)
+            f.set_data(self.out_data)
 
     def tearDown(self):
         rmtree(self.tmp_dir)
@@ -79,20 +80,20 @@ class TestMrcWrapper(unittest.TestCase):
         with self.assertRaises(ValueError):
             from elf.io.mrc_wrapper import MRCFile
             with MRCFile(self.out_old) as f:
-                ds = f['data']
+                __ = f['data']
 
         os.remove(self.out_old)
 
         a = mrcfile.open(self.out_old, 'w+')
         a.header.machst = [68, 0, 0, 0]
-        a.set_data(self.data)
+        a.set_data(self.out_data)
         a.close()
 
-        with self.assertRaises(RuntimeWarning):
-            from elf.io.mrc_wrapper import MRCFile
-            with MRCFile(self.out_old) as f:
-                ds = f['data']
-                self.check_dataset(ds)
+        from elf.io.mrc_wrapper import MRCFile
+        with MRCFile(self.out_old) as f:
+            ds = f['data']
+            self.check_dataset(ds)
+
 
 if __name__ == '__main__':
     unittest.main()
