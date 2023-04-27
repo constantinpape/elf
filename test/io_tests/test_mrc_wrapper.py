@@ -85,7 +85,7 @@ class TestMrcWrapper(unittest.TestCase):
 
         a = mrcfile.open(self.out_old, 'w+')
         a.header.machst = [68, 0, 0, 0]
-        a.data = self.data
+        a.set_data(self.data)
         a.close()
 
         with self.assertRaises(RuntimeWarning):
