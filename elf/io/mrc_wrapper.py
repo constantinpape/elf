@@ -56,8 +56,17 @@ class MRCFile(Mapping):
             raise AttributeError("mrcfile is not available")
         try:
             self._f = mrcfile.mmap(self.path, self.mode)
-        except ValueError:
-            self._f = mrcfile.open(self.path, self.mode)
+        except ValueError as e:
+        
+            # check if error comes from old version of SerialEM used for acquisition
+            if "Unrecognised machine stamp: 0x44 0x00 0x00 0x00" in str(e):
+                try:
+                    self._f = mrcfile.mmap(self.path, self.mode, permissive='True')
+                except ValueError:
+                    self._f = mrcfile.open(self.path, self.mode, permissive='True')
+            else:
+                self._f = mrcfile.open(self.path, self.mode)
+               
 
     def __getitem__(self, key):
         if key != 'data':
