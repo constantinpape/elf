@@ -9,7 +9,7 @@ except ImportError:
 from ..io import open_file, is_dataset
 
 
-def view_container(path, include=None, exclude=None, lazy=False):
+def view_container(path, include=None, exclude=None, lazy=False, show=True):
     assert napari is not None, "Need napari"
     assert sum((include is not None, exclude is not None)) != 2
 
@@ -38,7 +38,9 @@ def view_container(path, include=None, exclude=None, lazy=False):
 
     with open_file(path, "r") as f:
         f.visititems(visitor)
-        napari.run()
+        if show:
+            napari.run()
+    return v
 
 
 def main():
