@@ -30,7 +30,7 @@ class ResizedVolume(WrapperBase):
         self._scale = [sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)]
         self.order = order
 
-        if np.dtype(self.dtype) == np.bool:
+        if np.dtype(self.dtype) == np.dtype(bool):
             self.min, self.max = 0, 1
         else:
             try:
