@@ -17,7 +17,30 @@ def stitch_segmentation(
     shape=None, with_background=True, n_threads=None,
     return_before_stitching=False, verbose=True,
 ):
-    """
+    """Run segmentation function tilewise and stitch the results based on overlap.
+
+    Arguments:
+        input_ [np.ndarray] - the input data. If the data has channels they need to be passed as last dimension,
+            e.g. XYC for a 2D image with channels.
+        segmentation_function [callable] - the function to perform segmentation for each tile.
+            Needs to be a segmentation that takes the input (for the tile) as well as the id of the tile as input.
+            I.e. the function needs to have a signature like this: 'def my_seg_func(tile_input_, tile_id)'.
+            The tile_id is passed in case the segmentation routine differs depending on the tile;
+            it can be ignored in most cases.
+        tile_shape [tuple] - shape of the individual tiles.
+        tile_overlap [tuple] - overlap of the tiles.
+            The input to the segmentation function will have the size tile_shape + 2 * tile_overlap.
+            The tile overlap will be used to compute the overlap between objects, which will be used for stitching.
+        beta [float] - parameter to bias the stitching results towards more over-segmentation (beta > 0.5)
+            or more under-segmentation (beta < 0.5). Has to be in the exclusive range 0 to 1. (default: 0.5)
+        shape [tuple] - the shape of the segmentation. By default this will use the shape of the input, but if the
+            input has channels it needs to be passed manually. (default: None)
+        with_background [bool] - whether this is a segmentation problem with background. In this case the
+            background id (which is hard-coded to 0), will not be stitched. (default: True)
+        n_threads [int] - number of threads that will be used for parallelized operations.
+            Set to the number of cores by default. (default: None)
+        return_before_stitching [bool] - return the result before stitching (for debugging). (default: False)
+        verbose [bool] - whether to print progress bars. (default: True)
     """
 
     shape = input_.shape if shape is None else shape
