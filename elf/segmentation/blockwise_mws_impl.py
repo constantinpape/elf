@@ -54,7 +54,7 @@ def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
             if this_stitch_edges is not None:
                 stitch_edges.append(this_stitch_edges)
 
-    stitch_edge_mask = np.zeros(rag.numberOfEdges, dtype='bool')
+    stitch_edge_mask = np.zeros(rag.numberOfEdges, dtype="bool")
 
     if len(stitch_edges) > 0:
         stitch_edges = np.concatenate(stitch_edges, axis=0)
@@ -68,14 +68,14 @@ def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
 # TODO more blockwise mws options
 def blockwise_mws_impl(affs, offsets, strides, block_shape,
                        randomize_strides=False, mask=None, noise_level=0,
-                       solver_name='kernighan-lin', beta0=.75, beta1=.5,
+                       solver_name="kernighan-lin", beta0=.75, beta1=.5,
                        n_threads=None):
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
     # allocate the segmentation
     ndim = affs.ndim - 1
     shape = affs.shape[1:]
-    segmentation = np.zeros(shape, dtype='uint64')
+    segmentation = np.zeros(shape, dtype="uint64")
 
     # TODO with halo ?
     # 1.) run mutex watersheds on the blocks in parallel
