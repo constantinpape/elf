@@ -5,7 +5,11 @@ import nifty.tools as nt
 import numpy as np
 import vigra
 from nifty.ground_truth import overlap
-from tqdm import trange, tqdm
+
+try:
+    from napari.utils import progress as tqdm
+except ImportError:
+    from tqdm import tqdm
 
 from .features import compute_rag, project_node_labels_to_pixels
 from .multicut import compute_edge_costs, multicut_decomposition
@@ -54,7 +58,7 @@ def stitch_segmentation(
     n_blocks = blocking.numberOfBlocks
     # TODO enable parallelisation
     # run tiled segmentation
-    for block_id in trange(n_blocks, desc="Run tiled segmentation", disable=not verbose):
+    for block_id in tqdm(range(n_blocks), total=n_blocks, desc="Run tiled segmentation", disable=not verbose):
         block = blocking.getBlockWithHalo(block_id, list(tile_overlap))
         outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin, block.outerBlock.end))
 
