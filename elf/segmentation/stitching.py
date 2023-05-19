@@ -3,6 +3,7 @@ from concurrent import futures
 
 import nifty.tools as nt
 import numpy as np
+import vigra
 from nifty.ground_truth import overlap
 from tqdm import trange, tqdm
 
@@ -13,7 +14,8 @@ from .multicut import compute_edge_costs, multicut_decomposition
 def stitch_segmentation(
     input_, segmentation_function,
     tile_shape, tile_overlap, beta=0.5,
-    shape=None, with_background=True, n_threads=None
+    shape=None, with_background=True, n_threads=None,
+    return_before_stitching=False, verbose=True,
 ):
     """
     """
@@ -29,7 +31,7 @@ def stitch_segmentation(
     n_blocks = blocking.numberOfBlocks
     # TODO enable parallelisation
     # run tiled segmentation
-    for block_id in trange(n_blocks, desc="Run tiled segmentation"):
+    for block_id in trange(n_blocks, desc="Run tiled segmentation", disable=not verbose):
         block = blocking.getBlockWithHalo(block_id, list(tile_overlap))
         outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin, block.outerBlock.end))
 
@@ -49,6 +51,7 @@ def stitch_segmentation(
 
     # compute the region adjacency graph for the tiled segmentation
     # and the edges between block boundaries (stitch edges)
+    seg_ids = np.unique(seg)
     rag = compute_rag(seg, n_threads=n_threads)
 
     # we initialize the edge disaffinities with a high value (corresponding to a low overlap)
@@ -101,17 +104,30 @@ def stitch_segmentation(
             assert len(overlap_uv_ids) == len(overlap_values)
 
             # - get the edge ids
-            # - exclude invalid edge (due to bg overlap)
+            # - exclude invalid edge
             # - set the global edge disaffinities to 1 - overlap
+
+            # we might have ids in the overlaps that are not in the final seg, these need to be filtered
+            valid_uv_ids = np.isin(overlap_uv_ids, seg_ids).all(axis=1)
+            if valid_uv_ids.sum() == 0:
+                continue
+            overlap_uv_ids, overlap_values = overlap_uv_ids[valid_uv_ids], overlap_values[valid_uv_ids]
+            assert len(overlap_uv_ids) == len(overlap_values)
+
             edge_ids = rag.findEdges(overlap_uv_ids)
             valid_edges = edge_ids != -1
+            if valid_edges.sum() == 0:
+                continue
             edge_ids, overlap_values = edge_ids[valid_edges], overlap_values[valid_edges]
             assert len(edge_ids) == len(overlap_values)
+
             edge_disaffinties[edge_ids] = (1.0 - overlap_values)
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        list(tqdm(tp.map(_compute_overlaps, range(n_blocks)), total=n_blocks, desc="Compute object overlaps"))
+        list(tqdm(tp.map(
+            _compute_overlaps, range(n_blocks)), total=n_blocks, desc="Compute object overlaps", disable=not verbose
+        ))
 
     # if we have background set all the edges that are connecting 0 to another element
     # to be very unlikely
@@ -123,5 +139,13 @@ def stitch_segmentation(
 
     # run multicut to get the segmentation result
     node_labels = multicut_decomposition(rag, costs)
-    seg = project_node_labels_to_pixels(rag, node_labels, n_threads=n_threads)
-    return seg
+    seg_stitched = project_node_labels_to_pixels(rag, node_labels, n_threads=n_threads)
+
+    if with_background:
+        vigra.analysis.relabelConsecutive(seg_stitched, out=seg_stitched, start_label=1, keep_zeros=True)
+    else:
+        vigra.analysis.relabelConsecutive(seg_stitched, out=seg_stitched, start_label=1, keep_zeros=False)
+
+    if return_before_stitching:
+        return seg_stitched, seg
+    return seg_stitched
