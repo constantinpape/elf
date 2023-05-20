@@ -114,7 +114,7 @@ except ImportError:
     zarr_open = None
 
 
-def folder_based(path, mode='a'):
+def folder_based(path, mode="a"):
     try:
         return KnossosFile(path, mode)
     except RuntimeError:
@@ -123,6 +123,6 @@ def folder_based(path, mode='a'):
 
 # Are there any typical knossos extensions?
 # add folder based wrappers (no extension)
-register_filetype(folder_based, ['', '.tif', '.tiff'],
+register_filetype(folder_based, ["", ".tif", ".tiff"],
                   (ImageStackFile, KnossosFile),
                   (ImageStackDataset, KnossosDataset))

@@ -15,13 +15,13 @@ from ..util import normalize_index, squeeze_singletons
 
 
 class ImageStackFile(Mapping):
-    def __init__(self, path, mode='r'):
+    def __init__(self, path, mode="r"):
         self.path = path
         self.file_name = os.path.split(self.path)[1]
 
     def __getitem__(self, key):
         # if the key is empty, we assume to have an image stack (=3d image volume in one file)
-        if key == '':
+        if key == "":
             if not os.path.isfile(self.path):
                 raise ValueError(f"{self.path} needs to be a file to be loaded as image stack")
 
@@ -42,9 +42,9 @@ class ImageStackFile(Mapping):
 
     # this could be done more sophisticated to find more complex patterns
     def get_all_patterns(self):
-        all_files = glob(os.path.join(self.path, '*'))
+        all_files = glob(os.path.join(self.path, "*"))
         extensions = list(set(os.path.splitext(ff)[1] for ff in all_files))
-        patterns = ['*' + ext for ext in extensions]
+        patterns = ["*" + ext for ext in extensions]
         return patterns
 
     def __iter__(self):
@@ -60,7 +60,7 @@ class ImageStackFile(Mapping):
 
     def __contains__(self, name):
         # if the key is empty, we assume to have an image stack (=3d image volume in one file)
-        if name == '':
+        if name == "":
             return os.path.isfile(self.path)
         files = glob(os.path.join(self.path, name))
         return len(files) > 0
@@ -190,7 +190,7 @@ class ImageStackDataset:
 
 
 class TifStackDataset(ImageStackDataset):
-    tif_exts = ('.tif', '.tiff')
+    tif_exts = (".tif", ".tiff")
 
     @staticmethod
     def is_tif_slices(files):
@@ -202,7 +202,7 @@ class TifStackDataset(ImageStackDataset):
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
-            tifffile.memmap(f0, mode='r')
+            tifffile.memmap(f0, mode="r")
         except ValueError:
             return False
         return True
@@ -215,21 +215,21 @@ class TifStackDataset(ImageStackDataset):
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
-            tifffile.memmap(path, mode='r')
+            tifffile.memmap(path, mode="r")
         except ValueError:
             return False
         return True
 
     def _read_image(self, index):
-        return tifffile.memmap(self.files[index], mode='r')
+        return tifffile.memmap(self.files[index], mode="r")
 
     def _read_volume(self):
-        return tifffile.memmap(self.files, mode='r')
+        return tifffile.memmap(self.files, mode="r")
 
     def get_im_shape_and_dtype(self, files):
-        im0 = tifffile.memmap(files[0], mode='r')
+        im0 = tifffile.memmap(files[0], mode="r")
         im_shape = im0.shape
-        im_shapes = [tifffile.memmap(ff, mode='r').shape for ff in files[1:]]
+        im_shapes = [tifffile.memmap(ff, mode="r").shape for ff in files[1:]]
         if any(sh != im_shape for sh in im_shapes):
             raise ValueError("Incompatible shapes for Image Stack")
         return im_shape, im0.dtype
