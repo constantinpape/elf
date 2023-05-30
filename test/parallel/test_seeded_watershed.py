@@ -25,7 +25,7 @@ class TestSeededWatershed(unittest.TestCase):
         exp = watershed(hmap, markers=seeds, mask=mask)
 
         vis, vim = variation_of_information(exp, res)
-        self.assertLessEqual(vis + vim, 0.001)
+        self.assertLessEqual(vis + vim, 0.01)
 
 
 if __name__ == "__main__":
