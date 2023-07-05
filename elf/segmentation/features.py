@@ -447,8 +447,8 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
          dendrite_probabilities  # probability map for dendrite attributtion
        ],
        assignment_threshold=0.6,  # probability threshold to assign superpixels to a class
-       graph_depth=10,  # the max. graph depth along which lifted edges are introduced 
-    ) 
+       graph_depth=10,  # the max. graph depth along which lifted edges are introduced
+    )
     ```
 
     Arguments:
