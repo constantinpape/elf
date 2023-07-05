@@ -51,7 +51,7 @@ def read_obj(path):
 
 
 # TODO support different format for faces
-def write_obj(path, verts, faces, normals, face_normals=None, zero_based_face_index=False):
+def write_obj(path, verts, faces, normals=None, face_normals=None, zero_based_face_index=False):
     """ Write mesh to obj
     """
     with open(path, "w") as f:
@@ -61,9 +61,10 @@ def write_obj(path, verts, faces, normals, face_normals=None, zero_based_face_in
 
         f.write("\n")
 
-        for normal in normals:
-            f.write(" ".join(map(str, ["vn"] + normal.tolist())))
-            f.write("\n")
+        if normals is not None:
+            for normal in normals:
+                f.write(" ".join(map(str, ["vn"] + normal.tolist())))
+                f.write("\n")
 
         f.write("\n")
         f.write("vt 0.0 0.0\n")
