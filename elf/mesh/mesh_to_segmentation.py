@@ -1,6 +1,10 @@
+import tempfile
+
 import numpy as np
 import vigra
 from tqdm import tqdm
+
+from .io import write_obj
 
 try:
     from madcad.hashing import PositionMap
@@ -9,7 +13,17 @@ except ImportError:
     PositionMap = None
 
 
-def mesh_to_segmentation(mesh_file, resolution,
+def vertices_and_faces_to_segmentation(
+    vertices, faces, resolution=[1.0, 1.0, 1.0], shape=None, verbose=False
+):
+    with tempfile.NamedTemporaryFile(suffix=".obj") as f:
+        tmp_path = f.name
+        write_obj(tmp_path, vertices, faces)
+        seg = mesh_to_segmentation(tmp_path, resolution, shape=shape, verbose=verbose)
+    return seg
+
+
+def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
                          reverse_coordinates=False, shape=None, verbose=False):
     """ Compute segmentation volume from mesh.
 
@@ -48,16 +62,15 @@ def mesh_to_segmentation(mesh_file, resolution,
 
     max_vox = voxels.max(axis=0)
     if shape is None:
-        shape = max_vox + 1
+        shape = np.ceil(max_vox) + 1
     else:
         assert all(mv < sh for mv, sh in zip(max_vox, shape)), f"{max_vox}, {shape}"
     if verbose:
         print("Computing segmentation volume of shape", shape)
 
     seg = np.ones(shape, dtype="uint8")
-    coords = tuple(
-        voxels[:, ii] for ii in range(voxels.shape[1])
-    )
+    coords = tuple(voxels[:, ii] for ii in range(voxels.shape[1]))
     seg[coords] = 0
-    seg = vigra.analysis.labelVolumeWithBackground(seg)
+    seg = vigra.analysis.labelVolumeWithBackground(seg) == 2
+    seg[coords] = 1
     return seg
