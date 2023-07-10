@@ -1,4 +1,5 @@
 import tempfile
+import warnings
 
 import numpy as np
 import vigra
@@ -63,8 +64,12 @@ def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
     max_vox = voxels.max(axis=0)
     if shape is None:
         shape = np.ceil(max_vox) + 1
-    else:
-        assert all(mv < sh for mv, sh in zip(max_vox, shape)), f"{max_vox}, {shape}"
+    elif any(mv >= sh for mv, sh in zip(max_vox, shape)):
+        warnings.warn(f"Clipping voxel coordinates {max_vox} that are larger than the shape {shape}.")
+        voxels[:, 0] = np.clip(voxels[:, 0], 0, shape[0] - 1)
+        voxels[:, 1] = np.clip(voxels[:, 1], 0, shape[1] - 1)
+        voxels[:, 2] = np.clip(voxels[:, 2], 0, shape[2] - 1)
+
     if verbose:
         print("Computing segmentation volume of shape", shape)
 
