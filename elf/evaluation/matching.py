@@ -39,7 +39,9 @@ def recall(tp, fp, fn):
     return tp/(tp+fn) if tp > 0 else 0
 
 
-def accuracy(tp, fp, fn):
+# FIXME This isn't really the average precision.
+# I have no idea where the formula in DSB comes from.
+def average_precision(tp, fp, fn):
     # -> https://www.kaggle.com/c/data-science-bowl-2018#evaluation
     return tp/(tp+fp+fn) if tp > 0 else 0
 
@@ -91,7 +93,7 @@ def label_overlap(seg_a, seg_b, ignore_label=0):
     return overlap, ignore_idx
 
 
-def _compute_scores(segmentation, groundtruth, criterion, ignore_label=0):
+def _compute_scores(segmentation, groundtruth, criterion, ignore_label):
     # compute overlap from the contingency table
     overlap, ignore_idx = label_overlap(segmentation, groundtruth, ignore_label)
 
@@ -149,13 +151,12 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion="iou", ignore_l
     fn = n_true - tp
     stats = {"precision": precision(tp, fp, fn),
              "recall": recall(tp, fp, fn),
-             "accuracy": accuracy(tp, fp, fn),
+             "average_precision": average_precision(tp, fp, fn),
              "f1": f1(tp, fp, fn)}
     return stats
 
 
-def mean_average_precision(segmentation, groundtruth,
-                           thresholds=None, return_aps=False):
+def mean_average_precision(segmentation, groundtruth, thresholds=None, return_aps=False, ignore_label=0):
     """ Mean average precision metrics.
 
     Arguments:
@@ -164,15 +165,21 @@ def mean_average_precision(segmentation, groundtruth,
         thresholds [sequence of floats] - overlap thresholds,
             by default np.arange(0.5, 1., 0.05) is used (default: None)
         return_aps [bool] - whether to return intermediate aps (default: false)
+        ignore_label [int] - overlap of any objects with this label are not
+            taken into account in the output. `None` indicates that no label
+            should be ignored. It is assumed that the `ignore_label` has the
+            same meaning in both segmentations.
     """
-    n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion="iou")
+    n_true, n_matched, n_pred, scores = _compute_scores(
+        segmentation, groundtruth, criterion="iou", ignore_label=ignore_label
+    )
     if thresholds is None:
         thresholds = np.arange(0.5, 1., 0.05)
 
     tps = [_compute_tps(scores, n_matched, threshold) for threshold in thresholds]
     fps = [n_pred - tp for tp in tps]
     fns = [n_true - tp for tp in tps]
-    aps = [precision(tp, fp, fn) for tp, fp, fn in zip(tps, fps, fns)]
+    aps = [average_precision(tp, fp, fn) for tp, fp, fn in zip(tps, fps, fns)]
     m_ap = np.mean(aps)
 
     if return_aps:
