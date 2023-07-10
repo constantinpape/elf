@@ -5,7 +5,7 @@ import numpy as np
 def check_scores(scores, func, exp):
     func(scores['precision'], exp)
     func(scores['recall'], exp)
-    func(scores['accuracy'], exp)
+    func(scores['segmentation_accuracy'], exp)
     func(scores['f1'], exp)
 
 
@@ -52,7 +52,7 @@ class TestMatching(unittest.TestCase):
         from elf.evaluation import matching
 
         scores = matching([0, 1, 2, 3, 4], [0, 1, 0, 0, 0])
-        expected = {'precision': 0.25, 'recall': 1.0, 'accuracy': 0.25, 'f1': 0.4}
+        expected = {'precision': 0.25, 'recall': 1.0, 'segmentation_accuracy': 0.25, 'f1': 0.4}
         self.assertEqual(scores, expected)
 
     def test_ignore_label_none(self):
@@ -61,24 +61,24 @@ class TestMatching(unittest.TestCase):
         scores = matching([0, 1], [1, 2], ignore_label=0)
         self.assertEqual(scores['precision'], 1.0)
         self.assertEqual(scores['recall'], 0.5)
-        self.assertEqual(scores['accuracy'], 0.5)
+        self.assertEqual(scores['segmentation_accuracy'], 0.5)
         self.assertAlmostEqual(scores['f1'], 2.0 / 3.0)
 
         scores = matching([0, 1], [1, 2], ignore_label=None)
         check_scores(scores, self.assertEqual, 1.)
 
-    def test_map(self):
-        from elf.evaluation import mean_average_precision
+    def test_mean_segmentation_accuracy(self):
+        from elf.evaluation import mean_segmentation_accuracy
         shape = (256, 256)
 
         # random data
         x = np.random.randint(0, 10, size=shape)
         y = np.random.randint(0, 10, size=shape)
-        score = mean_average_precision(x, y)
+        score = mean_segmentation_accuracy(x, y)
         self.assertGreaterEqual(score, 0.)
 
         # same data
-        score = mean_average_precision(x, x)
+        score = mean_segmentation_accuracy(x, x)
         self.assertEqual(score, 1.)
 
 

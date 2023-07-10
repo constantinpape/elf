@@ -39,9 +39,7 @@ def recall(tp, fp, fn):
     return tp/(tp+fn) if tp > 0 else 0
 
 
-# FIXME This isn't really the average precision.
-# I have no idea where the formula in DSB comes from.
-def average_precision(tp, fp, fn):
+def segmentation_accuracy(tp, fp, fn):
     # -> https://www.kaggle.com/c/data-science-bowl-2018#evaluation
     return tp/(tp+fp+fn) if tp > 0 else 0
 
@@ -151,13 +149,16 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion="iou", ignore_l
     fn = n_true - tp
     stats = {"precision": precision(tp, fp, fn),
              "recall": recall(tp, fp, fn),
-             "average_precision": average_precision(tp, fp, fn),
+             "segmentation_accuracy": segmentation_accuracy(tp, fp, fn),
              "f1": f1(tp, fp, fn)}
     return stats
 
 
-def mean_average_precision(segmentation, groundtruth, thresholds=None, return_aps=False, ignore_label=0):
-    """ Mean average precision metrics.
+def mean_segmentation_accuracy(segmentation, groundtruth, thresholds=None, return_accuracies=False, ignore_label=0):
+    """This implements the segmentation accuracy metrics from PacalVoc.
+    See https://link.springer.com/article/10.1007/s11263-009-0275-4
+
+    The implementation follows the DSB 2018 Nucelus Segmentation Challenge.
 
     Arguments:
         segmentation [np.ndarray] - candidate segmentation to evaluate
@@ -174,15 +175,15 @@ def mean_average_precision(segmentation, groundtruth, thresholds=None, return_ap
         segmentation, groundtruth, criterion="iou", ignore_label=ignore_label
     )
     if thresholds is None:
-        thresholds = np.arange(0.5, 1., 0.05)
+        thresholds = np.arange(0.5, 1.0, 0.05)
 
     tps = [_compute_tps(scores, n_matched, threshold) for threshold in thresholds]
     fps = [n_pred - tp for tp in tps]
     fns = [n_true - tp for tp in tps]
-    aps = [average_precision(tp, fp, fn) for tp, fp, fn in zip(tps, fps, fns)]
-    m_ap = np.mean(aps)
+    accuracies = [segmentation_accuracy(tp, fp, fn) for tp, fp, fn in zip(tps, fps, fns)]
+    mean_accuracy = np.mean(accuracies)
 
-    if return_aps:
-        return m_ap, aps
+    if return_accuracies:
+        return mean_accuracy, accuracies
     else:
-        return m_ap
+        return mean_accuracy
