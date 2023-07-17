@@ -217,7 +217,7 @@ def label(data, out, with_background=True, block_shape=None,
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation.
-            Data not in the mask will be ser ro zero in the result. (default: None)
+            Data not in the mask will be set to zero in the result. (default: None)
         verbose [bool] - verbosity flag (default: False)
         roi [tuple[slice]] - region of interest for this computation (default: None)
         connectivity [int] - the number of nearest neighbor hops to consider for connection.
