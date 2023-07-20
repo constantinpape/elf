@@ -188,6 +188,13 @@ class ImageStackDataset:
     def attrs(self):
         return {}
 
+    def __len__(self):
+        return self.shape[0]
+
+    def __iter__(self):
+        for i in range(self.shape[0]):
+            yield self[i]
+
 
 class TifStackDataset(ImageStackDataset):
     tif_exts = (".tif", ".tiff")
