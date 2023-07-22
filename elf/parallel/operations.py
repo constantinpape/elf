@@ -1,3 +1,6 @@
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import multiprocessing
 # would be nice to use dask for all of this instead of concurrent.futures
 # so that this could be used on a cluster as well
@@ -7,8 +10,6 @@ from functools import partial
 from tqdm import tqdm
 
 from .common import get_blocking
-from ..util import set_numpy_threads
-set_numpy_threads(1)
 import numpy as np
 
 
@@ -59,6 +60,7 @@ def isin(x, y, out=None,
     blocking = get_blocking(x, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _isin(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -66,7 +68,7 @@ def isin(x, y, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -142,6 +144,7 @@ def apply_operation(x, y, operation, out=None,
     blocking = get_blocking(x, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _apply_scalar(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -149,7 +152,7 @@ def apply_operation(x, y, operation, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -173,7 +176,7 @@ def apply_operation(x, y, operation, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -238,6 +241,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
     blocking = get_blocking(out, block_shape, roi)
     n_blocks = blocking.numberOfBlocks
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _apply(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -245,7 +249,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -302,9 +306,9 @@ def _generate_operation(op_name):
 
 
 # autogenerate parallel implementation for common numpy operations
-_op_names = ['add', 'subtract', 'multiply', 'divide',
-             'greater', 'greater_equal', 'less', 'less_equal',
-             'minimum', 'maximum']
+_op_names = ["add", "subtract", "multiply", "divide",
+             "greater", "greater_equal", "less", "less_equal",
+             "minimum", "maximum"]
 
 
 for op_name in _op_names:
@@ -312,7 +316,3 @@ for op_name in _op_names:
 
 del _generate_operation
 del _op_names
-
-
-# TODO autogenerate parallel implementation for common single operand numpy operations
-# _op_nams = ['mean', 'max', 'min', 'std']

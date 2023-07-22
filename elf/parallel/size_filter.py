@@ -1,3 +1,6 @@
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
@@ -7,8 +10,7 @@ from tqdm import tqdm
 
 from .common import get_blocking
 from .unique import unique
-from ..util import set_numpy_threads
-set_numpy_threads(1)
+
 import numpy as np
 
 
@@ -85,6 +87,7 @@ def size_filter(data, out, min_size=None, max_size=None,
         if 0 in mapping:
             assert mapping[0] == 0
 
+        @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
         def _relabel(seg, block_mask):
             if block_mask is None or block_mask.sum() == block_mask.size:
                 ids_in_block = np.unique(seg)
@@ -101,6 +104,7 @@ def size_filter(data, out, min_size=None, max_size=None,
     else:
         _relabel = None
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def filter_function(block_seg, block_mask):
         bg_mask = np.isin(block_seg, filter_ids)
         if block_mask is not None:

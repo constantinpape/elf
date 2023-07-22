@@ -1,4 +1,8 @@
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import multiprocessing
+
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
 from tqdm import tqdm
@@ -6,8 +10,7 @@ import nifty.tools as nt
 
 from .unique import unique
 from .common import get_blocking
-from ..util import set_numpy_threads
-set_numpy_threads(1)
+
 import numpy as np
 
 
@@ -51,6 +54,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         raise ValueError("Expect data and out of same shape, got %s and %s" % (str(data.shape),
                                                                                str(out.shape)))
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _relabel(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
