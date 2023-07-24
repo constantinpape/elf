@@ -81,10 +81,7 @@ def isin(x, y, out=None,
         out[bb] = xx
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_isin, range(n_blocks))
+        list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -191,10 +188,7 @@ def apply_operation(x, y, operation, out=None,
 
     _apply = _apply_scalar if scalar_operand else _apply_array
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_apply, range(n_blocks))
+        list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -265,10 +259,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
         out[bb] = xx
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_apply, range(n_blocks))
+        list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 

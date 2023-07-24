@@ -136,10 +136,7 @@ def apply_filter(data, filter_name, sigma,
 
     n_blocks = blocking.numberOfBlocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply_filter, range(n_blocks)), total=n_blocks))
-        else:
-            list(tp.map(_apply_filter, range(n_blocks)))
+        list(tqdm(tp.map(_apply_filter, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 

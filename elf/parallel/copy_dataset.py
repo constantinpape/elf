@@ -56,9 +56,6 @@ def copy_dataset(ds_in, ds_out,
         ds_out[bb_out] = ds_in[bb_in]
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_copy_block, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_copy_block, range(n_blocks))
+        list(tqdm(tp.map(_copy_block, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return ds_out

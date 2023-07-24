@@ -43,9 +43,8 @@ def seeded_watershed(hmap, seeds, out, block_shape, halo,
 
     n_blocks = blocking.numberOfBlocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(process_block, range(n_blocks)), total=n_blocks, desc="Seeded watershed"))
-        else:
-            list(tp.map(process_block, range(n_blocks)))
+        list(tqdm(
+            tp.map(process_block, range(n_blocks)), total=n_blocks, desc="Seeded watershed", disable=not verbose
+        ))
 
     return out

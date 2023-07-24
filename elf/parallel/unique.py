@@ -53,10 +53,7 @@ def unique(data, return_counts=False, block_shape=None, n_threads=None,
         return np.unique(d, return_counts=return_counts)
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            results = list(tqdm(tp.map(_unique, range(n_blocks)), total=n_blocks))
-        else:
-            results = tp.map(_unique, range(n_blocks))
+        results = list(tqdm(tp.map(_unique, range(n_blocks)), total=n_blocks, disable=not verbose))
     results = [res for res in results if res is not None]
 
     if return_counts:

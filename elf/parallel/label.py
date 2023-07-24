@@ -50,13 +50,9 @@ def cc_blocks(data, out, mask, blocking, with_background,
 
     # compute connected components for all blocks in parallel
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            block_max_labels = list(tqdm(
-                tp.map(_cc_block, range(n_blocks)),
-                total=n_blocks, desc="Label all sub-blocks")
-            )
-        else:
-            block_max_labels = list(tp.map(_cc_block, range(n_blocks)))
+        block_max_labels = list(tqdm(
+           tp.map(_cc_block, range(n_blocks)), total=n_blocks, desc="Label all sub-blocks", disable=not verbose
+        ))
 
     return out, block_max_labels
 
@@ -139,11 +135,10 @@ def merge_blocks(data, out, mask, offsets,
 
     # compute the merge ids across all block faces
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            merge_labels = list(tqdm(tp.map(_merge_block_faces, range(n_blocks)),
-                                     total=n_blocks, desc="Merge labels across block faces"))
-        else:
-            merge_labels = tp.map(_merge_block_faces, range(n_blocks))
+        merge_labels = list(tqdm(
+            tp.map(_merge_block_faces, range(n_blocks)), total=n_blocks,
+            desc="Merge labels across block faces", disable=not verbose
+        ))
     merge_labels = [res for res in merge_labels if res is not None]
     if len(merge_labels) == 0:
         return np.arange(max_id + 1, dtype=out.dtype)
@@ -200,10 +195,9 @@ def write_mapping(out, mask, offsets, mapping,
 
     # compute connected components for all blocks in parallel
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_write_block, range(n_blocks)), total=n_blocks, desc="Write blocks"))
-        else:
-            tp.map(_write_block, range(n_blocks))
+        list(tqdm(
+            tp.map(_write_block, range(n_blocks)), total=n_blocks, desc="Write blocks", disable=not verbose
+        ))
 
     return out
 

@@ -51,10 +51,7 @@ def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=N
         return np.mean(d)
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            means = list(tqdm(tp.map(_mean, range(n_blocks)), total=n_blocks))
-        else:
-            means = tp.map(_mean, range(n_blocks))
+        means = list(tqdm(tp.map(_mean, range(n_blocks)), total=n_blocks, disable=not verbose))
     means = [m for m in means if m is not None]
 
     return np.mean(means)
