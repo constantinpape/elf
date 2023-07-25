@@ -37,7 +37,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     block_shape = blocking.blockShape
 
     unique_values = unique(data, block_shape=block_shape,
@@ -80,9 +80,6 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         out[bb] = o
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_relabel, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_relabel, range(n_blocks))
+        list(tqdm(tp.map(_relabel, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out, max_id, mapping

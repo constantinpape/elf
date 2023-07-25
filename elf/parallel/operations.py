@@ -57,7 +57,7 @@ def isin(x, y, out=None,
                                                                             str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(x, block_shape, roi)
+    blocking = get_blocking(x, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
@@ -81,10 +81,7 @@ def isin(x, y, out=None,
         out[bb] = xx
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_isin, range(n_blocks))
+        list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -141,7 +138,7 @@ def apply_operation(x, y, operation, out=None,
                                                                             str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(x, block_shape, roi)
+    blocking = get_blocking(x, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
@@ -191,10 +188,7 @@ def apply_operation(x, y, operation, out=None,
 
     _apply = _apply_scalar if scalar_operand else _apply_array
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_apply, range(n_blocks))
+        list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -238,7 +232,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
         raise ValueError("Expect x and out of same shape, got %s and %s" % (str(shape), str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(out, block_shape, roi)
+    blocking = get_blocking(out, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
@@ -265,10 +259,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
         out[bb] = xx
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_apply, range(n_blocks))
+        list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 

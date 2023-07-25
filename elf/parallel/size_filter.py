@@ -18,7 +18,7 @@ def segmentation_filter(data, out, filter_function, block_shape=None,
                         n_threads=None, mask=None, verbose=False, roi=None, relabel=None):
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     def apply_filter(block_id):
@@ -41,10 +41,7 @@ def segmentation_filter(data, out, filter_function, block_shape=None,
         out[bb] = seg
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(apply_filter, range(n_blocks)), total=n_blocks))
-        else:
-            list(tp.map(apply_filter, range(n_blocks)))
+        list(tqdm(tp.map(apply_filter, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
