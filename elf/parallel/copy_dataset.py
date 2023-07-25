@@ -5,7 +5,6 @@ from tqdm import tqdm
 from .common import get_blocking
 
 
-# FIXME this seems to be not thread-safe yet
 def copy_dataset(ds_in, ds_out,
                  roi_in=None,
                  roi_out=None,
@@ -28,18 +27,14 @@ def copy_dataset(ds_in, ds_out,
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking_out = get_blocking(ds_out, block_shape, roi_out)
+    blocking_out = get_blocking(ds_out, block_shape, roi_out, n_threads)
     out_shape = tuple(re - rb for rb, re in zip(blocking_out.roiBegin, blocking_out.roiEnd))
-
-    # print(blocking_out.blockShape)
-    # return ds_out
 
     block_shape = tuple(blocking_out.blockShape)
     blocking_in = get_blocking(ds_in, block_shape, roi_in)
     in_shape = tuple(re - rb for rb, re in zip(blocking_in.roiBegin, blocking_in.roiEnd))
 
     if in_shape != out_shape:
-        print(roi_out)
         raise ValueError(f"Invalid roi shapes {in_shape}, {out_shape}")
 
     n_blocks = blocking_out.numberOfBlocks

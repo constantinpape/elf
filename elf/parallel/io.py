@@ -33,7 +33,7 @@ def copy(data, out,
     if block_shape is None:
         block_shape = out.chunks
 
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     def _copy_block(block_id):
         block = blocking.getBlock(blockIndex=block_id)
@@ -113,7 +113,7 @@ def downscale(data, out, downscaling_function=None,
 
     if block_shape is None:
         block_shape = out.chunks
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     def _downscale_block(block_id):
         pass

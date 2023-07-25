@@ -28,7 +28,7 @@ def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=N
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
@@ -74,7 +74,7 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=Fals
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
@@ -148,7 +148,7 @@ def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False
         scalar - maximum value of the data
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription

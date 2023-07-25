@@ -232,10 +232,10 @@ def label(data, out, with_background=True, block_shape=None,
         raise ValueError(f"Expect data and out of same shape, got {data.shape} and {out.shape}")
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     # 1.) compute connected components for all blocks
-    out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose)
+    out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads=n_threads, verbose=verbose)
 
     # turn block max labels into offsets
     last_block_val = offsets[-1]
@@ -247,11 +247,11 @@ def label(data, out, with_background=True, block_shape=None,
     # 2.) merge the connected components along block boundaries
     mapping = merge_blocks(data, out, mask, offsets,
                            blocking, max_id, with_background,
-                           n_threads, verbose)
+                           n_threads=n_threads, verbose=verbose)
 
     # 3.) write the new new pixel labeling
     out = write_mapping(out, mask, offsets,
                         mapping, with_background,
-                        blocking, n_threads, verbose)
+                        blocking, n_threads=n_threads, verbose=verbose)
 
     return out

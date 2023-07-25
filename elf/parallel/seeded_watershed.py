@@ -11,7 +11,7 @@ from elf.parallel.common import get_blocking
 def seeded_watershed(hmap, seeds, out, block_shape, halo,
                      mask=None, n_threads=None, verbose=False, roi=None):
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(hmap, block_shape, roi)
+    blocking = get_blocking(hmap, block_shape, roi, n_threads)
 
     def process_block(block_id):
         block = blocking.getBlockWithHalo(block_id, list(halo))

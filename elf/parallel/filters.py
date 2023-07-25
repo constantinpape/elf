@@ -77,7 +77,7 @@ def apply_filter(data, filter_name, sigma,
         filter_function = partial(filter_function, outerScale=outer_scale)
 
     ndim = data.ndim
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     order = order_values[filter_name]
     halo = get_halo(sigma, order, ndim, outer_scale)

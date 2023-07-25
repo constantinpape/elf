@@ -37,7 +37,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     block_shape = blocking.blockShape
 
     unique_values = unique(data, block_shape=block_shape,
