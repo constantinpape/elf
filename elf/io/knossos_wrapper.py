@@ -96,6 +96,13 @@ class KnossosDataset:
     def attrs(self):
         return {}
 
+    def __len__(self):
+        return self.shape[0]
+
+    def __iter__(self):
+        for i in range(self.shape[0]):
+            yield self[i]
+
 
 class KnossosFile(Mapping):
     """ Wrapper for knossos file structure

@@ -33,7 +33,7 @@ def copy(data, out,
     if block_shape is None:
         block_shape = out.chunks
 
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     def _copy_block(block_id):
         block = blocking.getBlock(blockIndex=block_id)
@@ -51,10 +51,7 @@ def copy(data, out,
 
     n_blocks = blocking.numberOfBlocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_copy_block, range(n_blocks)), total=n_blocks))
-        else:
-            list(tp.map(_copy_block, range(n_blocks)))
+        list(tqdm(tp.map(_copy_block, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -116,16 +113,13 @@ def downscale(data, out, downscaling_function=None,
 
     if block_shape is None:
         block_shape = out.chunks
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     def _downscale_block(block_id):
         pass
 
     n_blocks = blocking.numberOfBlocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_downscale_block, range(n_blocks)), total=n_blocks))
-        else:
-            list(tp.map(_downscale_block, range(n_blocks)))
+        list(tqdm(tp.map(_downscale_block, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out

@@ -77,7 +77,7 @@ def apply_filter(data, filter_name, sigma,
         filter_function = partial(filter_function, outerScale=outer_scale)
 
     ndim = data.ndim
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     order = order_values[filter_name]
     halo = get_halo(sigma, order, ndim, outer_scale)
@@ -136,10 +136,7 @@ def apply_filter(data, filter_name, sigma,
 
     n_blocks = blocking.numberOfBlocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply_filter, range(n_blocks)), total=n_blocks))
-        else:
-            list(tp.map(_apply_filter, range(n_blocks)))
+        list(tqdm(tp.map(_apply_filter, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 

@@ -1,4 +1,5 @@
 import unittest
+
 import numpy as np
 from skimage.data import binary_blobs
 from skimage.measure import label as label_reference
@@ -72,6 +73,45 @@ class TestLabel(unittest.TestCase):
 
         self.assertTrue(np.allclose(res[~mask], 0))
         self._check_labeling(data[bb], res[bb])
+
+    def test_label_with_roi_2d(self):
+        from elf.parallel import label
+
+        data = binary_blobs(length=1024, n_dim=2, volume_fraction=0.3)
+
+        rois = [
+            np.s_[:, 100:1000],
+            np.s_[500:700, :],
+            np.s_[187:833, 322:959],
+            np.s_[55:432, 64:1024],
+        ]
+        block_shape = (64, 64)
+
+        for roi in rois:
+            res = np.zeros(data.shape, dtype="uint32")
+            res = label(data, res, block_shape=block_shape, with_background=True, roi=roi)
+            expected = np.zeros_like(res)
+            expected[roi] = label_reference(data[roi])
+            vis, vim = variation_of_information(expected, res)
+            self.assertAlmostEqual(vis + vim, 0)
+
+    def test_label_with_roi_3d(self):
+        from elf.parallel import label
+
+        data = binary_blobs(length=256, n_dim=3, volume_fraction=0.2)
+
+        rois = [
+            np.s_[38:192, 73:223, 104:244],
+        ]
+        block_shape = (64, 64, 64)
+
+        for roi in rois:
+            res = np.zeros(data.shape, dtype="uint32")
+            res = label(data, res, block_shape=block_shape, with_background=True, roi=roi)
+            expected = np.zeros_like(res)
+            expected[roi] = label_reference(data[roi])
+            vis, vim = variation_of_information(expected, res)
+            self.assertAlmostEqual(vis + vim, 0, places=1)
 
 
 if __name__ == "__main__":

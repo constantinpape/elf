@@ -1,6 +1,4 @@
-import ctypes
 import numbers
-import os
 from math import ceil
 from itertools import product
 
@@ -9,7 +7,7 @@ def slice_to_start_stop(s, size):
     """For a single dimension with a given size, normalize slice to size.
      Returns slice(None, 0) if slice is invalid."""
     if s.step not in (None, 1):
-        raise ValueError('Nontrivial steps are not supported')
+        raise ValueError("Nontrivial steps are not supported")
 
     if s.start is None:
         start = 0
@@ -39,7 +37,7 @@ def int_to_start_stop(i, size):
     if -size < i < 0:
         start = i + size
     elif i >= size or i < -size:
-        raise ValueError('Index ({}) out of range (0-{})'.format(i, size - 1))
+        raise ValueError("Index ({}) out of range (0-{})".format(i, size - 1))
     else:
         start = i
     return slice(start, start + 1)
@@ -47,7 +45,7 @@ def int_to_start_stop(i, size):
 
 # For now, I have copied the z5 implementation:
 # https://github.com/constantinpape/z5/blob/master/src/python/module/z5py/shape_utils.py#L126
-# But it's worth taking a look at @clbarnes more general implementation too
+# But it"s worth taking a look at @clbarnes more general implementation too
 # https://github.com/clbarnes/h5py_like
 def normalize_index(index, shape):
     """ Normalize index to shape.
@@ -62,8 +60,8 @@ def normalize_index(index, shape):
         tuple[slice]: normalized slices (start and stop are both non-None)
         tuple[int]: which singleton dimensions should be squeezed out
     """
-    type_msg = 'Advanced selection inappropriate. ' \
-               'Only numbers, slices (`:`), and ellipsis (`...`) are valid indices (or tuples thereof)'
+    type_msg = "Advanced selection inappropriate. " \
+               "Only numbers, slices (`:`), and ellipsis (`...`) are valid indices (or tuples thereof)"
 
     if isinstance(index, tuple):
         slices_lst = list(index)
@@ -201,37 +199,6 @@ def downscale_shape(shape, scale_factor, ceil_mode=True):
                      for sh, sf in zip(shape, scale_))
     else:
         return tuple(sh // sf for sh, sf in zip(shape, scale_))
-
-
-def set_numpy_threads(n_threads):
-    """ Set the number of threads numpy exposes to its
-    underlying linalg library.
-
-    This needs to be called BEFORE the numpy import and sets the number
-    of threads statically.
-    Based on answers in https://github.com/numpy/numpy/issues/11826.
-    """
-
-    # set number of threads for mkl if it is used
-    try:
-        import mkl
-        mkl.set_num_threaads(n_threads)
-    except Exception:
-        pass
-
-    for name in ['libmkl_rt.so', 'libmkl_rt.dylib', 'mkl_Rt.dll']:
-        try:
-            mkl_rt = ctypes.CDLL(name)
-            mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(n_threads)))
-        except Exception:
-            pass
-
-    # set number of threads in all possibly relevant environment variables
-    os.environ['OMP_NUM_THREADS'] = str(n_threads)
-    os.environ['OPENBLAS_NUM_THREADS'] = str(n_threads)
-    os.environ['MKL_NUM_THREADS'] = str(n_threads)
-    os.environ['VECLIB_NUM_THREADS'] = str(n_threads)
-    os.environ['NUMEXPR_NUM_THREADS'] = str(n_threads)
 
 
 def sigma_to_halo(sigma, order):

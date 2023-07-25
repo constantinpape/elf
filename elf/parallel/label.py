@@ -1,3 +1,6 @@
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
@@ -10,8 +13,6 @@ import nifty.tools as nt
 import nifty.ufd as nufd
 from .common import get_blocking
 
-from elf.util import set_numpy_threads
-set_numpy_threads(1)
 import numpy as np
 
 
@@ -20,6 +21,7 @@ def cc_blocks(data, out, mask, blocking, with_background,
     n_blocks = blocking.numberOfBlocks
 
     # compute the connected component for one block
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _cc_block(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -48,13 +50,9 @@ def cc_blocks(data, out, mask, blocking, with_background,
 
     # compute connected components for all blocks in parallel
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            block_max_labels = list(tqdm(
-                tp.map(_cc_block, range(n_blocks)),
-                total=n_blocks, desc="Label all sub-blocks")
-            )
-        else:
-            block_max_labels = list(tp.map(_cc_block, range(n_blocks)))
+        block_max_labels = list(tqdm(
+           tp.map(_cc_block, range(n_blocks)), total=n_blocks, desc="Label all sub-blocks", disable=not verbose
+        ))
 
     return out, block_max_labels
 
@@ -65,6 +63,7 @@ def merge_blocks(data, out, mask, offsets,
     n_blocks = blocking.numberOfBlocks
     ndim = out.ndim
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _merge_block_faces(block_id):
         block = blocking.getBlock(block_id)
         offset_block = offsets[block_id]
@@ -136,11 +135,10 @@ def merge_blocks(data, out, mask, offsets,
 
     # compute the merge ids across all block faces
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            merge_labels = list(tqdm(tp.map(_merge_block_faces, range(n_blocks)),
-                                     total=n_blocks, desc="Merge labels across block faces"))
-        else:
-            merge_labels = tp.map(_merge_block_faces, range(n_blocks))
+        merge_labels = list(tqdm(
+            tp.map(_merge_block_faces, range(n_blocks)), total=n_blocks,
+            desc="Merge labels across block faces", disable=not verbose
+        ))
     merge_labels = [res for res in merge_labels if res is not None]
     if len(merge_labels) == 0:
         return np.arange(max_id + 1, dtype=out.dtype)
@@ -165,6 +163,7 @@ def write_mapping(out, mask, offsets, mapping,
     n_blocks = blocking.numberOfBlocks
 
     # compute the connected component for one block
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _write_block(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -196,10 +195,9 @@ def write_mapping(out, mask, offsets, mapping,
 
     # compute connected components for all blocks in parallel
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_write_block, range(n_blocks)), total=n_blocks, desc="Write blocks"))
-        else:
-            tp.map(_write_block, range(n_blocks))
+        list(tqdm(
+            tp.map(_write_block, range(n_blocks)), total=n_blocks, desc="Write blocks", disable=not verbose
+        ))
 
     return out
 
@@ -217,7 +215,7 @@ def label(data, out, with_background=True, block_shape=None,
             by default chunks of the input will be used, if available (default: None)
         n_threads [int] - number of threads, by default all are used (default: None)
         mask [array_like] - mask to exclude data from the computation.
-            Data not in the mask will be ser ro zero in the result. (default: None)
+            Data not in the mask will be set to zero in the result. (default: None)
         verbose [bool] - verbosity flag (default: False)
         roi [tuple[slice]] - region of interest for this computation (default: None)
         connectivity [int] - the number of nearest neighbor hops to consider for connection.
@@ -234,10 +232,10 @@ def label(data, out, with_background=True, block_shape=None,
         raise ValueError(f"Expect data and out of same shape, got {data.shape} and {out.shape}")
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
 
     # 1.) compute connected components for all blocks
-    out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose)
+    out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads=n_threads, verbose=verbose)
 
     # turn block max labels into offsets
     last_block_val = offsets[-1]
@@ -249,11 +247,11 @@ def label(data, out, with_background=True, block_shape=None,
     # 2.) merge the connected components along block boundaries
     mapping = merge_blocks(data, out, mask, offsets,
                            blocking, max_id, with_background,
-                           n_threads, verbose)
+                           n_threads=n_threads, verbose=verbose)
 
     # 3.) write the new new pixel labeling
     out = write_mapping(out, mask, offsets,
                         mapping, with_background,
-                        blocking, n_threads, verbose)
+                        blocking, n_threads=n_threads, verbose=verbose)
 
     return out

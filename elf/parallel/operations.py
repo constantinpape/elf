@@ -1,3 +1,6 @@
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import multiprocessing
 # would be nice to use dask for all of this instead of concurrent.futures
 # so that this could be used on a cluster as well
@@ -7,8 +10,6 @@ from functools import partial
 from tqdm import tqdm
 
 from .common import get_blocking
-from ..util import set_numpy_threads
-set_numpy_threads(1)
 import numpy as np
 
 
@@ -56,9 +57,10 @@ def isin(x, y, out=None,
                                                                             str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(x, block_shape, roi)
+    blocking = get_blocking(x, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _isin(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -66,7 +68,7 @@ def isin(x, y, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -79,10 +81,7 @@ def isin(x, y, out=None,
         out[bb] = xx
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_isin, range(n_blocks))
+        list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -139,9 +138,10 @@ def apply_operation(x, y, operation, out=None,
                                                                             str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(x, block_shape, roi)
+    blocking = get_blocking(x, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _apply_scalar(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -149,7 +149,7 @@ def apply_operation(x, y, operation, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -173,7 +173,7 @@ def apply_operation(x, y, operation, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -188,10 +188,7 @@ def apply_operation(x, y, operation, out=None,
 
     _apply = _apply_scalar if scalar_operand else _apply_array
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_apply, range(n_blocks))
+        list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -235,9 +232,10 @@ def apply_operation_single(x, operation, axis=None, out=None,
         raise ValueError("Expect x and out of same shape, got %s and %s" % (str(shape), str(out.shape)))
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(out, block_shape, roi)
+    blocking = get_blocking(out, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _apply(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -245,7 +243,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -261,10 +259,7 @@ def apply_operation_single(x, operation, axis=None, out=None,
         out[bb] = xx
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_apply, range(n_blocks))
+        list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
 
@@ -302,9 +297,9 @@ def _generate_operation(op_name):
 
 
 # autogenerate parallel implementation for common numpy operations
-_op_names = ['add', 'subtract', 'multiply', 'divide',
-             'greater', 'greater_equal', 'less', 'less_equal',
-             'minimum', 'maximum']
+_op_names = ["add", "subtract", "multiply", "divide",
+             "greater", "greater_equal", "less", "less_equal",
+             "minimum", "maximum"]
 
 
 for op_name in _op_names:
@@ -312,7 +307,3 @@ for op_name in _op_names:
 
 del _generate_operation
 del _op_names
-
-
-# TODO autogenerate parallel implementation for common single operand numpy operations
-# _op_nams = ['mean', 'max', 'min', 'std']

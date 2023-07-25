@@ -1,4 +1,8 @@
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import multiprocessing
+
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
 from tqdm import tqdm
@@ -6,8 +10,7 @@ import nifty.tools as nt
 
 from .unique import unique
 from .common import get_blocking
-from ..util import set_numpy_threads
-set_numpy_threads(1)
+
 import numpy as np
 
 
@@ -34,7 +37,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    blocking = get_blocking(data, block_shape, roi)
+    blocking = get_blocking(data, block_shape, roi, n_threads)
     block_shape = blocking.blockShape
 
     unique_values = unique(data, block_shape=block_shape,
@@ -51,6 +54,7 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         raise ValueError("Expect data and out of same shape, got %s and %s" % (str(data.shape),
                                                                                str(out.shape)))
 
+    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _relabel(block_id):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -76,9 +80,6 @@ def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
         out[bb] = o
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        if verbose:
-            list(tqdm(tp.map(_relabel, range(n_blocks)), total=n_blocks))
-        else:
-            tp.map(_relabel, range(n_blocks))
+        list(tqdm(tp.map(_relabel, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out, max_id, mapping

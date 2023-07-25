@@ -1,5 +1,6 @@
-from ..util import set_numpy_threads
-set_numpy_threads(1)
+# IMPORTANT do threadctl import first (before numpy imports)
+from threadpoolctl import threadpool_limits
+
 import numpy as np
 import vigra
 try:
@@ -147,16 +148,22 @@ def _cluster(embeddings, clustering_alg, semantic_mask=None, remove_largest=Fals
 
 def segment_hdbscan(embeddings, min_size, eps, remove_largest, n_jobs=1):
     assert hdbscan is not None, "Needs hdbscan library"
-    clustering = hdbscan.HDBSCAN(min_cluster_size=min_size, cluster_selection_epsilon=eps, core_dist_n_jobs=n_jobs)
-    return _cluster(embeddings, clustering, remove_largest=remove_largest).astype("uint64")
+    with threadpool_limits(limits=n_jobs):
+        clustering = hdbscan.HDBSCAN(
+            min_cluster_size=min_size, cluster_selection_epsilon=eps, core_dist_n_jobs=n_jobs
+        )
+        result = _cluster(embeddings, clustering, remove_largest=remove_largest).astype("uint64")
+    return result
 
 
 def segment_mean_shift(embeddings, bandwidth, n_jobs=1):
-    clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=n_jobs)
-    return _cluster(embeddings, clustering).astype("uint64")
+    with threadpool_limits(limits=n_jobs):
+        clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=n_jobs)
+        result = _cluster(embeddings, clustering).astype("uint64")
+    return result
 
 
-def segment_consistency(embeddings1, embeddings2, bandwidth, iou_threshold, num_anchors, skip_zero=True):
+def segment_consistency(embeddings1, embeddings2, bandwidth, iou_threshold, num_anchors, skip_zero=True, n_jobs=1):
     def _iou(gt, seg):
         epsilon = 1e-5
         inter = (gt & seg).sum()
@@ -165,8 +172,9 @@ def segment_consistency(embeddings1, embeddings2, bandwidth, iou_threshold, num_
         iou = (inter + epsilon) / (union + epsilon)
         return iou
 
-    clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True)
-    clusters = _cluster(embeddings1, clustering)
+    with threadpool_limits(limits=n_jobs):
+        clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=n_jobs)
+        clusters = _cluster(embeddings1, clustering)
 
     for label_id in np.unique(clusters):
         if label_id == 0 and skip_zero:

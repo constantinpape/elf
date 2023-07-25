@@ -65,6 +65,7 @@ class SimpleTransformationWrapper(WrapperBase):
         if self.with_channels and to_squeeze:
             to_squeeze = tuple(sq + 1 for sq in to_squeeze)
         out = squeeze_singletons(out, to_squeeze)
+
         return out
 
 
