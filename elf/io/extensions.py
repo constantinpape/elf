@@ -5,6 +5,7 @@ import numpy as np
 from .image_stack_wrapper import ImageStackFile, ImageStackDataset
 from .knossos_wrapper import KnossosFile, KnossosDataset
 from .mrc_wrapper import MRCFile, MRCDataset
+from .nifti_wrapper import NiftiFile, NiftiDataset
 from .intern_wrapper import InternFile, InternDataset
 
 
@@ -79,6 +80,13 @@ try:
     register_filetype(InternFile, ["bossdb://"], InternFile, InternDataset)
 except ImportError:
     intern = None
+
+# add nifti extensions if we have nibabel
+try:
+    import nibabel
+    register_filetype(NiftiFile, [".ni.gz"], NiftiFile, NiftiDataset)
+except ImportError:
+    nibabel = None
 
 
 def identity(arg):

@@ -49,11 +49,11 @@ class MRCFile(Mapping):
     """ Wrapper for an mrc file
     """
 
-    def __init__(self, path, mode='r'):
+    def __init__(self, path, mode="r"):
         self.path = path
         self.mode = mode
         if mrcfile is None:
-            raise AttributeError("mrcfile is not available")
+            raise AttributeError("mrcfile is required to read mrc or rec files, but is not installed")
         try:
             self._f = mrcfile.mmap(self.path, self.mode)
         except ValueError as e:
@@ -61,25 +61,25 @@ class MRCFile(Mapping):
             # check if error comes from old version of SerialEM used for acquisition
             if "Unrecognised machine stamp: 0x44 0x00 0x00 0x00" in str(e):
                 try:
-                    self._f = mrcfile.mmap(self.path, self.mode, permissive='True')
+                    self._f = mrcfile.mmap(self.path, self.mode, permissive="True")
                 except ValueError:
-                    self._f = mrcfile.open(self.path, self.mode, permissive='True')
+                    self._f = mrcfile.open(self.path, self.mode, permissive="True")
             else:
                 self._f = mrcfile.open(self.path, self.mode)
 
     def __getitem__(self, key):
-        if key != 'data':
+        if key != "data":
             raise KeyError(f"Could not find key {key}")
         return MRCDataset(self._f.data)
 
     def __iter__(self):
-        yield 'data'
+        yield "data"
 
     def __len__(self):
         return 1
 
     def __contains__(self, name):
-        return name == 'data'
+        return name == "data"
 
     def __enter__(self):
         return self
