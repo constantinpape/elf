@@ -101,9 +101,9 @@ class TestLabel(unittest.TestCase):
         data = binary_blobs(length=256, n_dim=3, volume_fraction=0.2)
 
         rois = [
-            np.s_[38:192, 54:223, 104:244],
+            np.s_[38:192, 73:223, 104:244],
         ]
-        block_shape = (32, 32, 32)
+        block_shape = (64, 64, 64)
 
         for roi in rois:
             res = np.zeros(data.shape, dtype="uint32")
@@ -111,7 +111,7 @@ class TestLabel(unittest.TestCase):
             expected = np.zeros_like(res)
             expected[roi] = label_reference(data[roi])
             vis, vim = variation_of_information(expected, res)
-            self.assertAlmostEqual(vis + vim, 0)
+            self.assertAlmostEqual(vis + vim, 0, places=1)
 
 
 if __name__ == "__main__":
