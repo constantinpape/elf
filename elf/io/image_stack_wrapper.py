@@ -30,6 +30,30 @@ class ImageStackFile(Mapping):
             else:
                 return ImageStackDataset.from_stack(self.path)
 
+        if type(key) is int:
+        # if the key is an integer, we assume relevant image stack dimension is 0 (like channel for multi-channel tifs).
+            key = (key, 0)
+
+        if type(key) in [tuple, list]:
+        # if the key is a tuple (slice,dim) , we extract the given slice/subarray from an image stack
+
+            if not os.path.isfile(self.path):
+                raise ValueError(f"{self.path} needs to be a file to be loaded as image stack")
+
+            if TifStackDataset.is_tif_stack(self.path):
+                im = TifStackDataset.from_stack(self.path)
+            else:
+                im = ImageStackDataset.from_stack(self.path)
+
+            if key[1] > len(im.shape) - 1:
+                raise ValueError("Number of dimensions of the stack is " + len(im.shape) + ".")
+
+            if key[0] > im.shape[key[1]]:
+                raise ValueError("Index exceeds size of the stack at the desired dimension.")
+            im._slicing = key
+
+            return im
+
         # key must be a valid pattern
         pattern = os.path.join(self.path, key)
         files = glob(pattern)
@@ -103,6 +127,7 @@ class ImageStackDataset:
         self._volume = self._read_volume()
 
         self._shape = self._volume.shape
+        self._slicing = None
         # chunks are arbitrary
         self._chunks = None
         self._dtype = self._volume.dtype
@@ -149,7 +174,12 @@ class ImageStackDataset:
         return imageio.imread(self.files[index])
 
     def _read_volume(self):
-        return imageio.volread(self.files)
+        im = imageio.volread(self.files)
+
+        if self._slicing is not None:
+            im = np.take(im, self._slicing[0], self._slicing[1])
+
+        return im
 
     def _load_roi_from_stack(self, roi):
         return self._volume[roi]
