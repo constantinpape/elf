@@ -59,7 +59,10 @@ class MRCFile(Mapping):
         except ValueError as e:
 
             # check if error comes from old version of SerialEM used for acquisition
-            if "Unrecognised machine stamp: 0x44 0x00 0x00 0x00" in str(e):
+            if (
+                "Unrecognised machine stamp: 0x44 0x00 0x00 0x00" in str(e) or
+                "Unrecognised machine stamp: 0x00 0x00 0x00 0x00" in str(e)
+            ):
                 try:
                     self._f = mrcfile.mmap(self.path, self.mode, permissive="True")
                 except ValueError:
