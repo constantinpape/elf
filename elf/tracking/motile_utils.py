@@ -118,6 +118,7 @@ def relabel_segmentation_across_time(segmentation):
     return np.stack(relabeled)
 
 
+# TODO exppose the relevant weights and constants!
 def construct_problem(
     segmentation,
     node_costs,
@@ -147,9 +148,6 @@ def construct_problem(
     # construct da graph
     graph = motile.TrackGraph(graph)
     solver = motile.Solver(graph)
-
-    # TODO
-    # - expose all the weights and constants
 
     # we can do linear reweighting of the costs: a * x + b
     # where: a=weight, b=constant
