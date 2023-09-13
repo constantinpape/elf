@@ -11,6 +11,7 @@ This repository implements common functionality for (large-scale) bio-medical im
 - **skeleton**: skeletonization
 - **transformation**: helper functions for affine transformations
 - **wrapper**: volume wrappers for on-the-fly transformations
+- **tracking**: graph based tracking algorithms
 
 and more.
 
@@ -33,4 +34,21 @@ pip install -e .
 or via conda
 ```
 conda install -c conda-forge python-elf
+```
+
+## Functionality overview
+
+**Segmentation:** `elf` implements graph-based segmentation using the implementations of multict, lifted multicut and other graph partitioning approaches from [nifty](https://github.com/DerThorsten/nifty).
+Check out [the examples](https://github.com/constantinpape/elf/tree/master/example/segmentation) to see how to use this functionality for segmenting your data.
+
+**Tracking:** `elf` implements graph-based tracking using the implementations from [motile](https://github.com/funkelab/motile).
+Checkout [the examples](https://github.com/constantinpape/elf/tree/master/example/tracking) to see how to use this functionality to track your data.
+
+In order to use this functionality you will need to install `motile`. You can do this via
+```
+conda install -c conda-forge -c funkelab -c gurobi ilpy
+```
+and then
+```
+pip install motile
 ```
