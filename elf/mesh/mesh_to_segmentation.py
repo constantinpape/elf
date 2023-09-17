@@ -5,6 +5,7 @@ import numpy as np
 import vigra
 from tqdm import tqdm
 
+from elf.parallel import label
 from .io import write_obj
 
 try:
@@ -15,17 +16,18 @@ except ImportError:
 
 
 def vertices_and_faces_to_segmentation(
-    vertices, faces, resolution=[1.0, 1.0, 1.0], shape=None, verbose=False
+    vertices, faces, resolution=[1.0, 1.0, 1.0], shape=None, verbose=False, block_shape=None
 ):
     with tempfile.NamedTemporaryFile(suffix=".obj") as f:
         tmp_path = f.name
         write_obj(tmp_path, vertices, faces)
-        seg = mesh_to_segmentation(tmp_path, resolution, shape=shape, verbose=verbose)
+        seg = mesh_to_segmentation(tmp_path, resolution, shape=shape, verbose=verbose, block_shape=block_shape)
     return seg
 
 
 def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
-                         reverse_coordinates=False, shape=None, verbose=False):
+                         reverse_coordinates=False, shape=None, verbose=False,
+                         block_shape=None):
     """ Compute segmentation volume from mesh.
 
     Requires madcad and pywavefront as dependency.
@@ -37,6 +39,7 @@ def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
         shape [tuple[int]] - shape of the output volume.
             If None, the maximal extent of the mesh coordinates will be used as shape (default: None)
         verbose [bool] - whether to activate verbose output (default: False)
+        block_shape [tuple[int]] - block_shape to parallelize the computation (default: None)
     """
     if PositionMap is None:
         raise RuntimeError("Need madcad dependency for mesh_to_seg functionality.")
@@ -76,6 +79,12 @@ def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
     seg = np.ones(shape, dtype="uint8")
     coords = tuple(voxels[:, ii] for ii in range(voxels.shape[1]))
     seg[coords] = 0
-    seg = vigra.analysis.labelVolumeWithBackground(seg) == 2
-    seg[coords] = 1
-    return seg
+
+    if block_shape is None:
+        seg_out = vigra.analysis.labelVolumeWithBackground(seg) == 2
+    else:
+        seg_out = np.zeros_like(seg)
+        seg_out = label(seg, seg_out, with_background=True, block_shape=block_shape) == 2
+
+    seg_out[coords] = 1
+    return seg_out
