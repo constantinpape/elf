@@ -8,6 +8,9 @@ import nifty.ground_truth as ngt
 def dice_score(segmentation, groundtruth, threshold_seg=0, threshold_gt=0):
     """ Compute the dice score between binarized segmentation and ground-truth.
 
+    Note: for comparing probaility maps (i.e. predictions in range [0, 1]) with this function
+    you need to set the thresholds to None. Otherwise the results will be wrong.
+
     Arguments:
         segmentation [np.ndarray] - candidate segmentation to evaluate
         groundtruth [np.ndarray] - groundtruth
