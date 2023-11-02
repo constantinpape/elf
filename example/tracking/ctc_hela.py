@@ -39,7 +39,7 @@ def default_tracking():
 
 def tracking_with_custom_edge_function():
     from functools import partial
-    from elf.tracking.motile_utils import compute_edges_from_centroid_distance
+    from elf.tracking.tracking_utils import compute_edges_from_centroid_distance
 
     images, segmentation = get_ctc_hela_data()
 
@@ -61,8 +61,8 @@ def tracking_with_custom_edge_function():
 
 
 def main():
-    # default_tracking()
-    tracking_with_custom_edge_function()
+    default_tracking()
+    # tracking_with_custom_edge_function()
 
 
 if __name__ == "__main__":
