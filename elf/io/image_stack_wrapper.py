@@ -118,6 +118,7 @@ class ImageStackDataset:
         self.im_shape, dtype = self.get_im_shape_and_dtype(files)
 
         self._shape = (n_slices,) + self.im_shape
+        self._slicing = None
         self._chunks = (1,) + self.im_shape
         self._dtype = dtype
         self._size = np.prod(list(self._shape))
