@@ -125,10 +125,11 @@ class ImageStackDataset:
 
     def initialize_from_stack(self, files):
         self.files = files
+        self._slicing = None
+
         self._volume = self._read_volume()
 
         self._shape = self._volume.shape
-        self._slicing = None
         # chunks are arbitrary
         self._chunks = None
         self._dtype = self._volume.dtype
