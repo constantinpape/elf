@@ -1,6 +1,4 @@
-import os
 import unittest
-from shutil import rmtree
 
 import numpy as np
 
@@ -11,7 +9,10 @@ except ImportError:
 
 
 @unittest.skipIf(array is None, "Needs intern (pip install intern)")
+# @unittest.expectedFailure
 class TestInternWrapper(unittest.TestCase):
+
+    # the address is currently not available
     def test_can_access_dataset(self):
         from elf.io.intern_wrapper import InternDataset
 
