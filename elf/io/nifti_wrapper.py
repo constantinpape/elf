@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 
+import numpy as np
 try:
     import nibabel
 except ImportError:
@@ -8,28 +9,68 @@ except ImportError:
 
 class NiftiFile(Mapping):
     def __init__(self, path, mode="r"):
+        if nibabel is None:
+            raise AttributeError("nibabel is required for nifti images, but is not installed.")
         self.path = path
         self.mode = mode
-        if nibabel is None:
-            raise AttributeError("nibabel is required for nifti images, but is not installed")
+        self.nifti = nibabel.load(self.path)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._f.close()
+        pass
 
     # dummy attrs to be compatible with h5py/z5py/zarr API
+    # alternatively we could also map the header to attributes
     @property
     def attrs(self):
         return {}
 
+    def __getitem__(self, key):
+        if key != "data":
+            raise KeyError(f"Could not find key {key}")
+        return NiftiDataset(self.nifti)
 
-# Go to https://nipy.org/nibabel/nifti_images.html for implementation.
-# To be aware of when implementing slicing:
-# (Pdb) x = vol[:]
-# *** TypeError: Cannot slice image objects; consider using `img.slicer[slice]` to generate a sliced image
-# (see documentation for caveats) or slicing image array data with `img.dataobj[slice]` or `img.get_fdata()[slice]`
+    def __iter__(self):
+        yield "data"
+
+    def __len__(self):
+        return 1
+
+    def __contains__(self, name):
+        return name == "data"
+
+
 class NiftiDataset:
-    def __init__(self, data_object):
-        pass
+    def __init__(self, data):
+        self._data = data
+
+    @property
+    def dtype(self):
+        return self.data.get_data_dtype()
+
+    @property
+    def ndim(self):
+        return self._data.ndim
+
+    @property
+    def chunks(self):
+        return None
+
+    @property
+    def shape(self):
+        return self._data.shape
+
+    def __getitem__(self, key):
+        return self._data.dataobj[key]
+
+    @property
+    def size(self):
+        return np.prod(self._data.shape)
+
+    # dummy attrs to be compatible with h5py/z5py/zarr API
+    # alternatively we could also map the header to attributes
+    @property
+    def attrs(self):
+        return {}

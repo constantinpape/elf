@@ -84,7 +84,7 @@ except ImportError:
 # add nifti extensions if we have nibabel
 try:
     import nibabel
-    register_filetype(NiftiFile, [".ni.gz"], NiftiFile, NiftiDataset)
+    register_filetype(NiftiFile, [".nii.gz", ".nii"], NiftiFile, NiftiDataset)
 except ImportError:
     nibabel = None
 

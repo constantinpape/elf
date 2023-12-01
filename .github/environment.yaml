@@ -8,6 +8,7 @@ dependencies:
     - imageio
     - intern
     - mrcfile
+    - nibabel
     - nifty >=1.1
     - numba
     - pandas

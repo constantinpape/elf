@@ -1,4 +1,5 @@
-import os
+from pathlib import Path
+
 from .extensions import (
     FILE_CONSTRUCTORS, GROUP_LIKE, DATASET_LIKE,
     h5py, z5py, pyn5, zarr,
@@ -27,12 +28,21 @@ def open_file(path, mode="a", ext=None, **kwargs):
         ext [str] - file extension. This can be used to force an extension
             if it cannot be inferred from the filename. (default: None)
     """
+
     # Before checking the extension suffix, check for "protocol-style"
     # cloud provider prefixes.
     if "://" in path:
         ext = path.split("://")[0] + "://"
 
-    ext = os.path.splitext(path.rstrip("/"))[1] if ext is None else ext
+    elif ext is None:
+        path_ = Path(path.rstrip("/"))
+        suffixes = path_.suffixes
+        # We need to treat .nii.gz differently
+        if len(suffixes) == 2 and "".join(suffixes) == ".nii.gz":
+            ext = ".nii.gz"
+        else:
+            ext = suffixes[-1]
+
     try:
         constructor = FILE_CONSTRUCTORS[ext.lower()]
     except KeyError:
@@ -42,6 +52,7 @@ def open_file(path, mode="a", ext=None, **kwargs):
             f"{' '.join(supported_extensions())}. "
             f"You may need to install additional dependencies (h5py, z5py, zarr, intern)."
         )
+
     return constructor(path, mode=mode, **kwargs)
 
 
