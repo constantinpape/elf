@@ -40,6 +40,8 @@ def open_file(path, mode="a", ext=None, **kwargs):
         # We need to treat .nii.gz differently
         if len(suffixes) == 2 and "".join(suffixes) == ".nii.gz":
             ext = ".nii.gz"
+        elif len(suffixes) == 0:
+            ext = ""
         else:
             ext = suffixes[-1]
 
