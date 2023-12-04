@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from ..util import normalize_index, squeeze_singletons
 
 import numpy as np
 try:
@@ -60,10 +61,13 @@ class NiftiDataset:
 
     @property
     def shape(self):
-        return self._data.shape
+        return self._data.shape[::-1]
 
     def __getitem__(self, key):
-        return self._data.dataobj[key]
+        key, to_squeeze = normalize_index(key, self.shape)
+        transposed_key = key[::-1]
+        data = self._data.dataobj[transposed_key].T
+        return squeeze_singletons(data, to_squeeze)
 
     @property
     def size(self):
