@@ -67,7 +67,7 @@ class NiftiDataset:
         key, to_squeeze = normalize_index(key, self.shape)
         transposed_key = key[::-1]
         data = self._data.dataobj[transposed_key].T
-        return squeeze_singletons(data, to_squeeze)
+        return squeeze_singletons(data, to_squeeze).copy()
 
     @property
     def size(self):
