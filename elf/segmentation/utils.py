@@ -9,8 +9,7 @@ import nifty
 import nifty.ground_truth as ngt
 import nifty.ufd as nufd
 import pandas as pd
-from scipy.ndimage import convolve
-from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage import convolve, distance_transform_edt
 from vigra.analysis import relabelConsecutive
 
 
