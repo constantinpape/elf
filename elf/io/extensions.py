@@ -35,12 +35,12 @@ def _ensure_iterable(item):
     return item
 
 
-def register_filetype(constructor, extensions=(), groups=(), datasets=()):
+def register_filetype(constructor, extensions=(), groups=(), datasets=(), overwrite=False):
     extensions = _ensure_iterable(extensions)
     FILE_CONSTRUCTORS.update({
         ext.lower(): constructor
         for ext in _ensure_iterable(extensions)
-        if ext not in FILE_CONSTRUCTORS
+        if ext not in FILE_CONSTRUCTORS or overwrite
     })
     GROUP_LIKE.extend(_ensure_iterable(groups))
     DATASET_LIKE.extend(_ensure_iterable(datasets))
@@ -115,7 +115,7 @@ try:
         return z
 
     register_filetype(
-        zarr_open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array
+        zarr_open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array, True
     )
 except ImportError:
     zarr = None

@@ -7,6 +7,7 @@ import numpy as np
 from scipy.ndimage import affine_transform
 from elf.io import open_file
 from elf.util import normalize_index
+import z5py
 
 
 class TestAffine(unittest.TestCase):
@@ -29,7 +30,7 @@ class TestAffine(unittest.TestCase):
         if out_file is not None:
             with open_file(out_file) as f:
                 x = f.create_dataset('tmp', data=x, chunks=(64, 64))
-            f = open_file(out_file, 'r')
+            f = z5py.File(out_file, 'r')
             x = f['tmp']
 
         bbs = [np.s_[:, :], np.s_[:256, :256], np.s_[37:115, 226:503],
@@ -89,7 +90,7 @@ class TestAffine(unittest.TestCase):
         if out_file is not None:
             with open_file(out_file) as f:
                 x = f.create_dataset('tmp', data=x, chunks=3 * (16,))
-            f = open_file(out_file, 'r')
+            f = z5py.File(out_file, 'r')
             x = f['tmp']
 
         bbs = [np.s_[:, :, :], np.s_[:32, :32, :32], np.s_[1:31, 5:27, 3:13],
