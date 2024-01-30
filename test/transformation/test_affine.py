@@ -90,7 +90,7 @@ class TestAffine(unittest.TestCase):
         if out_file is not None:
             with open_file(out_file) as f:
                 x = f.create_dataset('tmp', data=x, chunks=3 * (16,))
-            f = open_file(out_file, 'r')
+            f = z5py.File(out_file, 'r')
             x = f['tmp']
 
         bbs = [np.s_[:, :, :], np.s_[:32, :32, :32], np.s_[1:31, 5:27, 3:13],
