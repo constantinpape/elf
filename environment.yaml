@@ -16,5 +16,6 @@ dependencies:
     - scikit-learn
     - skan
     - tqdm
+    - threadpoolctl
     - vigra
     - z5py
