@@ -91,11 +91,10 @@ class ResizedVolume(WrapperBase):
                       for idx, sh, is_single in zip(index, data_shape, singletons))
         data = self.volume[index]
 
-        # speed ups for empty blocks and masks
-        dsum = data.sum()
-        if dsum == 0:
+        # Speed ups for empty blocks and masks.
+        if data.sum() == 0:
             out = np.zeros(ret_shape, dtype=self.dtype)
-        elif dsum == data.size:
+        elif (data == 1).sum() == data.size:
             out = np.ones(ret_shape, dtype=self.dtype)
         else:
             out = self._interpolate(data, ret_shape)
