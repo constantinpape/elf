@@ -155,7 +155,7 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion="iou", ignore_l
 
 
 def mean_segmentation_accuracy(segmentation, groundtruth, thresholds=None, return_accuracies=False, ignore_label=0):
-    """This implements the segmentation accuracy metrics from PacalVoc.
+    """This implements the segmentation accuracy metrics from PascalVoc.
     See https://link.springer.com/article/10.1007/s11263-009-0275-4
 
     The implementation follows the DSB 2018 Nucelus Segmentation Challenge.
