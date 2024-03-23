@@ -33,7 +33,7 @@ class MRCDataset:
         return self._data.shape
 
     def __getitem__(self, key):
-        return self._data[key]
+        return self._data[key].copy()
 
     @property
     def size(self):
