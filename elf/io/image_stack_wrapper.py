@@ -165,7 +165,7 @@ class ImageStackDataset:
         def _load_and_write_image(z):
             z_abs = z + z0
             im = self._read_image(z_abs)
-            assert im.shape == self.im_shape
+            assert im.shape == self.im_shape, f"{im.shape}, {self.im_shape}"
             data[z] = im[im_roi]
 
         # load the slices and write them into the output data
@@ -209,7 +209,8 @@ class TifStackDataset(ImageStackDataset):
         if ext.lower() not in TifStackDataset.tif_exts:
             return False
         try:
-            tifffile.memmap(f0, mode="r")
+            for ff in files:
+                tifffile.memmap(ff, mode="r")
         except ValueError:
             return False
         return True
