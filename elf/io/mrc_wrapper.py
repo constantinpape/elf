@@ -67,8 +67,13 @@ class MRCFile(Mapping):
                     self._f = mrcfile.mmap(self.path, self.mode, permissive="True")
                 except ValueError:
                     self._f = mrcfile.open(self.path, self.mode, permissive="True")
-            else:
-                self._f = mrcfile.open(self.path, self.mode)
+
+            else:  # Other kind of error -> try to open without mmap.
+                try:
+                    self._f = mrcfile.open(self.path, self.mode)
+                except ValueError:
+                    self._f = mrcfile.open(self.path, self.mode, permissive="True")
+
 
     def __getitem__(self, key):
         if key != "data":
