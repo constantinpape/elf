@@ -12,15 +12,15 @@ except ImportError:
 
 @unittest.skipIf(mrcfile is None, "Needs mrcfile")
 class TestMrcWrapper(unittest.TestCase):
-    tmp_dir = './tmp'
-    out = './tmp/data.mrc'
-    out_old = './tmp/data_old.mrc'
-    out_compressed = './tmp/data_compressed.mrc'
+    tmp_dir = "./tmp"
+    out = "./tmp/data.mrc"
+    out_old = "./tmp/data_old.mrc"
+    out_compressed = "./tmp/data_compressed.mrc"
 
     def setUp(self):
         os.makedirs(self.tmp_dir)
         shape = (16, 32, 64)
-        self.data = np.random.rand(*shape).astype('float32')
+        self.data = np.random.rand(*shape).astype("float32")
 
         # change axes order to fit MRC convention
         data0 = np.swapaxes(self.data, 0, -1)
@@ -30,7 +30,7 @@ class TestMrcWrapper(unittest.TestCase):
         with mrcfile.new(self.out) as f:
             f.set_data(self.out_data)
 
-        with mrcfile.new(self.out_compressed, compression='gzip') as f:
+        with mrcfile.new(self.out_compressed, compression="gzip") as f:
             f.set_data(self.out_data)
 
     def tearDown(self):
@@ -63,37 +63,27 @@ class TestMrcWrapper(unittest.TestCase):
     def test_file(self):
         from elf.io.mrc_wrapper import MRCFile
         with MRCFile(self.out) as f:
-            ds = f['data']
+            ds = f["data"]
             self.check_dataset(ds)
 
     def test_file_compressed(self):
         from elf.io.mrc_wrapper import MRCFile
         with MRCFile(self.out_compressed) as f:
-            ds = f['data']
+            ds = f["data"]
             self.check_dataset(ds)
 
     def test_old_serialem(self):
-        a = mrcfile.open(self.out_old, 'w+')
-        a.header.machst = [11, 0, 0, 0]
-        a.close()
+        from elf.io.mrc_wrapper import MRCFile
 
-        with self.assertRaises(ValueError):
-            from elf.io.mrc_wrapper import MRCFile
-            with MRCFile(self.out_old) as f:
-                __ = f['data']
-
-        os.remove(self.out_old)
-
-        a = mrcfile.open(self.out_old, 'w+')
+        a = mrcfile.open(self.out_old, "w+")
         a.header.machst = [68, 0, 0, 0]
         a.set_data(self.out_data)
         a.close()
 
-        from elf.io.mrc_wrapper import MRCFile
         with MRCFile(self.out_old) as f:
-            ds = f['data']
+            ds = f["data"]
             self.check_dataset(ds)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

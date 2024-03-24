@@ -1,4 +1,6 @@
+import warnings
 from collections.abc import Mapping
+
 import numpy as np
 
 try:
@@ -67,8 +69,17 @@ class MRCFile(Mapping):
                     self._f = mrcfile.mmap(self.path, self.mode, permissive="True")
                 except ValueError:
                     self._f = mrcfile.open(self.path, self.mode, permissive="True")
-            else:
-                self._f = mrcfile.open(self.path, self.mode)
+
+            else:  # Other kind of error -> try to open without mmap.
+                try:
+                    self._f = mrcfile.open(self.path, self.mode)
+                except ValueError as e:
+                    self._f = mrcfile.open(self.path, self.mode, permissive="True")
+                    warnings.warn(
+                        f"Opening mrcfile {self.path} failed with unknown error {e} without permissive opening."
+                        "The file will still be opened but the contents may be incorrect."
+                    )
+
 
     def __getitem__(self, key):
         if key != "data":

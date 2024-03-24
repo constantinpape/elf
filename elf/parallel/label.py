@@ -202,7 +202,7 @@ def write_mapping(out, mask, offsets, mapping,
     return out
 
 
-def label(data, out, with_background=True, block_shape=None,
+def label(data, out=None, with_background=True, block_shape=None,
           n_threads=None, mask=None, verbose=False, roi=None, connectivity=1):
     """Label the data in parallel by applying blockwise connected component and
     merging the results over block boundaries.
@@ -227,6 +227,9 @@ def label(data, out, with_background=True, block_shape=None,
         raise NotImplementedError(
             f"The only value for connectivity currently supported is 1, you passed {connectivity}."
         )
+
+    if out is None:
+        out = np.zeros(data.shape, dtype="uint64")
 
     if data.shape != out.shape:
         raise ValueError(f"Expect data and out of same shape, got {data.shape} and {out.shape}")
