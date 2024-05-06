@@ -13,18 +13,42 @@ ROOT = "/scratch/projects/nim00007/sam/for_tracking"
 
 def load_tracking_segmentation(experiment):
     result_dir = os.path.join(ROOT, "results")
-    if experiment == "vit_l":
-        seg_path = os.path.join(result_dir, "vit_l.tif")
-    elif experiment == "vit_l_lm":
-        seg_path = os.path.join(result_dir, "vit_l_lm.tif")
-    elif experiment == "vit_l_specialist":
-        seg_path = os.path.join(result_dir, "vit_l_lm_specialist.tif")
-    elif experiment == "trackmate_stardist":
-        seg_path = os.path.join(result_dir, "trackmate_stardist", "every_3rd_fr_result.tif")
-    else:
-        raise ValueError(experiment)
 
-    return imageio.imread(seg_path)
+    if experiment.startswith("vit"):
+        if experiment == "vit_l":
+            seg_path = os.path.join(result_dir, "vit_l.tif")
+            seg = imageio.imread(seg_path)
+            # HACK
+            ignore_labels = [8, 44, 57, 102, 50]
+
+        elif experiment == "vit_l_lm":
+            seg_path = os.path.join(result_dir, "vit_l_lm.tif")
+            seg = imageio.imread(seg_path)
+            # HACK
+            ignore_labels = []
+
+        elif experiment == "vit_l_specialist":
+            seg_path = os.path.join(result_dir, "vit_l_lm_specialist.tif")
+            seg = imageio.imread(seg_path)
+            # HACK
+            ignore_labels = [88, 45, 30, 46]
+
+        # elif experiment == "trackmate_stardist":
+        #     seg_path = os.path.join(result_dir, "trackmate_stardist", "every_3rd_fr_result.tif")
+        #     seg = imageio.imread(seg_path)
+
+        else:
+            raise ValueError(experiment)
+
+        # HACK:
+        # we remove some labels as they have a weird lineage, is creating issues for creating the graph
+        # (e.g. frames where the object exists: 1, 2, 4, 5, 6)
+        seg[np.isin(seg, ignore_labels)] = 0
+
+        return seg
+
+    else:  # return the result directory for stardist
+        return os.path.join(result_dir, "trackmate_stardist", "01_RES")
 
 
 def check_tracking_results(raw, labels, curr_lineages, chosen_frames):
@@ -92,5 +116,12 @@ def get_tracking_data():
     for k, v in curr_lineages.items():
         curr_frames = v["frames"]
         v["frames"] = [frmaps[frval] for frval in curr_frames if frval in chosen_frames]
+
+    # HACK:
+    # we remove label with id 62 as it has a weird lineage, is creating issues for creating the graph
+    ignore_labels = [62, 87, 92, 99, 58]
+    labels[np.isin(labels, ignore_labels)] = 0
+    for _label in ignore_labels:
+        curr_lineages.pop(_label)
 
     return raw, labels, curr_lineages, chosen_frames
