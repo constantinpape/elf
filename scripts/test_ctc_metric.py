@@ -2,15 +2,11 @@ import os
 import numpy as np
 import pandas as pd
 
-from deepcell_tracking.isbi_utils import trk_to_isbi
-
 from traccuracy import run_metrics
+from traccuracy.matchers import CTCMatcher
 from traccuracy._tracking_graph import TrackingGraph
-from traccuracy.matchers import CTCMatcher, IOUMatcher
 from traccuracy.metrics import CTCMetrics, DivisionMetrics
 from traccuracy.loaders._ctc import _get_node_attributes, ctc_to_graph, _check_ctc, load_ctc_data
-
-from get_tracking_results import get_tracking_data, load_tracking_segmentation
 
 
 def mark_potential_split(frames, last_frame, idx):
@@ -65,12 +61,10 @@ def extract_df_from_segmentation(segmentation):
     return pred_tracks_df
 
 
-def evaluate_tracking(labels, curr_lineages, segmentation_method):
-    seg = load_tracking_segmentation(segmentation_method)
-
+def evaluate_tracking(raw, labels, seg, segmentation_method):
     if os.path.isdir(seg):  # for trackmate stardist
         seg_T = load_ctc_data(
-            data_dir=seg, 
+            data_dir=seg,
             track_path=os.path.join(seg, 'res_track.txt'),
             name=f'DynamicNuclearNet-{segmentation_method}'
         )
@@ -84,11 +78,12 @@ def evaluate_tracking(labels, curr_lineages, segmentation_method):
 
     breakpoint()
 
-    # calcuates node attributes for each detection
+    # calcuates node attributes for each detectionc
     gt_nodes = _get_node_attributes(labels)
 
     # converts inputs to isbi-tracking format - the version expected as inputs in traccuracy
-    gt_df = trk_to_isbi(curr_lineages, path=None)
+    # it's preconverted using "from deepcell_tracking.isbi_utils import trk_to_isbi"
+    gt_df = pd.read_csv("./gt_tracks.csv")
 
     # creates graphs from ctc-type info (isbi-type? probably means the same thing)
     gt_G = ctc_to_graph(gt_df, gt_nodes)
@@ -106,22 +101,29 @@ def evaluate_tracking(labels, curr_lineages, segmentation_method):
     )
     print(ctc_results)
 
-    breakpoint()
 
-    iou_results = run_metrics(
-        gt_data=gt_T,
-        pred_data=seg_T,
-        matcher=IOUMatcher(iou_threshold=0.1),
-        metrics=[DivisionMetrics(max_frame_buffer=0)],
-    )
-    print(iou_results)
+def get_tracking_data(segmentation_method):
+    import h5py
+
+    with h5py.File("./tracking_micro_sam.h5", "r") as f:
+        raw = f["raw"][:]
+        labels = f["labels"][:]
+
+        if segmentation_method.startswith("vit"):
+            segmentation = f[f"segmentations/{segmentation_method}"][:]
+        else:
+            ROOT = "/scratch/projects/nim00007/sam/for_tracking"
+            result_dir = os.path.join(ROOT, "results")
+            segmentation = os.path.join(result_dir, "trackmate_stardist", "01_RES")
+
+    return raw, labels, segmentation
 
 
 def main():
-    raw, labels, curr_lineages, chosen_frames = get_tracking_data()
+    segmentation_method = "trackmate_stardist"
 
-    segmentation_method = "vit_l_specialist"
-    evaluate_tracking(labels, curr_lineages, segmentation_method)
+    raw, labels, segmentation = get_tracking_data(segmentation_method)
+    evaluate_tracking(raw, labels, segmentation, segmentation_method)
 
 
 if __name__ == "__main__":
