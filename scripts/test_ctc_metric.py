@@ -2,11 +2,17 @@ import os
 import numpy as np
 import pandas as pd
 
+import h5py
+
 from traccuracy import run_metrics
 from traccuracy.matchers import CTCMatcher
 from traccuracy._tracking_graph import TrackingGraph
 from traccuracy.metrics import CTCMetrics, DivisionMetrics
 from traccuracy.loaders._ctc import _get_node_attributes, ctc_to_graph, _check_ctc, load_ctc_data
+
+
+# ROOT = "/scratch/usr/nimanwai/micro-sam/for_tracking/for_traccuracy/"  # hlrn
+ROOT = "media/anwai/ANWAI/results/micro-sam/for_traccuracy/"  # local
 
 
 def mark_potential_split(frames, last_frame, idx):
@@ -83,7 +89,7 @@ def evaluate_tracking(raw, labels, seg, segmentation_method):
 
     # converts inputs to isbi-tracking format - the version expected as inputs in traccuracy
     # it's preconverted using "from deepcell_tracking.isbi_utils import trk_to_isbi"
-    gt_df = pd.read_csv("./gt_tracks.csv")
+    gt_df = pd.read_csv(os.path.join(ROOT, "gt_tracks.csv"))
 
     # creates graphs from ctc-type info (isbi-type? probably means the same thing)
     gt_G = ctc_to_graph(gt_df, gt_nodes)
@@ -103,18 +109,16 @@ def evaluate_tracking(raw, labels, seg, segmentation_method):
 
 
 def get_tracking_data(segmentation_method):
-    import h5py
+    _path = os.path.join(ROOT, "tracking_micro_sam.h5")
 
-    with h5py.File("./tracking_micro_sam.h5", "r") as f:
+    with h5py.File(_path, "r") as f:
         raw = f["raw"][:]
         labels = f["labels"][:]
 
         if segmentation_method.startswith("vit"):
             segmentation = f[f"segmentations/{segmentation_method}"][:]
         else:
-            ROOT = "/scratch/projects/nim00007/sam/for_tracking"
-            result_dir = os.path.join(ROOT, "results")
-            segmentation = os.path.join(result_dir, "trackmate_stardist", "01_RES")
+            segmentation = os.path.join(ROOT, "trackmate_stardist", "01_RES")
 
     return raw, labels, segmentation
 
