@@ -83,6 +83,8 @@ def size_filter(data, out, min_size=None, max_size=None,
         mapping = {idx: ii for ii, idx in enumerate(remaining_ids)}
         if 0 in mapping:
             assert mapping[0] == 0
+        else:
+            mapping[0] = 0
 
         @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
         def _relabel(seg, block_mask):

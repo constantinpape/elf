@@ -41,7 +41,7 @@ def unique(data, return_counts=False, block_shape=None, n_threads=None,
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
@@ -60,14 +60,27 @@ def unique(data, return_counts=False, block_shape=None, n_threads=None,
 
         unique_values = [res[0] for res in results]
         count_values = [res[1] for res in results]
-        uniques = np.unique(np.concatenate(unique_values))
-        counts = np.zeros(int(uniques[-1]) + 1, dtype='uint64')
+
+        # We may have no values at all if everything was masked.
+        # In that case return zero as only value and full count.
+        try:
+            uniques = np.unique(np.concatenate(unique_values))
+        except ValueError:
+            return np.array([0], dtype=data.dtype), np.array([data.size], dtype="uint64")
+
+        counts = np.zeros(int(uniques[-1]) + 1, dtype="uint64")
 
         for uniques_v, counts_v in zip(unique_values, count_values):
-            counts[uniques_v] += counts_v.astype('uint64')
+            counts[uniques_v] += counts_v.astype("uint64")
         counts = counts[counts != 0]
         assert len(counts) == len(uniques)
         return uniques, counts
 
     else:
-        return np.unique(np.concatenate(results))
+
+        try:
+            uniques = np.unique(np.concatenate(results))
+        except ValueError:
+            return np.array([0], dtype=data.dtype)
+
+        return uniques
