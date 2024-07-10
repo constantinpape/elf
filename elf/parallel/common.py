@@ -3,7 +3,7 @@ from ..util import normalize_index
 
 
 def _is_chunk_aligned(shape, chunks):
-    return all(ch % sh == 0 for sh, ch in zip(shape, chunks))
+    return all(sh % ch == 0 for sh, ch in zip(shape, chunks))
 
 
 def get_blocking(data, block_shape, roi, n_threads):
