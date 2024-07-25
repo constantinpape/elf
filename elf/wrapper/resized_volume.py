@@ -55,7 +55,7 @@ class ResizedVolume(WrapperBase):
 
     def _interpolate_skimage(self, data, shape):
         if self.order > 0:
-            data = resize(data, shape, order=self.order)
+            data = resize(data, shape, order=self.order, preserve_range=True)
         else:
             data = resize(data, shape, order=self.order, anti_aliasing=False, preserve_range=True)
         return data.astype(self.dtype)
