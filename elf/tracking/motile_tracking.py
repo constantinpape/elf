@@ -159,7 +159,7 @@ def construct_problem(
 #
 
 
-def track_with_motile(
+def _track_with_motile_impl(
     segmentation,
     relabel_segmentation=True,
     node_cost_function=None,
@@ -167,10 +167,6 @@ def track_with_motile(
     node_selection_cost=0.95,
     **problem_kwargs,
 ):
-    """Track segmented objects across time with motile.
-
-    Note: this will relabel the segmentation unless `relabel_segmentation=False`
-    """
     # relabel sthe segmentation so that the ids are unique across time.
     # if `relabel_segmentation is False` the segmentation has to be in the correct format already
     if relabel_segmentation:
@@ -197,6 +193,27 @@ def track_with_motile(
 
     # solver the problem
     solver.solve()
+
+    return solver, graph
+
+
+def track_with_motile(
+    segmentation,
+    relabel_segmentation=True,
+    node_cost_function=None,
+    edge_cost_function=None,
+    node_selection_cost=0.95,
+    **problem_kwargs,
+):
+    """Track segmented objects across time with motile.
+
+    Note: this will relabel the segmentation unless `relabel_segmentation=False`
+    """
+
+    solver, graph = _track_with_motile_impl(
+        segmentation, relabel_segmentation, node_cost_function, edge_cost_function,
+        node_selection_cost, **problem_kwargs,
+    )
 
     # parse solution
     lineage_graph, lineages = parse_result(solver, graph)
