@@ -27,29 +27,28 @@ def _get_tracks_to_isbi():
         parent_id = int(parent_id)
         frames = np.where(segmentation == parent_id)[0]
 
+        if parent_id in track_info:
+            parent_val = track_info[parent_id]['parent']
+        else:
+            parent_val = None
+
         # store the parent's track information
         track_info[parent_id] = {
             'frames': list(np.unique(frames)),
             'daughters': list(daughter_ids),
             'frame_div': frames.max() + 1,
-            'parent': None,
+            'parent': parent_val,
             'label': parent_id,
         }
 
         # next, store the daughter's track information
         for daughter_id in daughter_ids:
             frames = np.where(segmentation == daughter_id)[0]
-
-            if daughter_id in data:  # we check if this daughter undergoes further divisions
-                parent_val = None
-            else:
-                parent_val = parent_id
-
             track_info[daughter_id] = {
                 'frames': list(np.unique(frames)),
                 'daughters': [],
                 'frame_div': None,
-                'parent': parent_val,
+                'parent': parent_id,
                 'label': daughter_id
             }
 
