@@ -12,7 +12,8 @@ from traccuracy.metrics import CTCMetrics, DivisionMetrics
 from traccuracy.loaders._ctc import _get_node_attributes, ctc_to_graph, _check_ctc
 
 
-ROOT = "/scratch/share/cidas/cca/experiments/results_for_automatic_tracking"
+# ROOT = "/scratch/share/cidas/cca/experiments/results_for_automatic_tracking"
+ROOT = "/home/pape/Work/my_projects/micro-sam/examples"
 
 
 def _get_tracks_to_isbi():
