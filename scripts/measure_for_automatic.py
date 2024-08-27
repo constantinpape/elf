@@ -76,6 +76,7 @@ def _get_tracks_to_isbi():
 def _get_tracks_df():
     tracks_path = "automatic_tracks.csv"
     segmentation = imageio.imread(os.path.join(ROOT, "tracking_result.tif"))
+
     if os.path.exists(tracks_path):
         track_df = pd.read_csv(tracks_path)
     else:
@@ -83,11 +84,71 @@ def _get_tracks_df():
     return segmentation, track_df
 
 
+def check_consecutive(instances):
+    instance_ids = np.unique(instances)[1:]
+
+    id_list = []
+    for idx in instance_ids:
+        frames = np.unique(np.where(instances == idx)[0])
+        consistent_instance = (sorted(frames) == list(range(min(frames), max(frames) + 1)))
+        if not consistent_instance:
+            id_list.append(idx)
+
+    return id_list
+
+
+def fix_gt(gt, gt_df):
+    if os.path.exists("./tracking_gt_corrected.tif"):
+        return imageio.imread("./tracking_gt_corrected.tif")
+
+    broken_ids = check_consecutive(gt)
+    for idd in broken_ids:
+        print(gt_df[gt_df["Cell_ID"] == idd])
+
+    import napari
+    v = napari.Viewer()
+    v.add_labels(gt)
+    napari.run()
+
+
+# Code to export for compatibility with the Fiji CTC plugin.
+# Should refactor this to somewhere as it might prove useful.
+def export_gt_for_ctc(seg, df, folder):
+    tra_folder = os.path.join(folder, "TRA")
+    os.makedirs(tra_folder, exist_ok=True)
+    seg_folder = os.path.join(folder, "SEG")
+    os.makedirs(seg_folder, exist_ok=True)
+
+    df = df[["Cell_ID", "Start", "End", "Parent_ID"]]
+    df = df.to_csv(os.path.join(tra_folder, "man_track.txt"), index=False, header=False, sep=" ")
+
+    for i, frame in enumerate(seg):
+        imageio.imwrite(os.path.join(tra_folder, f"man_track{i:03}.tif"), frame.astype("uint16"))
+        imageio.imwrite(os.path.join(seg_folder, f"man_seg{i:03}.tif"), frame.astype("uint16"))
+
+
+def export_for_ctc(seg, df, folder):
+    os.makedirs(folder, exist_ok=True)
+
+    df = df[["Cell_ID", "Start", "End", "Parent_ID"]]
+    df = df.to_csv(os.path.join(folder, "res_track.txt"), index=False, header=False, sep=" ")
+
+    for i, frame in enumerate(seg):
+        imageio.imwrite(os.path.join(folder, f"mask{i:03}.tif"), frame.astype("uint16"))
+
+
 def _get_metrics_for_autotrack(segmentation, seg_df):
     # NOTE: for ground-truth
     gt = imageio.imread(os.path.join(ROOT, "tracking_gt_corrected.tif"))
     gt_nodes = _get_node_attributes(gt)
+
     gt_df = pd.read_csv("gt_tracks.csv")
+
+    # export_for_ctc(segmentation, seg_df, "seg")
+    # export_gt_for_ctc(gt, gt_df, "gt")
+    # return
+
+    gt_nodes = _get_node_attributes(gt)
     gt_G = ctc_to_graph(gt_df, gt_nodes)
     _check_ctc(gt_df, gt_nodes, gt)
     gt_T = TrackingGraph(gt_G, segmentation=gt, name="DynamicNuclearNet-GT")
