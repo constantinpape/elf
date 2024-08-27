@@ -6,8 +6,6 @@ import numpy as np
 import pandas as pd
 import imageio.v3 as imageio
 
-from deepcell_tracking import isbi_utils
-
 from traccuracy import run_metrics
 from traccuracy.matchers import CTCMatcher
 from traccuracy._tracking_graph import TrackingGraph
@@ -50,7 +48,20 @@ def _get_tracks_to_isbi():
                 'label': daughter_id
             }
 
+    from deepcell_tracking import isbi_utils
     track_df = isbi_utils.trk_to_isbi(track_info)
+    track_df.to_csv("automatic_tracks.csv")
+    return track_df
+
+
+def _get_tracks_df():
+    tracks_path = "automatic_tracks.csv"
+    segmentation = imageio.imread(os.path.join(ROOT, "tracking_result.tif"))
+    breakpoint()
+    if os.path.exists(tracks_path):
+        track_df = pd.read_csv(tracks_path)
+    else:
+        track_df = _get_tracks_to_isbi()
     return segmentation, track_df
 
 
@@ -60,7 +71,7 @@ def _get_metrics_for_autotrack(segmentation, seg_df):
         gt = f['labels'][:]
 
     gt_nodes = _get_node_attributes(gt)
-    gt_df = pd.read_csv(os.path.join(ROOT, "gt_tracks.csv"))
+    gt_df = pd.read_csv("gt_tracks.csv")
     gt_G = ctc_to_graph(gt_df, gt_nodes)
     _check_ctc(gt_df, gt_nodes, gt)
     gt_T = TrackingGraph(gt_G, segmentation=gt, name="DynamicNuclearNet-GT")
@@ -81,7 +92,7 @@ def _get_metrics_for_autotrack(segmentation, seg_df):
 
 
 def main():
-    segmentation, seg_df = _get_tracks_to_isbi()
+    segmentation, seg_df = _get_tracks_df()
     _get_metrics_for_autotrack(segmentation, seg_df)
 
 
