@@ -1,7 +1,6 @@
 import os
 
 import json
-import h5py
 import numpy as np
 import pandas as pd
 import imageio.v3 as imageio
@@ -40,13 +39,33 @@ def _get_tracks_to_isbi():
         # next, store the daughter's track information
         for daughter_id in daughter_ids:
             frames = np.where(segmentation == daughter_id)[0]
+
+            if daughter_id in data:  # we check if this daughter undergoes further divisions
+                parent_val = None
+            else:
+                parent_val = parent_id
+
             track_info[daughter_id] = {
                 'frames': list(np.unique(frames)),
                 'daughters': [],
                 'frame_div': None,
-                'parent': parent_id,
+                'parent': parent_val,
                 'label': daughter_id
             }
+
+    # now, the next step is to store track info for objects that did not split.
+    for gt_id in np.unique(segmentation)[1:]:
+        if gt_id in track_info:
+            continue
+
+        frames = np.where(segmentation == gt_id)[0]
+        track_info[gt_id] = {
+            'frames': list(np.unique(frames)),
+            'daughters': [],
+            'frame_div': None,
+            'parent': None,
+            'label': gt_id,
+        }
 
     from deepcell_tracking import isbi_utils
     track_df = isbi_utils.trk_to_isbi(track_info)
@@ -57,7 +76,6 @@ def _get_tracks_to_isbi():
 def _get_tracks_df():
     tracks_path = "automatic_tracks.csv"
     segmentation = imageio.imread(os.path.join(ROOT, "tracking_result.tif"))
-    breakpoint()
     if os.path.exists(tracks_path):
         track_df = pd.read_csv(tracks_path)
     else:
@@ -67,9 +85,7 @@ def _get_tracks_df():
 
 def _get_metrics_for_autotrack(segmentation, seg_df):
     # NOTE: for ground-truth
-    with h5py.File(os.path.join(ROOT, "tracking_micro_sam.h5")) as f:
-        gt = f['labels'][:]
-
+    gt = imageio.imread(os.path.join(ROOT, "tracking_gt_corrected.tif"))
     gt_nodes = _get_node_attributes(gt)
     gt_df = pd.read_csv("gt_tracks.csv")
     gt_G = ctc_to_graph(gt_df, gt_nodes)
@@ -77,9 +93,9 @@ def _get_metrics_for_autotrack(segmentation, seg_df):
     gt_T = TrackingGraph(gt_G, segmentation=gt, name="DynamicNuclearNet-GT")
 
     # NOTE: for segmentation results
-    # calculate node attributes for each detection
     seg_nodes = _get_node_attributes(segmentation)
     seg_G = ctc_to_graph(seg_df, seg_nodes)
+    _check_ctc(seg_df, seg_nodes, segmentation)
     seg_T = TrackingGraph(seg_G, segmentation=segmentation, name="DynamicNuclearNet-autotracking")
 
     ctc_results = run_metrics(
