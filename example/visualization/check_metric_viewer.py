@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import imageio.v3 as imageio
 
 from elf.visualisation import run_metric_visualization

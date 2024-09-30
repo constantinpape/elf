@@ -7,6 +7,11 @@ def run_metric_visualization(
     ground_truth: np.ndarray,
 ):
     """Visualize the metric scores over a range of thresholds.
+
+    Args:
+        image: The input image
+        prediction: The predictions generated over the input image.
+        ground_truth: The true labels for the input image.
     """
     import napari
     from magicgui import magic_factory
