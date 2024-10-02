@@ -1,3 +1,5 @@
+from typing import Optional, Tuple
+
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from .util import contigency_table
@@ -48,22 +50,26 @@ def f1(tp, fp, fn):
     return (2*tp)/(2*tp+fp+fn) if tp > 0 else 0
 
 
-def label_overlap(seg_a, seg_b, ignore_label=0):
-    """ Number of overlapping elements for objects in two label images
+def label_overlap(
+    seg_a: np.ndarray,
+    seg_b: np.ndarray,
+    ignore_label: Optional[int] = 0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute the number of overlapping elements for objects in two label images.
 
-    Arguments:
-        seg_a [np.ndarray] - candidate segmentation to evaluate
-        seg_b [np.ndarray] - candidate segmentation to compare to
-        ignore_label [int] - overlap of any objects with this label are not
+    Args:
+        seg_a: candidate segmentation to evaluate
+        seg_b: candidate segmentation to compare to
+        ignore_label: overlap of any objects with this label are not
             taken into account in the output. `None` indicates that no label
             should be ignored. It is assumed that the `ignore_label` has the
             same meaning in both segmentations.
 
     Returns:
-        np.ndarray[uint64] - each cell i,j has the count of overlapping elements
-            of object i in `seg_a` with obj j in `seg_b`. Note: indices in the
-            returned matrix do not correspond to object ids anymore.
-        tuple[int, int] - index of ignore label in label_overlap output matrix
+        Matrix with cells i,j containing the count of overlapping elements
+            of object i in `seg_a` with obj j in `seg_b`.
+            Note: indices in the returned matrix may not correspond to object ids anymore.
+        Index of ignore label in label_overlap output matrix.
     """
     p_ids, p_counts = contigency_table(seg_a, seg_b)[2:]
     p_ids = p_ids.astype("uint64")

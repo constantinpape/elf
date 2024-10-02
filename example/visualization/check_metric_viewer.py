@@ -2,6 +2,10 @@ import imageio.v3 as imageio
 
 from elf.visualisation import run_metric_visualization
 
+# to simplify switching the folder
+INPUT_FOLDER = "/home/anwai/data/livecell"
+# INPUT_FOLDER = "/home/pape/Work/data/incu_cyte/livecell"
+
 
 def _run_prediction(image_path):
     # NOTE: overwrite this function to use your own prediction pipeline.
@@ -13,7 +17,7 @@ def _run_prediction(image_path):
 def check_on_livecell(input_path, gt_path):
     if input_path is None and gt_path is None:
         from micro_sam.evaluation.livecell import _get_livecell_paths
-        image_paths, gt_paths = _get_livecell_paths(input_folder="/home/anwai/data/livecell")
+        image_paths, gt_paths = _get_livecell_paths(input_folder=INPUT_FOLDER)
         image_path, gt_path = image_paths[0], gt_paths[0]
 
     image = imageio.imread(image_path)
