@@ -218,17 +218,11 @@ def stitch_tiled_segmentation(
     block_segs = []
 
     # Get the tiles from the segmentation of shape: 'tile_shape'.
-    def _fetch_tiles(block_id):
+    for block_id in tqdm(range(n_blocks), desc="Get tiles from the segmentation", disable=not verbose):
         block = blocking.getBlock(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
         block_seg = segmentation[bb]
         block_segs.append(block_seg)
-
-    n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    with futures.ThreadPoolExecutor(n_threads) as tp:
-        list(tqdm(tp.map(
-            _fetch_tiles, range(n_blocks)), total=n_blocks, desc="Get tiles from the segmentation", disable=not verbose,
-        ))
 
     # Conpute the Region Adjacency Graph (RAG) for the tiled segmentation.
     # and the edges between block boundaries (stitch edges).
