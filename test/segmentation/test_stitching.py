@@ -16,14 +16,15 @@ class TestStitching(unittest.TestCase):
         data = self.get_data(size=size, ndim=ndim)
         data = label(data)  # Ensure all inputs are instances (the blobs are semantic labels)
 
-        # Create tiles out of the data.
+        # Create tiles out of the data for testing label stitching.
         # Ensure offset for objects per tile to get individual ids per object per tile.
+        # And finally stitch back the tiles.
         import nifty.tools as nt
         blocking = nt.blocking([0] * ndim, data.shape, tile_shape)
         n_blocks = blocking.numberOfBlocks
 
+        labels = np.zeros(data.shape)
         offset = 0
-        bb_tiles, tiles = [], []
         for tile_id in range(n_blocks):
             block = blocking.getBlock(tile_id)
             bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -33,13 +34,7 @@ class TestStitching(unittest.TestCase):
             tile[tile != 0] += offset
             offset = tile.max()
 
-            tiles.append(tile)
-            bb_tiles.append(bb)
-
-        # Finally, let's stitch back the individual tiles.
-        labels = np.zeros(data.shape)
-        for tile, loc in zip(tiles, bb_tiles):
-            labels[loc] = tile
+            labels[bb] = tile
 
         return labels, data  # returns the stitched labels and original labels
 
