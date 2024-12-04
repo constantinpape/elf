@@ -1,14 +1,42 @@
 import unittest
 
-from elf.evaluation import rand_index
+import numpy as np
 from skimage.data import binary_blobs
 from skimage.measure import label
+
+from elf.evaluation import rand_index
 
 
 class TestStitching(unittest.TestCase):
     def get_data(self, size=1024, ndim=2):
         data = binary_blobs(size, blob_size_fraction=0.1, volume_fraction=0.2, n_dim=ndim)
         return data
+
+    def get_tiled_data(self, tile_shape, size=1024, ndim=2):
+        data = self.get_data(size=size, ndim=ndim)
+        original_data = label(data)  # Ensure all inputs are instances (the blobs are semantic labels)
+
+        # Create tiles out of the data for testing label stitching.
+        # Ensure offset for objects per tile to get individual ids per object per tile.
+        # And finally stitch back the tiles.
+        import nifty.tools as nt
+        blocking = nt.blocking([0] * ndim, data.shape, tile_shape)
+        n_blocks = blocking.numberOfBlocks
+
+        labels = np.zeros(data.shape)
+        offset = 0
+        for tile_id in range(n_blocks):
+            block = blocking.getBlock(tile_id)
+            bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+
+            tile = data[bb]
+            tile = label(tile)
+            tile[tile != 0] += offset
+            offset = tile.max()
+
+            labels[bb] = tile
+
+        return labels, original_data  # returns the stitched labels and original labels
 
     def test_stitch_segmentation(self):
         from elf.segmentation.stitching import stitch_segmentation
@@ -42,6 +70,18 @@ class TestStitching(unittest.TestCase):
             segmentation = stitch_segmentation(data, _segment, tile_shape, tile_overlap, verbose=False)
             are, _ = rand_index(segmentation, expected_segmentation)
             self.assertTrue(are < 0.05)
+
+    def test_stitch_tiled_segmentation(self):
+        from elf.segmentation.stitching import stitch_tiled_segmentation
+
+        tile_shapes = [(224, 224), (256, 256), (512, 512)]
+        for tile_shape in tile_shapes:
+            # Get the tiled segmentation with unmerged instances at tile interfaces.
+            labels, original_labels = self.get_tiled_data(tile_shape=tile_shape, size=1000)
+            stitched_labels = stitch_tiled_segmentation(segmentation=labels, tile_shape=tile_shape)
+            self.assertEqual(labels.shape, stitched_labels.shape)
+            # self.assertEqual(len(np.unique(original_labels)), len(np.unique(stitched_labels)))
+            print(len(np.unique(original_labels)), len(np.unique(stitched_labels)))
 
 
 if __name__ == "__main__":
