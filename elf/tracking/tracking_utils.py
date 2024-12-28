@@ -4,6 +4,8 @@ Can be used with the functionality from `motile_tracking` to solve tracking prob
 motile or with other python tracking libraries.
 """
 
+from typing import Dict, List, Union
+
 import nifty.ground_truth as ngt
 import numpy as np
 
@@ -14,7 +16,17 @@ from skimage.segmentation import relabel_sequential
 from tqdm import trange
 
 
-def compute_edges_from_overlap(segmentation, verbose=True):
+def compute_edges_from_overlap(segmentation: np.ndarray, verbose: bool = True) -> List[Dict[str, Union[int, float]]]:
+    """Compute the edges between segmented objects in adjacent frames, based on their overlap.
+
+    Args:
+        segmentation: The input segmentation.
+        verbose: Whether to be verbose in the computation.
+
+    Returns:
+        The edges, represented as a dictionary contaning source ids, target ids, and corresponding overlap.
+    """
+
     def compute_overlap_between_frames(frame_a, frame_b):
         overlap_function = ngt.overlap(frame_a, frame_b)
 
@@ -42,10 +54,27 @@ def compute_edges_from_overlap(segmentation, verbose=True):
         next_frame = segmentation[t + 1]
         frame_edges = compute_overlap_between_frames(this_frame, next_frame)
         edges.extend(frame_edges)
+
     return edges
 
 
-def compute_edges_from_centroid_distance(segmentation, max_distance, normalize_distances=True, verbose=True):
+def compute_edges_from_centroid_distance(
+    segmentation: np.ndarray,
+    max_distance: float,
+    normalize_distances: bool = True,
+    verbose: bool = True,
+) -> List[Dict[str, Union[int, float]]]:
+    """Compute the edges between segmented objects in adjacent frames, based on their centroid distances.
+
+    Args:
+        segmentation: The input segmentation.
+        max_distance: The maximal distance for taking an edge into account.
+        normalize_distances: Whether to normalize the distances.
+        verbose: Whether to be verbose in the computation.
+
+    Returns:
+        The edges, represented as a dictionary contaning source ids, target ids, and corresponding distance.
+    """
     nt = segmentation.shape[0]
     props = regionprops(segmentation)
     centroids_and_labels = [[prop.centroid[0], prop.centroid[1:], prop.label] for prop in props]
@@ -72,7 +101,6 @@ def compute_edges_from_centroid_distance(segmentation, max_distance, normalize_d
         assert len(distance_values) == len(source_ids) == len(target_ids)
 
         return source_ids, target_ids, distance_values
-        # return edges
 
     source_ids, target_ids, distances = [], [], []
     for t in trange(nt - 1, disable=not verbose, desc="Compute edges via centroid distance"):
@@ -91,14 +119,35 @@ def compute_edges_from_centroid_distance(segmentation, max_distance, normalize_d
     return edges
 
 
-# TODO does this work for 4d data (time + 3d)? if no we need to iterate over the time axis
-def compute_node_costs_from_foreground_probabilities(segmentation, probabilities, cost_attribute="mean_intensity"):
+def compute_node_costs_from_foreground_probabilities(
+    segmentation: np.ndarray,
+    probabilities: np.ndarray,
+    cost_attribute: str = "mean_intensity",
+) -> List[float]:
+    """Derive the node selection cost from a foreground probability map.
+
+    Args:
+        segmentation: The segmentation.
+        probabilities: The foreground probability map.
+        cost_attribute: The attribute of regionprops to use for the selection cost.
+
+    Returns:
+        The selection cost for each node in the segmentation.
+    """
     props = regionprops(segmentation, probabilities)
     costs = [getattr(prop, cost_attribute) for prop in props]
     return costs
 
 
-def relabel_segmentation_across_time(segmentation):
+def relabel_segmentation_across_time(segmentation: np.ndarray) -> np.ndarray:
+    """Relabel the segmentation across time, so that segmentation ids are unique in each timepoint.
+
+    Args:
+        The input segmentation.
+
+    Returns:
+        The relabeled segmentation.
+    """
     offset = 0
     relabeled = []
     for frame in segmentation:
@@ -109,7 +158,17 @@ def relabel_segmentation_across_time(segmentation):
     return np.stack(relabeled)
 
 
-def preprocess_closing(slice_segmentation, gap_closing, verbose=True):
+def preprocess_closing(slice_segmentation: np.ndarray, gap_closing: int, verbose: bool = True) -> np.ndarray:
+    """Preprocess a segmentation by applying a closing operation to fill in missing segments in timepoints.
+
+    Args:
+        slice_segmentation: The input segmentation.
+        gap_closing: The maximal number of slices to close.
+        verbose: Whether to be verbose in the computation.
+
+    Returns:
+        The segmentation with missing segments filled in.
+    """
     binarized = slice_segmentation > 0
     structuring_element = np.zeros((3, 1, 1))
     structuring_element[:, 0, 0] = 1
