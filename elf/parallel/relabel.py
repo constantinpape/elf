@@ -5,35 +5,47 @@ import multiprocessing
 
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
-from tqdm import tqdm
+from typing import Dict, Optional, Tuple
+
 import nifty.tools as nt
+from tqdm import tqdm
 
 from .unique import unique
 from .common import get_blocking
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 
-def relabel_consecutive(data, start_label=0, keep_zeros=True, out=None,
-                        block_shape=None, n_threads=None,
-                        mask=None, verbose=False, roi=None):
+def relabel_consecutive(
+    data: ArrayLike,
+    start_label: int = 0,
+    keep_zeros: bool = True,
+    out: Optional[ArrayLike] = None,
+    block_shape: Tuple[int, ...] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Tuple[slice, ...] = None,
+) -> Tuple[ArrayLike, int, Dict[int, int]]:
     """Compute the unique values of the data.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        start_label [int] - start value for relabeling (default: 0)
-        keep_zeros [bool] - whether to always keep zero mapped to zero (default: True)
-        out [array_like] - output, by default the relabeling is done inplace (default: None)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        start_label: Start value for relabeling.
+        keep_zeros: Whether to always keep zero mapped to zero.
+        out: Output, by default the relabeling is done inplace.
+        block_shape: Shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - the output data
-        int - the max id after relabeling
-        dict - mapping of old to new labels
+        The relabeled output data.
+        The max id after relabeling.
+        The mapping of old to new labels.
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads

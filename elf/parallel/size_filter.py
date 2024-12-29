@@ -4,6 +4,7 @@ from threadpoolctl import threadpool_limits
 import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
+from typing import Optional, Tuple
 
 import nifty.tools as nt
 from tqdm import tqdm
@@ -12,11 +13,37 @@ from .common import get_blocking
 from .unique import unique
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 
-def segmentation_filter(data, out, filter_function, block_shape=None,
-                        n_threads=None, mask=None, verbose=False, roi=None, relabel=None):
+def segmentation_filter(
+    data: ArrayLike,
+    out: ArrayLike,
+    filter_function: callable,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+    relabel: Optional[callable] = None,
+) -> ArrayLike:
+    """Filter a segmentation based on a custom criterion.
 
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        out: Output data, numpy array or similar like h5py or zarr dataset.
+        filter_function: The function to express the custom filter criterion.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+        relabel: Function for relabeling the segmentation.
+
+    Returns:
+        The filtered segmentation.
+    """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.numberOfBlocks
@@ -46,26 +73,38 @@ def segmentation_filter(data, out, filter_function, block_shape=None,
     return out
 
 
-def size_filter(data, out, min_size=None, max_size=None,
-                block_shape=None, n_threads=None, mask=None,
-                verbose=False, roi=None, relabel=True):
-    """Filter objects small and/or large objects from a segmentation and set them to 0.
+def size_filter(
+    data: ArrayLike,
+    out: ArrayLike,
+    min_size: Optional[int] = None,
+    max_size: Optional[int] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+    relabel: bool = True,
+) -> ArrayLike:
+    """Filter small objects and/or large objects from a segmentation and set them to 0.
 
     By default this functions relabels the segmentation result consecutively.
     Set relabel=False to avoid this behavior.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        out [array_like] - output data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
-        relabel [bool] - whether to relabel the segmentation consecutively after filtering (default: True)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        out: Output data, numpy array or similar like h5py or zarr dataset.
+        min_size: The minimal object size.
+        max_size: The maximum object size.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+        relabel: Whether to relabel the segmentation consecutively after filtering.
+
     Returns:
-        np.ndarray -
+        The filtered segmentation.
     """
     assert (min_size is not None) or (max_size is not None)
     ids, counts = unique(data, return_counts=True, block_shape=block_shape,
