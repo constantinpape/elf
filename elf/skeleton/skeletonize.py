@@ -1,3 +1,7 @@
+from typing import Optional, Tuple, Union
+
+import numpy as np
+
 from .thinning import thinning
 
 # TODO get a teasar impl
@@ -6,25 +10,36 @@ DEFAULT_PARAMS = {}
 
 
 def get_method_names():
+    """@private
+    """
     return list(METHODS.keys())
 
 
 def get_method_params(name):
+    """@private
+    """
     return DEFAULT_PARAMS.get(name, {})
 
 
-def skeletonize(obj, resolution=None, boundary_distances=None,
-                method="thinning", **method_params):
-    """ Skeletonize object defined by binary mask.
+def skeletonize(
+    obj: np.ndarray,
+    resolution: Optional[Union[Tuple[float, ...], float]] = None,
+    boundary_distances: Optional[np.ndarray] = None,
+    method: str = "thinning",
+    **method_params
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Skeletonize an object defined by a binary mask.
 
-    Arguments:
-        obj [np.ndarray] - binary object mask
-        resolution [int, float or list] - size of the voxels in physical units,
-            can be list for anisotropic input (default: None)
-        boundary_distances [np.ndarray] - distance to object boundaries
-            can be pre-computed for teasar (default: None)
-        method [str] - method used for skeletonization (default: thinning)
-        method_params [kwargs] - parameter for skeletonization method.
+    Args:
+        obj: Binary object mask.
+        resolution: Size of the voxels in physical units, can be a tuple for anisotropic input.
+        boundary_distances: Distance to object boundaries.
+        method: Method used for skeletonization.
+        method_params: Parameter for skeletonization method.
+
+    Returns:
+        The nodes of the skeleton.
+        The edges between skeleton nodes.
     """
     impl = METHODS.get(method, None)
     if impl is None:
@@ -32,10 +47,11 @@ def skeletonize(obj, resolution=None, boundary_distances=None,
     params = DEFAULT_PARAMS.get(method, {})
     params.update(method_params)
 
+    ndim = obj.ndim
     if resolution is None:
-        resolution = [1, 1, 1]
+        resolution = ndim * (1,)
     if isinstance(resolution, int):
-        resolution = 3 * [resolution]
+        resolution = ndim * (resolution,)
 
     nodes, edges = impl(obj, resolution, boundary_distances, **params)
     return nodes, edges
