@@ -5,26 +5,36 @@ import multiprocessing
 # would be nice to use dask for all of this instead of concurrent.futures
 # so that this could be used on a cluster as well
 from concurrent import futures
+from typing import Optional, Tuple
 from tqdm import tqdm
 
 from .common import get_blocking
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 
-def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
-    """ Compute the mean of the data in parallel.
+def mean(
+    data: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> float:
+    """Compute the mean of the data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        float - mean of the data
+        Mean of the data.
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -57,20 +67,28 @@ def mean(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=N
     return np.mean(means)
 
 
-def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
-    """ Compute the mean and the standard deviation of the data in parallel.
+def mean_and_std(
+    data: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> Tuple[float, float]:
+    """Compute the mean and the standard deviation of the data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        float - mean of the data
-        float - standard deviation of the data
+        Mean of the data.
+        Standard deviation of the data.
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -115,37 +133,53 @@ def mean_and_std(data, block_shape=None, n_threads=None, mask=None, verbose=Fals
     return mean_val, std_val
 
 
-def std(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
-    """ Compute the standard deviation of the data in parallel.
+def std(
+    data: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> float:
+    """Compute the standard deviation of the data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        float - standard deviation of the data
+        Standard deviation of the data.
     """
     return mean_and_std(data, block_shape, n_threads, mask, verbose, roi)[1]
 
 
-def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
-    """ Compute the minimum and maximum of the data in parallel.
+def min_and_max(
+    data: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> Tuple[float, float]:
+    """Compute the minimum and maximum of the data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        scalar - minimum value of the data
-        scalar - maximum value of the data
+        Minimum value of the data.
+        Maximum value of the data.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
@@ -183,35 +217,51 @@ def min_and_max(data, block_shape=None, n_threads=None, mask=None, verbose=False
     return mins.min(), maxs.max()
 
 
-def min(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
-    """ Compute the minimum of the data in parallel.
+def min(
+    data: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> float:
+    """Compute the minimum and maximum of the data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        scalar - minimum value of the data
+        Minimum value of the data.
     """
     return min_and_max(data, block_shape, n_threads, mask, verbose, roi)[0]
 
 
-def max(data, block_shape=None, n_threads=None, mask=None, verbose=False, roi=None):
-    """ Compute the maximum of the data in parallel.
+def max(
+    data: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> float:
+    """Compute the minimum and maximum of the data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        scalar - maximum value of the data
+        Maximum value of the data.
     """
     return min_and_max(data, block_shape, n_threads, mask, verbose, roi)[1]

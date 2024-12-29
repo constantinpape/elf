@@ -1,28 +1,37 @@
 import multiprocessing
 from concurrent import futures
 from functools import partial
-from tqdm import tqdm
+from typing import Optional, Tuple, Union
 
 import numpy as np
+from numpy.typing import ArrayLike
+from tqdm import tqdm
 from .common import get_blocking
 
 
-def copy(data, out,
-         block_shape=None, n_threads=None,
-         mask=None, verbose=False, roi=None):
-    """ Copy a dataset in parallel.
+def copy(
+    data: ArrayLike,
+    out: ArrayLike,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> ArrayLike:
+    """Copy a dataset or array-like object in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        out [array_like] - output dataset
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the output will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        out: Output dataset or array-like object.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the output will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - the copied dataset
+        The copied object.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
@@ -75,33 +84,45 @@ quadratic_downscaling = partial(_ds_interpolate, order=2)
 cubic_downscaling = partial(_ds_interpolate, order=3)
 
 
-def downscale(data, out, downscaling_function=None,
-              block_shape=None, n_threads=None,
-              mask=None, verbose=False, roi=None):
-    """ Downscale a dataset in parallel.
+def downscale(
+    data: ArrayLike,
+    out: ArrayLike,
+    downscaling_function: Optional[Union[str, callable]] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> ArrayLike:
+    """Downscale a dataset in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        out [array_like] - output dataset
-        downscaling_function [str or callable] - the function used for downscaling the blocks.
-            By default mean downscaling is used (default:  fNone)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the output will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    This functionality is not yet implemented. Calling it will raise a NotImplementedError.
+
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        out: Output dataset / array-like object.
+        downscaling_function: The function used for downscaling the blocks.
+            By default mean downscaling is used.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the output will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - the downscaled dataset
+        The downscaled output.
     """
-    ds_function_dict = {'mean_downscaling': mean_downscaling,
-                        'max_downscaling': max_downscaling,
-                        'min_downscaling': min_downscaling,
-                        'nearest_downscaling': nearest_downscaling,
-                        'linear_downscaling': linear_downscaling,
-                        'quadratic_downscaling': quadratic_downscaling,
-                        'cubic_downscaling': cubic_downscaling}
-    ds_function_dict.update({name.replace('_downscaling', ''): func
+    raise NotImplementedError
+
+    ds_function_dict = {"mean_downscaling": mean_downscaling,
+                        "max_downscaling": max_downscaling,
+                        "min_downscaling": min_downscaling,
+                        "nearest_downscaling": nearest_downscaling,
+                        "linear_downscaling": linear_downscaling,
+                        "quadratic_downscaling": quadratic_downscaling,
+                        "cubic_downscaling": cubic_downscaling}
+    ds_function_dict.update({name.replace("_downscaling", ""): func
                              for name, func in ds_function_dict.items()})
 
     if downscaling_function is None:

@@ -7,6 +7,8 @@ def _is_chunk_aligned(shape, chunks):
 
 
 def get_blocking(data, block_shape, roi, n_threads):
+    """@private
+    """
     # check if we have a chunked data storage
     try:
         chunks = data.chunks

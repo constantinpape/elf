@@ -9,7 +9,6 @@ except ImportError:
 
 
 @unittest.skipIf(array is None, "Needs intern (pip install intern)")
-# @unittest.expectedFailure
 class TestInternWrapper(unittest.TestCase):
 
     # the address is currently not available
