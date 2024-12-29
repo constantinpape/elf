@@ -6,7 +6,9 @@ dependencies:
     - affogato
     - h5py
     - imageio
-    - intern
+    # Intern is an optional dependenciy that often crashes the CI.
+    # We don't install it by default anymore.
+    # - intern
     - mrcfile
     - nifty
     - numba
