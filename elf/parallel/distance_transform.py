@@ -1,11 +1,13 @@
 # IMPORTANT do threadctl import first (before numpy imports)
 from threadpoolctl import threadpool_limits
+from typing import Optional, Tuple, Union
 
 import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
 
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy.ndimage import distance_transform_edt
 from tqdm import tqdm
 
@@ -13,18 +15,41 @@ from .common import get_blocking
 
 
 def distance_transform(
-    data,
-    halo,
-    sampling=None,
-    return_distances=True,
-    return_indices=False,
-    distances=None,
-    indices=None,
-    block_shape=None,
-    n_threads=None,
-    verbose=False,
-    roi=None,
-):
+    data: ArrayLike,
+    halo: Tuple[int, ...],
+    sampling: Optional[Union[float, Tuple[float, ...]]] = None,
+    return_distances: bool = True,
+    return_indices: bool = False,
+    distances: Optional[ArrayLike] = None,
+    indices: Optional[ArrayLike] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> Union[ArrayLike, Tuple[ArrayLike, ArrayLike]]:
+    """Compute distance transform in parallel over blocks.
+
+    The results are only correct up to the distance to the block boundary plus halo.
+    The function `scipy.ndimage.distance_transform_edt` is used to compute the distances.
+
+    Args:
+        data: The input data.
+        halo: The halo, which is the padding added at each side of the block.
+        sampling: The sampling value passed to distance_transfor_edt.
+        return_distances: Whether to return the computed distances.
+        return_indices: Whether to return the computed indices.
+        distances: Pre-allocated array-like object for the distances.
+        indices: Pre-allocated array-like object for the indices.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all available threads are used.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
+    Returns:
+        The distances, if return_distances is set to True.
+        The indices, if return_distances is set ot True.
+    """
     if data.ndim not in (2, 3):
         raise ValueError(
             f"Invalid input dimensionality. Expected input to have 2 or 3 dimensions, got {data.ndim}."

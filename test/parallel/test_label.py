@@ -46,6 +46,7 @@ class TestLabel(unittest.TestCase):
     # stress test of the label function with binary blobs
     def _test_blobs(self, ndim, size):
         from elf.parallel import label
+
         block_shape = (size // 8,) * ndim
         for volume_fraction in (0.05, 0.1, 0.25, 0.5):
             data = binary_blobs(length=size, n_dim=ndim, volume_fraction=volume_fraction)

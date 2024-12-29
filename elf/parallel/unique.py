@@ -4,29 +4,40 @@ from threadpoolctl import threadpool_limits
 import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
+from typing import Optional, Tuple, Union
+
 from tqdm import tqdm
 
 from .common import get_blocking
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 
-def unique(data, return_counts=False, block_shape=None, n_threads=None,
-           mask=None, verbose=False, roi=None):
-    """ Compute the unique values of the data.
+def unique(
+    data: ArrayLike,
+    return_counts: bool = False,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    """Compute the unique values of the data.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        return_counts [bool] - whether to return the counts (default: False)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset.
+        return_counts: Whether to return the counts.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        np.ndarray - unique values
-        np.ndarray - count values (only if return_counts is True)
+        The unique values.
+        The counts of the unique values, if return_counts is set to True.
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads

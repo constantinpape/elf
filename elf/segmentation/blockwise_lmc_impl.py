@@ -6,7 +6,7 @@ from vigra.analysis import relabelConsecutive
 
 
 def find_inner_lifted_edges(lifted_uv_ids, node_list):
-    lifted_indices = np.arange(len(lifted_uv_ids), dtype='uint64')
+    lifted_indices = np.arange(len(lifted_uv_ids), dtype="uint64")
     # find overlap of node_list with u-edges
     inner_us = np.in1d(lifted_uv_ids[:, 0], node_list)
     inner_indices = lifted_indices[inner_us]
@@ -67,7 +67,7 @@ def solve_subproblems(graph, costs, lifted_uv_ids, lifted_costs,
         results = [t.result() for t in tasks]
 
     # merge the edge results to get all merge edges
-    cut_edges = np.zeros(graph.numberOfEdges, dtype='uint16')
+    cut_edges = np.zeros(graph.numberOfEdges, dtype="uint16")
     for res in results:
         cut_edges[res] += 1
     return cut_edges == 0
@@ -76,7 +76,7 @@ def solve_subproblems(graph, costs, lifted_uv_ids, lifted_costs,
 def update_edges(uv_ids, costs, labels, n_threads):
     edge_mapping = nifty.tools.EdgeMapping(uv_ids, labels, numberOfThreads=n_threads)
     new_uv_ids = edge_mapping.newUvIds()
-    new_costs = edge_mapping.mapEdgeValues(costs, 'sum', numberOfThreads=n_threads)
+    new_costs = edge_mapping.mapEdgeValues(costs, "sum", numberOfThreads=n_threads)
     assert len(new_uv_ids) == len(new_costs)
     return new_uv_ids, new_costs
 
@@ -84,9 +84,9 @@ def update_edges(uv_ids, costs, labels, n_threads):
 def reduce_problem(graph, costs, lifted_uv_ids, lifted_costs, merge_edges, n_threads):
 
     # merge node pairs with ufd
-    nodes = np.arange(graph.numberOfNodes, dtype='uint64')
+    nodes = np.arange(graph.numberOfNodes, dtype="uint64")
     uv_ids = graph.uvIds()
-    ufd = nifty.ufd.boost_ufd(nodes)
+    ufd = nifty.ufd.ufd(graph.numberOfNodes)
     ufd.merge(uv_ids[merge_edges])
 
     # get then new node labels

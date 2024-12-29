@@ -34,7 +34,7 @@ def solve_subproblems(graph, costs, segmentation,
         sub_costs = costs[inner_edges]
         assert len(sub_costs) == sub_graph.numberOfEdges
 
-        # solve multicut for the sub-graph; onlt cut the outer edges if we don't have edges in this block
+        # solve multicut for the sub-graph; onlt cut the outer edges if we don"t have edges in this block
         if len(sub_costs) > 0:
             sub_result = solver(sub_graph, sub_costs)
             assert len(sub_result) == len(node_ids), "%i, %i" % (len(sub_result), len(node_ids))
@@ -54,7 +54,7 @@ def solve_subproblems(graph, costs, segmentation,
         results = [t.result() for t in tasks]
 
     # merge the edge results to get all merge edges
-    cut_edges = np.zeros(graph.numberOfEdges, dtype='uint16')
+    cut_edges = np.zeros(graph.numberOfEdges, dtype="uint16")
     for res in results:
         cut_edges[res] += 1
     return cut_edges == 0
@@ -63,9 +63,9 @@ def solve_subproblems(graph, costs, segmentation,
 def reduce_problem(graph, costs, merge_edges, n_threads):
 
     # merge node pairs with ufd
-    nodes = np.arange(graph.numberOfNodes, dtype='uint64')
+    nodes = np.arange(graph.numberOfNodes, dtype="uint64")
     uv_ids = graph.uvIds()
-    ufd = nifty.ufd.boost_ufd(nodes)
+    ufd = nifty.ufd.ufd(graph.numberOfNodes)
     ufd.merge(uv_ids[merge_edges])
 
     # get then new node labels
@@ -76,7 +76,7 @@ def reduce_problem(graph, costs, merge_edges, n_threads):
     edge_mapping = nifty.tools.EdgeMapping(uv_ids, new_labels, numberOfThreads=n_threads)
     new_uv_ids = edge_mapping.newUvIds()
 
-    new_costs = edge_mapping.mapEdgeValues(costs, 'sum', numberOfThreads=n_threads)
+    new_costs = edge_mapping.mapEdgeValues(costs, "sum", numberOfThreads=n_threads)
     assert len(new_uv_ids) == len(new_costs)
 
     # build the new graph

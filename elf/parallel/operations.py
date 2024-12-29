@@ -5,12 +5,15 @@ import multiprocessing
 # would be nice to use dask for all of this instead of concurrent.futures
 # so that this could be used on a cluster as well
 from concurrent import futures
-from numbers import Number
 from functools import partial
+from numbers import Number
+from typing import Optional, Tuple, Union
+
+import numpy as np
+from numpy.typing import ArrayLike
 from tqdm import tqdm
 
 from .common import get_blocking
-import numpy as np
 
 
 def _compute_broadcast(shapex, shapey):
@@ -25,24 +28,31 @@ def _compute_broadcast(shapex, shapey):
     return broadcast
 
 
-def isin(x, y, out=None,
-         block_shape=None, n_threads=None,
-         mask=None, verbose=False, roi=None):
-    """ Compute np.isin in parallel.
+def isin(
+    x: ArrayLike,
+    y: Union[ArrayLike, Number],
+    out: Optional[ArrayLike] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> ArrayLike:
+    """Compute np.isin in parallel.
 
-    Arguments:
-        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
-        y [array_like or scalar] - operand 2, scalar, numpy array or list
-        out [array_like] - output, by default the operation
-            is done inplace in the first operand (default: None)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        x: Operand 1, numpy array or similar, like h5py or zarr dataset.
+        y: Operand 2, scalar, numpy array or list.
+        out: Output, by default the operation is done inplace in the first operand.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - output
+        The output.
     """
 
     # check the mask if given
@@ -86,26 +96,33 @@ def isin(x, y, out=None,
     return out
 
 
-def apply_operation(x, y, operation, out=None,
-                    block_shape=None, n_threads=None,
-                    mask=None, verbose=False, roi=None):
-    """ Apply operation to two operands in parallel.
+def apply_operation(
+    x: ArrayLike,
+    y: Union[ArrayLike, Number],
+    operation: callable,
+    out: Optional[ArrayLike] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> ArrayLike:
+    """Apply operation to two operands in parallel.
 
-    Arguments:
-        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
-        y [array_like or scalar] - operand 2, numpy array or similar like h5py or zarr dataset
-            or scalar
-        operation [callable] - operation applied to the two operands
-        out [array_like] - output, by default the operation
-            is done inplace in the first operand (default: None)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        x: Operand 1, numpy array or similar like h5py or zarr dataset.
+        y: Operand 2, numpy array or similar like h5py or zarr dataset or scalar.
+        operation: Operation applied to the two operands.
+        out: Output, by default the operation is done inplace in the first operand.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - output
+        The output.
     """
 
     # check type and dimension of the second operand and check if we need to broadcast
@@ -193,25 +210,33 @@ def apply_operation(x, y, operation, out=None,
     return out
 
 
-def apply_operation_single(x, operation, axis=None, out=None,
-                           block_shape=None, n_threads=None,
-                           mask=None, verbose=False, roi=None):
-    """ Apply operation to single operand in parallel.
+def apply_operation_single(
+    x: ArrayLike,
+    operation: callable,
+    axis: Optional[int] = None,
+    out: Optional[ArrayLike] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> ArrayLike:
+    """Apply operation to single operand in parallel.
 
-    Arguments:
-        x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
-        operation [callable] - operation applied to the two operands
-        axis [int] - axis along which to apply the operation (default: Naone)
-        out [array_like] - output, by default the operation
-            is done inplace in the first operand (default: None)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        x: Operand 1, numpy array or similar like h5py or zarr dataset.
+        operation: Operation applied to the two operands.
+        axis: Axis along which to apply the operation.
+        out: Output, by default the operation is done inplace in the first operand.
+        block_shape: Shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - output
+        The output.
     """
 
     shape = x.shape
@@ -270,23 +295,31 @@ def _generate_operation(op_name):
     doc_str =\
         """Apply np.%s block-wise and in parallel.
 
-        Arguments:
-            x [array_like] - operand 1, numpy array or similar like h5py or zarr dataset
-            y [array_like or scalar] - operand 2, numpy array, h5py or zarr dataset or scalar
-            out [array_like] - output, by default the operation
-                is done inplace in the first operand (default: None)
-            block_shape [tuple] - shape of the blocks used for parallelisation,
-                by default chunks of the input will be used, if available (default: None)
-            n_threads [int] - number of threads, by default all are used (default: None)
-            mask [array_like] - mask to exclude data from the computation (default: None)
-            verbose [bool] - verbosity flag (default: False)
-            roi [tuple[slice]] - region of interest for this computation (default: None)
+        Args:
+            x: Operand 1, numpy array or similar like h5py or zarr dataset.
+            y: Operand 2, numpy array, h5py or zarr dataset or scalar.
+            out: Output, by default the operation is done inplace in the first operand.
+            block_shape: Shape of the blocks to use for parallelisation,
+                by default chunks of the input will be used, if available.
+            n_threads: Number of threads, by default all are used.
+            mask: Mask to exclude data from the computation.
+            verbose: Verbosity flag.
+            roi: Region of interest for this computation.
+
         Returns:
-            array_like - output
+            The output.
         """ % op_name
 
-    def op(x, y, out=None, block_shape=None, n_threads=None,
-           mask=None, verbose=False, roi=None):
+    def op(
+        x: ArrayLike,
+        y: Union[ArrayLike, Number],
+        out: Optional[ArrayLike] = None,
+        block_shape: Optional[Tuple[int, ...]] = None,
+        n_threads: Optional[int] = None,
+        mask: Optional[ArrayLike] = None,
+        verbose: bool = False,
+        roi: Optional[Tuple[slice, ...]] = None,
+    ) -> ArrayLike:
         return apply_operation(x, y, getattr(np, op_name), block_shape=block_shape,
                                n_threads=n_threads, mask=mask, verbose=verbose,
                                out=out, roi=roi)

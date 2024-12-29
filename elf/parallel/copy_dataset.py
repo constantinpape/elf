@@ -1,29 +1,35 @@
 import multiprocessing
 from concurrent import futures
+from typing import Optional, Tuple
 
+from numpy.typing import ArrayLike
 from tqdm import tqdm
 from .common import get_blocking
 
 
-def copy_dataset(ds_in, ds_out,
-                 roi_in=None,
-                 roi_out=None,
-                 block_shape=None,
-                 n_threads=None,
-                 verbose=False):
-    """ Copy input to output dataset in parallel.
+def copy_dataset(
+    ds_in: ArrayLike,
+    ds_out: ArrayLike,
+    roi_in: Optional[Tuple[slice, ...]] = None,
+    roi_out: Optional[Tuple[slice, ...]] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    verbose: bool = False,
+) -> ArrayLike:
+    """Copy input to an output dataset or other array-like object in parallel.
 
-    Arguments:
-        ds_in [dataset] - input dataset (h5py, z5py or zarr dataset)
-        ds_out [dataset] - output dataset (h5py, z5py or zarr dataset)
-        roi_in [tuple[slice]] - region of interest (for the input dataset) (default: None)
-        roi_out [tuple[slice]] - region of interest (for the output dataset) (default: None)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the output dataset will be used (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        verbose [bool] - verbosity flag (default: False)
+    Args:
+        ds_in: The input dataset or array-like object, like h5py, z5py or zarr dataset.
+        ds_out: The output dataset, like h5py, z5py or zarr dataset.
+        roi_in: Region of interest for the input dataset.
+        roi_out: Region of interest for the output dataset.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the output dataset will be used.
+        n_threads: Number of threads, by default all available ones are used.
+        verbose: Verbosity flag.
+
     Returns:
-        array_like - output
+        The output dataset / array-like object.
     """
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads

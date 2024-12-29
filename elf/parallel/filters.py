@@ -3,8 +3,10 @@ import multiprocessing
 from concurrent import futures
 from functools import partial
 from tqdm import tqdm
+from typing import Optional, Tuple
 
 import numpy as np
+from numpy.typing import ArrayLike
 try:
     import fastfilters as ff
 except ImportError:
@@ -16,14 +18,20 @@ from ..util import sigma_to_halo
 
 # helper function to choose a channel from filter output
 def choose_channel(data, sigma, function, channel):
+    """@private
+    """
     return function(data, sigma)[..., channel]
 
 
 def block_to_bb(block):
+    """@private
+    """
     return tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
 
 def get_halo(sigma, order, ndim, outer_scale=None):
+    """@private
+    """
     sigma_ = sigma if outer_scale is None else sigma + outer_scale
     halo = sigma_to_halo(sigma_, order)
     if isinstance(halo, int):
@@ -31,28 +39,37 @@ def get_halo(sigma, order, ndim, outer_scale=None):
     return halo
 
 
-def apply_filter(data, filter_name, sigma,
-                 outer_scale=None, return_channel=None,
-                 out=None, block_shape=None,
-                 n_threads=None, mask=None,
-                 verbose=False, roi=None):
-    """ Apply filter to data in parallel.
+def apply_filter(
+    data: ArrayLike,
+    filter_name: str,
+    sigma: float,
+    outer_scale: Optional[str] = None,
+    return_channel: Optional[int] = None,
+    out: Optional[ArrayLike] = None,
+    block_shape: Optional[Tuple[int, ...]] = None,
+    n_threads: Optional[int] = None,
+    mask: Optional[ArrayLike] = None,
+    verbose: bool = False,
+    roi: Optional[Tuple[slice, ...]] = None,
+) -> ArrayLike:
+    """Apply filter to data in parallel.
 
-    Arguments:
-        data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-        filter_name [str] - name of the filter to apply
-        sigma [float or list[float]] - sigma value for filter
-        outer_scale [float] - outer scale value for structure tensor (default: None)
-        return_channel [int] - channel to select for multi-scale response (default: None)
-        out [array_like] - output, by default the filter is applied inplace (default: None)
-        block_shape [tuple] - shape of the blocks used for parallelisation,
-            by default chunks of the input will be used, if available (default: None)
-        n_threads [int] - number of threads, by default all are used (default: None)
-        mask [array_like] - mask to exclude data from the computation (default: None)
-        verbose [bool] - verbosity flag (default: False)
-        roi [tuple[slice]] - region of interest for this computation (default: None)
+    Args:
+        data: Input data, numpy array or similar like h5py or zarr dataset
+        filter_name: Name of the filter to apply.
+        sigma: Sigma value for filter.
+        outer_scale: Outer scale value for structure tensor.
+        return_channel: Channel to select for multi-channel response.
+        out: Output, by default the filter is applied inplace.
+        block_shape: Shape of the blocks used for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all are used.
+        mask: Mask to exclude data from the computation.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
+
     Returns:
-        array_like - filter response
+        The filter response.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
@@ -147,22 +164,31 @@ def _generate_filter(filter_name):
     doc_str =\
         """Comppute %s response block-wise and in parallel.
 
-        Arguments:
-            data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-            sigma [float or list[float]] - sigma value for filter
-            out [array_like] - output, by default the filter is applied inplace (default: None)
-            block_shape [tuple] - shape of the blocks used for parallelisation,
-                by default chunks of the input will be used, if available (default: None)
-            n_threads [int] - number of threads, by default all are used (default: None)
-            mask [array_like] - mask to exclude data from the computation (default: None)
-            verbose [bool] - verbosity flag (default: False)
-            roi [tuple[slice]] - region of interest for this computation (default: None)
+        Args:
+            data: Input data, numpy array or similar like h5py or zarr dataset.
+            sigma: Sigma value for filter.
+            out: Output, by default the filter is applied inplace.
+            block_shape: Shape of the blocks used for parallelisation,
+                by default chunks of the input will be used, if available.
+            n_threads: Number of threads, by default all are used.
+            mask: Mask to exclude data from the computation.
+            verbose: Verbosity flag.
+            roi: Region of interest for this computation.
+
         Returns:
-            array_like - filter response
+            The filter response.
         """ % elf_name
 
-    def op(data, sigma, out=None, block_shape=None,
-           n_threads=None, mask=None, verbose=False, roi=None):
+    def op(
+        data: ArrayLike,
+        sigma: float,
+        out: Optional[ArrayLike] = None,
+        block_shape: Optional[Tuple[int, ...]] = None,
+        n_threads: Optional[int] = None,
+        mask: Optional[ArrayLike] = None,
+        verbose: bool = False,
+        roi: Optional[Tuple[slice, ...]] = None,
+    ) -> ArrayLike:
         return apply_filter(data, filter_name, sigma, outer_scale=None,
                             return_channel=None, out=out, block_shape=block_shape,
                             n_threads=n_threads, mask=mask, verbose=verbose, roi=roi)
@@ -179,24 +205,34 @@ def _generate_structure_tensor(filter_name):
         """Comppute %s response block-wise and in parallel.
 
         Arguments:
-            data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-            sigma [float or list[float]] - sigma value for filter
-            outer_scale [float] - outer scale value
-            return_channel [int] - return selected channel (default: None)
-            out [array_like] - output, by default the filter is applied inplace (default: None)
-            block_shape [tuple] - shape of the blocks used for parallelisation,
-                by default chunks of the input will be used, if available (default: None)
-            n_threads [int] - number of threads, by default all are used (default: None)
-            mask [array_like] - mask to exclude data from the computation (default: None)
-            verbose [bool] - verbosity flag (default: False)
-            roi [tuple[slice]] - region of interest for this computation (default: None)
+            data: Input data, numpy array or similar like h5py or zarr dataset.
+            sigma: Sigma value for filter.
+            outer_scale: Outer scale value.
+            return_channel: Return selected channel.
+            out: Output, by default the filter is applied inplace.
+            block_shape: Shape of the blocks used for parallelisation,
+                by default chunks of the input will be used, if available.
+            n_threads: Number of threads, by default all are used.
+            mask: Mask to exclude data from the computation.
+            verbose: Verbosity flag.
+            roi: Region of interest for this computation.
+
         Returns:
-            array_like - filter response
+            The filter response.
         """ % elf_name
 
-    def op(data, sigma, outer_scale,
-           return_channel=None, out=None, block_shape=None,
-           n_threads=None, mask=None, verbose=False, roi=None):
+    def op(
+        data: ArrayLike,
+        sigma: float,
+        outer_scale: float,
+        return_channel: Optional[int] = None,
+        out: Optional[ArrayLike] = None,
+        block_shape: Optional[Tuple[int, ...]] = None,
+        n_threads: Optional[int] = None,
+        mask: Optional[ArrayLike] = None,
+        verbose: bool = False,
+        roi: Optional[Tuple[slice, ...]] = None,
+    ) -> ArrayLike:
         return apply_filter(data, filter_name, sigma, outer_scale=outer_scale,
                             return_channel=return_channel, out=out, block_shape=block_shape,
                             n_threads=n_threads, mask=mask, verbose=verbose, roi=roi)
@@ -212,24 +248,33 @@ def _generate_hessian(filter_name):
     doc_str =\
         """Comppute %s response block-wise and in parallel.
 
-        Arguments:
-            data [array_like] - input data, numpy array or similar like h5py or zarr dataset
-            sigma [float or list[float]] - sigma value for filter
-            return_channel [int] - return selected channel (default: None)
-            out [array_like] - output, by default the filter is applied inplace (default: None)
-            block_shape [tuple] - shape of the blocks used for parallelisation,
-                by default chunks of the input will be used, if available (default: None)
-            n_threads [int] - number of threads, by default all are used (default: None)
-            mask [array_like] - mask to exclude data from the computation (default: None)
-            verbose [bool] - verbosity flag (default: False)
-            roi [tuple[slice]] - region of interest for this computation (default: None)
+        Args:
+            data: Input data, numpy array or similar like h5py or zarr dataset.
+            sigma: Sigma value for filter.
+            return_channel: Return selected channel.
+            out: Output, by default the filter is applied inplace.
+            block_shape: Shape of the blocks used for parallelisation,
+                by default chunks of the input will be used, if available.
+            n_threads: Number of threads, by default all are used.
+            mask: Mask to exclude data from the computation.
+            verbose: Verbosity flag.
+            roi: Region of interest for this computation.
+
         Returns:
-            array_like - filter response
+            The filter response.
         """ % elf_name
 
-    def op(data, sigma, return_channel=None,
-           out=None, block_shape=None,
-           n_threads=None, mask=None, verbose=False, roi=None):
+    def op(
+        data: ArrayLike,
+        sigma: float,
+        return_channel: Optional[int] = None,
+        out: Optional[ArrayLike] = None,
+        block_shape: Optional[Tuple[int, ...]] = None,
+        n_threads: Optional[int] = None,
+        mask: Optional[ArrayLike] = None,
+        verbose: bool = False,
+        roi: Optional[Tuple[slice, ...]] = None,
+    ):
         return apply_filter(data, filter_name, sigma, return_channel=return_channel,
                             out=out, block_shape=block_shape,
                             n_threads=n_threads, mask=mask, verbose=verbose, roi=roi)
