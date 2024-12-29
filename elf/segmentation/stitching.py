@@ -100,7 +100,7 @@ def stitch_segmentation(
     # We initialize the edge disaffinities with a high value (corresponding to a low overlap),
     # so that merging pairs that are not on the edge is very unlikely
     # but not completely impossible in case it is needed for a consistent solution.
-    edge_disaffinties = np.full(rag.numberOfEdges, 0.9, dtype="float32")
+    edge_disaffinities = np.full(rag.numberOfEdges, 0.9, dtype="float32")
 
     def _compute_overlaps(block_id):
 
@@ -165,7 +165,7 @@ def stitch_segmentation(
             edge_ids, overlap_values = edge_ids[valid_edges], overlap_values[valid_edges]
             assert len(edge_ids) == len(overlap_values)
 
-            edge_disaffinties[edge_ids] = (1.0 - overlap_values)
+            edge_disaffinities[edge_ids] = (1.0 - overlap_values)
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     with futures.ThreadPoolExecutor(n_threads) as tp:
@@ -177,8 +177,8 @@ def stitch_segmentation(
     if with_background:
         uv_ids = rag.uvIds()
         bg_edges = rag.findEdges(uv_ids[(uv_ids == 0).any(axis=1)])
-        edge_disaffinties[bg_edges] = 0.99
-    costs = compute_edge_costs(edge_disaffinties, beta=beta)
+        edge_disaffinities[bg_edges] = 0.99
+    costs = compute_edge_costs(edge_disaffinities, beta=beta)
 
     # Run multicut to get the segmentation result.
     node_labels = multicut_decomposition(rag, costs)
@@ -199,18 +199,22 @@ def stitch_tiled_segmentation(
     segmentation: np.ndarray,
     tile_shape: Tuple[int, int],
     overlap: int = 1,
+    with_background: bool = True,
     n_threads: Optional[int] = None,
     verbose: bool = True,
 ) -> np.ndarray:
-    """Functionality for stitching segmentations tile-wise based on overlap.
+    """Stitch a segmentation that is split into tiles.
+
+    The ids in the tiles of the input segmentation have to be unique,
+    i.e. the segmentations have to be separate across tiles.
 
     Args:
         segmentation: The input segmentation.
-        tile_shape: The shape of inidividual tiles.
-        overlap: The overlap of tiles.
-            It is responsible to compute the edge nodes for the desired overlap region.
-        n_threads: The number of threads used for parallelized operations.
-            Set to the number of cores by default.
+        tile_shape: The shape of tiles.
+        overlap: The overlap between adjacent tiles that is used to compute overlap for stitching objects.
+        with_background: Whether this is a segmentation problem with background. In this case the
+            background id (which is hard-coded to 0), will not be stitched.
+        n_threads: The number of threads used for parallelized operations. Set to the number of cores by default.
         verbose: Whether to print the progress bars.
 
     Returns:
@@ -302,6 +306,10 @@ def stitch_tiled_segmentation(
             _compute_overlaps, range(n_blocks)), total=n_blocks, desc="Compute object overlaps", disable=not verbose,
         ))
 
+    uv_ids = rag.uvIds()
+    if with_background:
+        bg_edges = rag.findEdges(uv_ids[(uv_ids == 0).any(axis=1)])
+        edge_disaffinities[bg_edges] = 0.99
     costs = compute_edge_costs(edge_disaffinities, beta=0.5)
 
     # Run multicut to get the segmentation result.
