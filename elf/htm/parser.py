@@ -1,12 +1,14 @@
 import os
 from glob import glob
+from typing import Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
 import elf.io as io
 from tqdm import tqdm
 
 #
-# parser functions for htm layout standards
-# outputs can be parsed directly to htm.visualization.view_plastr
+# Parser functions for htm layout standards.
+# Outputs can be passed directly to htm.visualization.view_plate.
 #
 
 
@@ -26,14 +28,31 @@ def _load_channel_simple(files, channel_name):
 
 # TODO enable lazy loading (return datasets instead of loaded data)
 # TODO add support for image pyramid data
-def parse_simple_htm(folder, pattern="*.h5", exclude_names=None):
-    """Parse simple htm layout, see e.g. example data at
-    https://owncloud.gwdg.de/index.php/s/eu8JMlUFZ82ccHT
-    """
-    files = glob(os.path.join(folder, pattern))
-    files.sort()
+def parse_simple_htm(
+    folder: str,
+    pattern: str = "*.h5",
+    exclude_names: Optional[Sequence[str]] = None,
+) -> Tuple[
+    Dict[str, Dict[str, List[np.ndarray]]],
+    Dict[str, Dict[str, List[np.ndarray]]],
+]:
+    """Parse simple high throughput / high content microscopy layout.
 
-    # get the channel and label names
+    You can obtained sample data from this layout at:
+    https://owncloud.gwdg.de/index.php/s/eu8JMlUFZ82ccHT
+
+    Args:
+        folder: The root folder with the data.
+        pattern: The pattern for selecting files.
+        exclude_names: Filenames to exclude from loading.
+
+    Returns:
+        A map of channel and well names to the corresponding image data.
+        A map of label names and well names to the corresponding segmentation data.
+    """
+    files = sorted(glob(os.path.join(folder, pattern)))
+
+    # Get the channel and label names.
     channel_names = []
     label_names = []
     with io.open_file(files[0], "r") as f:
@@ -55,16 +74,14 @@ def parse_simple_htm(folder, pattern="*.h5", exclude_names=None):
     return image_data, label_data
 
 
-# TODO
-def parse_batchlib():
-    pass
-
-
-# TODO
-def parse_mobie():
-    pass
-
-
-# TODO
-def parse_incucyte():
-    pass
+# More formats we could support.
+# def parse_batchlib():
+#     pass
+#
+#
+# def parse_mobie():
+#     pass
+#
+#
+# def parse_incucyte():
+#     pass

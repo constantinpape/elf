@@ -1,4 +1,5 @@
 import string
+from typing import Dict, List, Optional, Tuple, Union
 
 import napari
 import numpy as np
@@ -7,6 +8,8 @@ from napari.experimental import link_layers
 
 
 def parse_wells(well_names, zero_based):
+    """@private
+    """
     well_x, well_y = [], []
     for name in well_names:
         letter, y = name[0], int(name[1:])
@@ -23,9 +26,9 @@ def parse_wells(well_names, zero_based):
     return well_positions, well_start, well_stop
 
 
-def get_world_position(
-    well_x, well_y, pos, well_shape, well_spacing, site_spacing, shape
-):
+def get_world_position(well_x, well_y, pos, well_shape, well_spacing, site_spacing, shape):
+    """@private
+    """
     unraveled = np.unravel_index([pos], well_shape)
     pos_x, pos_y = unraveled[0][0], unraveled[1][0]
     i = well_x * well_shape[0] + pos_x
@@ -45,6 +48,8 @@ def get_world_position(
 def add_grid_sources(
     grid_sources, well_positions, well_shape, well_spacing, site_spacing, add_source, source_settings=None
 ):
+    """@private
+    """
     if source_settings is None:
         source_settings = {}
     for channel_name, well_sources in grid_sources.items():
@@ -105,6 +110,8 @@ def add_plate_layout(
     viewer, well_names, well_positions, well_shape, well_spacing, site_spacing, shape,
     measurements=None
 ):
+    """@private
+    """
     well_boxes = []
     for well_name in well_names:
         well_x, well_y = well_positions[well_name]
@@ -126,6 +133,8 @@ def add_plate_layout(
 
 
 def set_camera(viewer, well_start, well_stop, well_shape, well_spacing, site_spacing, shape):
+    """@private
+    """
     pix_start = get_world_position(
         well_start[0], well_start[1], 0, well_shape, well_spacing, site_spacing, shape
     )[-2:]
@@ -143,35 +152,38 @@ def set_camera(viewer, well_start, well_stop, well_shape, well_spacing, site_spa
 
 
 def view_plate(
-    image_data,
-    label_data=None,
-    image_settings=None,
-    label_settings=None,
-    well_measurements=None,
-    well_shape=None,
-    zero_based=True,
-    well_spacing=16,
-    site_spacing=4,
-    show=True,
-):
+    image_data: Dict[str, Dict[str, List[np.ndarray]]],
+    label_data: Optional[Dict[str, Dict[str, List[np.ndarray]]]] = None,
+    image_settings: Optional[Dict[str, Dict]] = None,
+    label_settings: Optional[Dict[str, Dict]] = None,
+    well_measurements: Optional[Dict[str, Dict[str, Union[float, int, str]]]] = None,
+    well_shape: Optional[Tuple[int, int]] = None,
+    zero_based: bool = True,
+    well_spacing: int = 16,
+    site_spacing: int = 4,
+    show: bool = True,
+) -> napari.Viewer:
     """Visualize data from a multi-well plate using napari.
 
     Args:
-        image_data dict[str, dict[str, list[np.array]]]: dict of image sources,
-            each dict contains a dict which maps the well names (e.g. A1, B3) to
-            the image data for this well (one array per well position)
-        label_data dict[str, [dict[str, list[np.array]]]]: list of label sources,
-            each list contains a dict which maps the well names (e.g. A1, B3) to
-            the label data for this well (one array per well position) (default: None)
-        image_settings dict[str, dict]: image settings for the channels (default: None)
-        label_settings dict[str, dict]: settings for the label channels (default: None)
-        well_measurements dict[str, dict[str, [float, int, str]]]: measurements associated with the wells
-        well_shape tuple[int]: the 2D shape of a well in terms of images, if not given will be derived.
-            Well shape can only be derived for square wells and must be passed otherwise (default: None)
-        zero_based bool: whether the well indexing is zero-based (default: True)
-        well_sources int: spacing between wells, in pixels (default: 12)
-        site_spacing int: spacing between sites, in pixels (default: 4)
-        show bool: whether to show the viewer (default: True)
+        image_data: Dict of image sources, each dict must map the channel names to
+            a dict which maps the well names (e.g. A1, B3) to
+            the image data for this well (one array per well position).
+        label_data: Dict of label sources, each dict must map the label name to
+            a dict which maps the well names (e.g. A1, B3) to
+            the label data for this well (one array per well position).
+        image_settings: Image settings for the channels.
+        label_settings: Settings for the label layers.
+        well_measurements: Measurements associated with the wells.
+        well_shape: the 2D shape of a well in terms of images, if not given will be derived.
+            Well shape can only be derived for square wells and must be passed otherwise.
+        zero_based: Whether the well indexing is zero-based.
+        well_sources: Spacing between wells, in pixels.
+        site_spacing: Spacing between sites, in pixels.
+        show: Whether to show the viewer.
+
+    Returns:
+        The napari viewer.
     """
     # find the number of positions per well
     first_channel_sources = next(iter(image_data.values()))
@@ -232,6 +244,8 @@ def view_plate(
 
 
 def add_positional_sources(positional_sources, positions, add_source, source_settings=None):
+    """@private
+    """
     if source_settings is None:
         source_settings = {}
     for channel_name, sources in positional_sources.items():
@@ -251,6 +265,8 @@ def add_positional_sources(positional_sources, positions, add_source, source_set
 
 
 def set_camera_positional(viewer, positions, shape):
+    """@private
+    """
     coords = list(positions.values())
     y = [coord[0] for coord in coords]
     x = [coord[1] for coord in coords]
@@ -267,6 +283,8 @@ def set_camera_positional(viewer, positions, shape):
 
 
 def add_positional_layout(viewer, positions, shape, measurements=None, spacing=16):
+    """@private
+    """
     boxes = []
     sample_names = []
     for sample, position in positions.items():
@@ -280,29 +298,31 @@ def add_positional_layout(viewer, positions, shape, measurements=None, spacing=1
 
         boxes.append(np.array([[ymin, xmin], [ymax, xmax]]))
         sample_names.append(sample)
-    _add_layout(viewer, "samples", sample_names, boxes, spacing // 2,
-                measurements=measurements)
+    _add_layout(viewer, "samples", sample_names, boxes, spacing // 2, measurements=measurements)
 
 
 def view_positional_images(
-    image_data,
-    positions,
-    label_data=None,
-    image_settings=None,
-    label_settings=None,
-    sample_measurements=None,
-    show=True,
-):
-    """Similar to 'view_plate', but using position data parsed to the function to place the images
+    image_data: Dict[str, Dict[str, np.ndarray]],
+    positions: Dict[str, Tuple[int, int]],
+    label_data: Optional[Dict[str, Dict[str, np.ndarray]]] = None,
+    image_settings: Optional[Dict[str, Dict]] = None,
+    label_settings: Optional[Dict[str, Dict]] = None,
+    sample_measurements: Optional[Dict[str, Dict[str, Union[float, int, str]]]] = None,
+    show: bool = True,
+) -> napari.Viewer:
+    """Similar to `view_plate`, but using position data to place the images.
 
     Args:
-        image_data dict[str, dict[str, np.ndarray]]: the image data (outer dict is channels, inner is sample)
-        positions [str, tuple]: the position for each sample
-        label_data dict[str, dict[str, np.ndarray]]: the label data (outer dict is channels, inner is sample)
-        image_settings dict[str, dict]: image settings for the channels (default: None)
-        label_settings dict[str, dict]: settings for the label channels (default: None)
-        sample_measurements dict[str, dict[str, [float, int, str]]]: measurements associated with the samples
-        show bool: whether to show the viewer (default: True)
+        image_data: The image data (outer dict is channels, inner is samples).
+        positions: The position for each sample.
+        label_data: The label data (outer dict is channels, inner is sample).
+        image_settings: Image settings for the channels.
+        label_settings: Settings for the label data.
+        sample_measurements: Measurements associated with the samples.
+        show: Whether to show the viewer.
+
+    Returns:
+        The napari viewer.
     """
     all_samples = []
     for sources in image_data.values():

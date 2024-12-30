@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import nifty.ground_truth as ngt
 
@@ -5,22 +7,25 @@ import nifty.ground_truth as ngt
 # https://github.com/kreshuklab/sparse-object-embeddings/blob/master/pytorch3dunet/clustering/sbd.py
 
 
-def dice_score(segmentation, groundtruth, threshold_seg=0, threshold_gt=0):
-    """ Compute the dice score between binarized segmentation and ground-truth.
+def dice_score(
+    segmentation: np.ndarray,
+    groundtruth: np.ndarray,
+    threshold_seg: Optional[float] = 0,
+    threshold_gt: Optional[float] = 0,
+) -> float:
+    """Compute the dice score between binarized segmentation and ground-truth.
 
-    Note: for comparing probaility maps (i.e. predictions in range [0, 1]) with this function
+    For comparing probaility maps (i.e. predictions in range [0, 1]) with this function
     you need to set the thresholds to None. Otherwise the results will be wrong.
 
-    Arguments:
-        segmentation [np.ndarray] - candidate segmentation to evaluate
-        groundtruth [np.ndarray] - groundtruth
-        threshold_seg [float] - the threshold applied to the segmentation.
-            If None the segmentation is not thresholded.
-        threshold_gt [float] - the threshold applied to the ground-truth.
-            If None the ground-truth is not thresholded.
+    Args:
+        segmentation: Candidate segmentation to evaluate.
+        groundtruth: Groundtruth segmentation.
+        threshold_seg: The threshold applied to the segmentation. If None, the segmentation is not thresholded.
+        threshold_gt: The threshold applied to the ground-truth. If None, the groundtruth is not thresholded.
 
     Returns:
-        float - the dice score
+        The dice score.
     """
     assert segmentation.shape == groundtruth.shape, f"{segmentation.shape}, {groundtruth.shape}"
     if threshold_seg is None:
@@ -93,18 +98,22 @@ def _best_dice_nifty(gt, seg, average_scores=True):
         return dice_scores
 
 
-def symmetric_best_dice_score(segmentation, groundtruth, impl="nifty"):
-    """ Compute the best symmetric dice score between the objects in the groundtruth and segmentation.
+def symmetric_best_dice_score(
+    segmentation: np.ndarray,
+    groundtruth: np.ndarray,
+    impl: str = "nifty",
+) -> float:
+    """Compute the best symmetric dice score between the objects in the groundtruth and segmentation.
 
     This metric is used in the CVPPP instance segmentation challenge.
 
-    Arguments:
-        segmentation [np.ndarray] - candidate segmentation to evaluate
-        groundtruth [np.ndarray] - groundtruth
-        impl [str] - implementation used to compute the best dice score (default: "nifty")
+    Args:
+        segmentation: Candidate segmentation to evaluate.
+        groundtruth: Groundtruth segmentation.
+        impl: Implementation used to compute the best dice score. The available implementations are 'nifty' and 'numpy'.
 
     Returns:
-        float - the best symmetric dice score
+        The best symmetric dice score.
     """
     assert impl in ("nifty", "numpy")
     best_dice = _best_dice_nifty if impl == "nifty" else _best_dice_numpy
