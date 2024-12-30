@@ -1,15 +1,19 @@
-from math import ceil
+from typing import Sequence, Tuple
+
 import numpy as np
 import nifty.tools as nt
 from .label_multiset import LabelMultiset
 from ..util import downscale_shape
 
 
-def create_multiset_from_labels(labels):
-    """ Create label multiset from a regular label array.
+def create_multiset_from_labels(labels: np.ndarray) -> LabelMultiset:
+    """Create label multiset from a regular label array.
 
-    Arguments:
-        labels [np.ndarray] - label array to summarize.
+    Args:
+        labels: Label array to summarize in the label multiset.
+
+    Returns:
+        The label multiset.
     """
     # argmaxs per block = labels in our case
     argmax = labels.flatten()
@@ -18,19 +22,24 @@ def create_multiset_from_labels(labels):
     ids, offsets = np.unique(labels, return_inverse=True)
 
     # counts (1 by definiition)
-    counts = np.ones(len(ids), dtype='int32')
+    counts = np.ones(len(ids), dtype="int32")
 
-    multiset = LabelMultiset(argmax, offsets, ids, counts, labels.shape)
-    return multiset
+    return LabelMultiset(argmax, offsets, ids, counts, labels.shape)
 
 
-def downsample_multiset(multiset, scale_factor, restrict_set=-1):
-    """ Downsample label multiset from other multiset.
+def downsample_multiset(
+    multiset: LabelMultiset, scale_factor: Tuple[int, ...], restrict_set: int = -1
+) -> LabelMultiset:
+    """Downsample a label multiset.
 
-    Arguments:
-        multiset [LabelMultiset] - input label multiset.
-        scale_factor [list] - factor for downscaling.
-        restrict_set [int] - restrict entry length of down-sampled multiset (default: -1).
+    Args:
+        multiset: The input label multiset.
+        scale_factor: The scale factor for downsampling.
+        restrict_set: The maximum entry length of the downsampled multiset.
+            The default value (-1) means that the entry length is not restricted.
+
+    Returns:
+        The downsampled label multiset.
     """
     if not isinstance(multiset, LabelMultiset):
         raise ValueError("Expect input derived from MultisetBase, got %s" % type(multiset))
@@ -38,33 +47,41 @@ def downsample_multiset(multiset, scale_factor, restrict_set=-1):
     shape = multiset.shape
     blocking = nt.blocking([0] * len(shape), shape, scale_factor)
 
-    argmax, offsets, ids, counts = nt.downsampleMultiset(blocking,
-                                                         multiset.offsets, multiset.entry_sizes, multiset.entry_offsets,
-                                                         multiset.ids, multiset.counts, restrict_set)
+    argmax, offsets, ids, counts = nt.downsampleMultiset(
+        blocking, multiset.offsets, multiset.entry_sizes, multiset.entry_offsets,
+        multiset.ids, multiset.counts, restrict_set
+    )
     new_shape = downscale_shape(shape, scale_factor)
     return LabelMultiset(argmax, offsets, ids, counts, new_shape)
 
 
-def merge_multisets(multisets, grid_positions, shape, chunks):
-    """ Merge label multisets aranged in grid.
+def merge_multisets(
+    multisets: Sequence[LabelMultiset],
+    grid_positions: Sequence[Tuple[int, ...]],
+    shape: Tuple[int, ...],
+    chunks: Tuple[int, ...],
+) -> LabelMultiset:
+    """Merge label multisets aranged in grid.
 
-    Arguments:
-        multisets [listlike[LabelMultiset]] - list of label multisets aranged in grid.
-        grid_positions [list] - list of grid coordinates of the input list.
-        shape [tuple] - shape of the resulting multiset / grid.
-        chunks [tuple] - chunk shape = default shape of input multiset.
+    Args:
+        multisets: List of label multisets aranged in grid that will be merged.
+        grid_positions: Grid coordinates of the input multisets.
+        shape: Shape of the resulting multiset / grid.
+        chunks: Chunk shape = default shape of input multiset.
+
+    Returns:
+        The merged label multiset.
     """
     if not isinstance(multisets, (tuple, list)) and\
        not all(isinstance(ms, LabelMultiset) for ms in multisets):
         raise ValueError("Expect list or tuple of LabelMultiset")
 
     # arrange multisets according to the grid
-    multisets, blocking = _compute_multiset_vector(multisets, grid_positions,
-                                                   shape, chunks)
+    multisets, blocking = _compute_multiset_vector(multisets, grid_positions, shape, chunks)
 
     new_size = int(np.prod(shape))
-    argmax = np.zeros(new_size, dtype='uint64')
-    offsets = np.zeros(new_size, dtype='uint64')
+    argmax = np.zeros(new_size, dtype="uint64")
+    offsets = np.zeros(new_size, dtype="uint64")
 
     def get_indices(block_id):
         block = blocking.getBlock(block_id)
@@ -98,7 +115,7 @@ def merge_multisets(multisets, grid_positions, shape, chunks):
 
 
 def _compute_multiset_vector(multisets, grid_positions, shape, chunks):
-    """ Arange the multisets in c-order.
+    """Arange the multisets in c-order.
     """
     n_sets = len(multisets)
     ndim = len(shape)
@@ -110,8 +127,7 @@ def _compute_multiset_vector(multisets, grid_positions, shape, chunks):
         raise ValueError("Invalid grid: %i, %i" % (n_blocks, n_sets))
 
     # get the c-order positions
-    positions = np.array([[gp[i] for gp in grid_positions] for i in range(ndim)],
-                         dtype='int')
+    positions = np.array([[gp[i] for gp in grid_positions] for i in range(ndim)], dtype="int")
     grid_shape = tuple(blocking.blocksPerAxis)
     positions = np.ravel_multi_index(positions, grid_shape)
     if any(pos >= n_sets for pos in positions):
@@ -122,8 +138,7 @@ def _compute_multiset_vector(multisets, grid_positions, shape, chunks):
         mset = multisets[pos]
         block_shape = tuple(blocking.getBlock(pos).shape)
         if mset.shape != block_shape:
-            raise ValueError("Invalid multiset shape: %s, %s" % (str(mset.shape),
-                                                                 str(block_shape)))
+            raise ValueError("Invalid multiset shape: %s, %s" % (str(mset.shape), str(block_shape)))
         multiset_vector[pos] = mset
 
     if any(ms is None for ms in multiset_vector):

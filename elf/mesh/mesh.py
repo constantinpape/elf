@@ -1,39 +1,56 @@
+from typing import Optional, Tuple
+
 import nifty
 import numpy as np
-from skimage.measure import marching_cubes as marching_cubes_lewiner
+from skimage.measure import marching_cubes as marching_cubes_impl
 
 
-def marching_cubes(obj, smoothing_iterations=0, resolution=None):
+def marching_cubes(
+    obj: np.ndarray,
+    smoothing_iterations: int = 0,
+    resolution: Optional[Tuple[float, float, float]] = None,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute mesh via marching cubes.
 
     This is a wrapper around the skimage marching cubes implementation that provides
-    additional mesh smoothing
+    additional mesh smoothing.
 
-    Arguments:
-        obj [np.ndarray] - volume containing the object to be meshed
-        smoothing_iterations [int] - number of mesh smoothing iterations (default: 0)
-        resolution[listlike[int]] - resolution of the data (default: None)
+    Args:
+        obj: Volume containing the object to be meshed.
+        smoothing_iterations: Number of mesh smoothing iterations.
+        resolution: Resolution of the data.
+
+    Returns:
+        The vertices of the mesh.
+        The faces of the mesh.
+        The normals of the mesh.
     """
-    resolution = (1., 1., 1.) if resolution is None else resolution
+    resolution = (1.0, 1.0, 1.0) if resolution is None else resolution
     if len(resolution) != 3:
         raise ValueError(f"Invalid resolution argument: {resolution}")
     resolution = tuple(resolution)
 
-    verts, faces, normals, _ = marching_cubes_lewiner(obj, spacing=resolution)
+    verts, faces, normals, _ = marching_cubes_impl(obj, spacing=resolution)
     if smoothing_iterations > 0:
         verts, normals = smooth_mesh(verts, normals, faces, smoothing_iterations)
 
     return verts, faces, normals
 
 
-def smooth_mesh(verts, normals, faces, iterations):
-    """ Smooth mesh surfacee via laplacian smoothing.
+def smooth_mesh(
+    verts: np.ndarray, normals: np.ndarray, faces: np.ndarray, iterations: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Smooth mesh surface via laplacian smoothing.
 
-    Arguments:
-        verts [np.ndarray] - mesh vertices
-        normals [np.ndarray] - mesh normals
-        faces [np.ndarray] - mesh faces
-        iterations [int] - number of smoothing rounds
+    Args:
+        verts: The mesh vertices.
+        normals: The mesh normals.
+        faces: The mesh faces.
+        iterations: The number of smoothing iterations.
+
+    Returns:
+        The vertices after smoothing.
+        The normals after smoothing.
     """
     n_verts = len(verts)
     g = nifty.graph.undirectedGraph(n_verts)
@@ -46,7 +63,7 @@ def smooth_mesh(verts, normals, faces, iterations):
     new_verts = np.zeros_like(verts, dtype=verts.dtype)
     new_normals = np.zeros_like(normals, dtype=normals.dtype)
 
-    # TODO implement this directly in nifty for speed up
+    # Implement this directly in nifty for speed up?
     for it in range(iterations):
         for vert in range(n_verts):
             nbrs = np.array([vert] + [nbr[0] for nbr in g.nodeAdjacency(vert)], dtype="int")
