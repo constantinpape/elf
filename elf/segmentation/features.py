@@ -1,5 +1,6 @@
 import multiprocessing
 from concurrent import futures
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import vigra
@@ -24,79 +25,93 @@ from .multicut import transform_probabilities_to_costs
 # Region Adjacency Graph and Features
 #
 
-def compute_rag(segmentation, n_labels=None, n_threads=None):
-    """ Compute region adjacency graph of segmentation.
+def compute_rag(segmentation: np.ndarray, n_labels: Optional[int] = None, n_threads: Optional[int] = None):
+    """Compute region adjacency graph of segmentation.
 
-    Arguments:
-        segmentation [np.ndarray] - the segmentation
-        n_labels [int] - number of  labels in segmentation.
-            If None is give, will be computed from the data. (default: None)
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    Args:
+        segmentation: The segmentation.
+        n_labels: The number of labels in the segmentation. If None, will be computed from the data.
+        n_threads: The number of threads used, set to cpu count by default.
+
+    Returns:
+        The region adjacency graph.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     n_labels = int(segmentation.max()) + 1 if n_labels is None else n_labels
-    rag = nrag.gridRag(segmentation, numberOfLabels=n_labels,
-                       numberOfThreads=n_threads)
+    rag = nrag.gridRag(segmentation, numberOfLabels=n_labels, numberOfThreads=n_threads)
     return rag
 
 
-def compute_boundary_features(rag, boundary_map,
-                              min_value=0, max_value=1, n_threads=None):
-    """ Compute edge features from boundary map.
+def compute_boundary_features(
+    rag, boundary_map: np.ndarray, min_value: float = 0.0, max_value: float = 1.0, n_threads: Optional[int] = None
+) -> np.ndarray:
+    """Compute edge features from boundary map.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        boundary_map [np.ndarray] - boundary map.
-        min_value [float] - minimum value used in accumulation (default: 0)
-        max_value [float] - maximum value used in accumulation (default: 1)
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    Args:
+        rag: The region adjacency graph.
+        boundary_map:The boundary map.
+        min_value: The minimum value used in accumulation.
+        max_value: The maximum value used in accumulation.
+        n_threads: The number of threads used, set to cpu count by default.
+
+    Returns:
+        The edge features.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     if tuple(rag.shape) != boundary_map.shape:
-        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
-                                                          str(boundary_map.shape)))
-    features = nrag.accumulateEdgeStandartFeatures(rag, boundary_map,
-                                                   min_value, max_value,
-                                                   numberOfThreads=n_threads)
+        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape), str(boundary_map.shape)))
+    features = nrag.accumulateEdgeStandartFeatures(
+        rag, boundary_map, min_value, max_value, numberOfThreads=n_threads
+    )
     return features
 
 
-def compute_affinity_features(rag, affinity_map, offsets,
-                              min_value=0, max_value=1, n_threads=None):
-    """ Compute edge features from affinity map.
+def compute_affinity_features(
+    rag,
+    affinity_map: np.ndarray,
+    offsets: List[List[int]],
+    min_value: float = 0.0,
+    max_value: float = 1.0,
+    n_threads: Optional[int] = None
+) -> np.ndarray:
+    """Compute edge features from affinity map.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        boundary_map [np.ndarray] - boundary map.
-        min_value [float] - minimum value used in accumulation (default: 0)
-        max_value [float] - maximum value used in accumulation (default: 1)
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    Args:
+        rag: The region adjacency graph.
+        affinity_map: The affinity map.
+        min_value: The minimum value used in accumulation.
+        max_value: The maximum value used in accumulation.
+        n_threads: The umber of threads used, set to cpu count by default.
+
+    Returns:
+        The edge features.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     if tuple(rag.shape) != affinity_map.shape[1:]:
-        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
-                                                          str(affinity_map.shape[1:])))
+        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape), str(affinity_map.shape[1:])))
     if len(offsets) != affinity_map.shape[0]:
         raise ValueError("Incompatible number of channels and offsets: %i, %i" % (len(offsets),
                                                                                   affinity_map.shape[0]))
-    features = nrag.accumulateAffinityStandartFeatures(rag, affinity_map, offsets,
-                                                       min_value, max_value,
-                                                       numberOfThreads=n_threads)
+    features = nrag.accumulateAffinityStandartFeatures(
+        rag, affinity_map, offsets, min_value, max_value, numberOfThreads=n_threads
+    )
     return features
 
 
-def compute_boundary_mean_and_length(rag, input_, n_threads=None):
-    """ Compute mean value and length of boundaries.
+def compute_boundary_mean_and_length(rag, input_: np.ndarray, n_threads: Optional[int] = None) -> np.ndarray:
+    """Compute mean value and length of boundaries.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        input_ [np.ndarray] - input map.
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    Args:
+        rag: The region adjacency graph.
+        input_: The input map.
+        n_threads: The number of threads used, set to cpu count by default.
+
+    Returns:
+        The edge features.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     if tuple(rag.shape) != input_.shape:
-        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape),
-                                                          str(input_.shape)))
+        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape), str(input_.shape)))
     features = nrag.accumulateEdgeMeanAndLength(rag, input_, numberOfThreads=n_threads)
     return features
 
@@ -124,19 +139,26 @@ def _filter_2d(input_, filter_name, sigma, n_threads):
     return response
 
 
-def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_threads=None,
-                                           filters={"gaussianSmoothing": [1.6, 4.2, 8.3],
-                                                    "laplacianOfGaussian": [1.6, 4.2, 8.3],
-                                                    "hessianOfGaussianEigenvalues": [1.6, 4.2, 8.3]}):
-    """ Compute boundary features accumulated over filter responses on input.
+def compute_boundary_features_with_filters(
+    rag,
+    input_: np.ndarray,
+    apply_2d: bool = False,
+    n_threads: Optional[int] = None,
+    filters: Dict[str, List[float]] = {"gaussianSmoothing": [1.6, 4.2, 8.3],
+                                       "laplacianOfGaussian": [1.6, 4.2, 8.3],
+                                       "hessianOfGaussianEigenvalues": [1.6, 4.2, 8.3]}
+) -> np.ndarray:
+    """Compute boundary features accumulated over filter responses on input.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        input_ [np.ndarray] - input data
-        apply_2d [bool] - whether to apply the filters in 2d for 3d input data (default: bool)
-        n_threads [int] - number of threads (default: None)
-        filters [dict] - the filters to apply, expects a
-            dictionary mapping filter names to sigma values (default: default_Filters)
+    Args:
+        rag: The region adjacency graph.
+        input_: The input data.
+        apply_2d: Whether to apply the filters in 2d for 3d input data.
+        n_threads: The number of threads.
+        filters: The filters to apply, expects a dictionary mapping filter names to sigma values.
+
+    Returns:
+        The edge filters.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     features = []
@@ -196,15 +218,22 @@ def compute_boundary_features_with_filters(rag, input_, apply_2d=False, n_thread
     return features
 
 
-def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
-    """ Compute edge features from input map accumulated over segmentation
-    and mapped to edges.
+def compute_region_features(
+    uv_ids: np.ndarray,
+    input_map: np.ndarray,
+    segmentation: np.ndarray,
+    n_threads: Optional[int] = None
+) -> np.ndarray:
+    """Compute edge features from an input map accumulated over segmentation and mapped to edges.
 
-    Arguments:
-        uv_ids [np.ndarray] - edge uv ids
-        input_ [np.ndarray] - input data.
-        segmentation [np.ndarray] - segmentation.
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    Args:
+        uv_ids: The edge uv ids.
+        input_: The input data.
+        segmentation: The segmentation.
+        n_threads: The number of threads used, set to cpu count by default.
+
+    Returns:
+        The edge features.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
@@ -246,29 +275,41 @@ def compute_region_features(uv_ids, input_map, segmentation, n_threads=None):
 # Grid Graph and Features
 #
 
-def compute_grid_graph(shape):
-    """ Compute grid graph for the given shape.
+def compute_grid_graph(shape: Tuple[int, ...]):
+    """Compute grid graph for the given shape.
+
+    Args:
+        shape: The shape of the data.
+
+    Returns:
+        The grid graph.
     """
     grid_graph = nifty.graph.undirectedGridGraph(shape)
     return grid_graph
 
 
-def compute_grid_graph_image_features(grid_graph, image, mode,
-                                      offsets=None, strides=None,
-                                      randomize_strides=False):
-    """ Compute edge features from image for the given grid_graph.
+def compute_grid_graph_image_features(
+    grid_graph,
+    image: np.ndarray,
+    mode: str,
+    offsets: Optional[List[List[int]]] = None,
+    strides: Optional[List[int]] = None,
+    randomize_strides: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute edge features for image for the given grid_graph.
 
-    Parameters:
-        grid_graph [grid-graph] - the grid graph
-        image [np.ndarray] - the image, the features are derived from
-        mode [str] - feature accumulation method
-        offsets [list[list[int]]] - the offsets which correspond to the affinity channels.
-            If none are given, it's assumed that the affinites are for the nearest neighbor transitions.
-            (default: None)
-        strides [list[int]] - the strides used to subsample edges that are computed from offsets.
-            (default: None)
-        randomize_strides (default: False) - whether to subsample randomly instead of using regular strides.
-            (default: False)
+    Args:
+        grid_graph: The grid graph
+        image: The image, from which the features will be derived.
+        mode: Feature accumulation method.
+        offsets: The offsets, which correspond to the affinity channels.
+            If none are given, the affinites for the nearest neighbor transitions are used.
+        strides: The strides used to subsample edges that are computed from offsets.
+        randomize_strides: Whether to subsample randomly instead of using regular strides.
+
+    Returns:
+        The uv ids of the edges.
+        The edge features.
     """
     gndim = len(grid_graph.shape)
 
@@ -305,21 +346,28 @@ def compute_grid_graph_image_features(grid_graph, image, mode,
     return edges, features
 
 
-def compute_grid_graph_affinity_features(grid_graph, affinities,
-                                         offsets=None, strides=None, mask=None,
-                                         randomize_strides=False):
-    """ Compute edge features from affinities for the given grid_graph.
+def compute_grid_graph_affinity_features(
+    grid_graph,
+    affinities: np.ndarray,
+    offsets: Optional[List[List[int]]] = None,
+    strides: Optional[List[int]] = None,
+    mask: Optional[np.ndarray] = None,
+    randomize_strides: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute edge features from affinities for the given grid graph.
 
-    Parameters:
-        grid_graph [grid-graph] - the grid graph
-        affinities [np.ndarray] - the affinity map
-        offsets [list[list[int]]] - the offsets which correspond to the affinity channels.
-            If none are given, it's assumed that the affinites are for the nearest neighbor transitions.
-            (default: None)
-        strides [list[int]] - the strides used to subsample edges that are computed from offsets.
-            (default: None)
-        randomize_strides (default: False) - whether to subsample randomly instead of using regular strides.
-            (default: False)
+    Args:
+        grid_graph: The grid graph
+        affinities: The affinity map.
+        offsets: The offsets, which correspond to the affinity channels.
+            If none are given, the affinites for the nearest neighbor transitions are used.
+        strides: The strides used to subsample edges that are computed from offsets.
+        mask: Mask to exclude from the edge and feature computation.
+        randomize_strides: Whether to subsample randomly instead of using regular strides.
+
+    Returns:
+        The uv ids of the edges.
+        The edge features.
     """
     gndim = len(grid_graph.shape)
     if affinities.ndim != gndim + 1:
@@ -347,20 +395,31 @@ def compute_grid_graph_affinity_features(grid_graph, affinities,
     return edges, features
 
 
-def apply_mask_to_grid_graph_weights(grid_graph, mask, weights, masked_edge_weight=0.0, transition_edge_weight=1.0):
-    """ Set the weights derived from a grid graph to a fixed value for edges that connect masked nodes
+def apply_mask_to_grid_graph_weights(
+    grid_graph,
+    mask: np.ndarray,
+    weights: np.ndarray,
+    masked_edge_weight: float = 0.0,
+    transition_edge_weight: float = 1.0,
+) -> np.ndarray:
+    """Mask edges in grid graph.
+
+    Set the weights derived from a grid graph to a fixed value, for edges that connect masked nodes
     and edges that connect masked and unmasked nodes.
 
-    Parameters:
-        grid_graph [grid-graph] - the grid graph
-        mask [np.ndarray[bool]] - binary mask, foreground (=non-masked) is True
-        weights [np.ndarray[float]] - the edge weights
-        masked_edge_weight [float] - value for edges that connect two masked nodes (default: 0.0)
-        transition_edge_weight [float] - value for edges that connect a masked with a non-masked node (default: 1.0)
+    Args:
+        grid_graph: The grid graph.
+        mask: The binary mask, foreground (=non-masked) is True.
+        weights: The edge weights.
+        masked_edge_weight: The value for edges that connect two masked nodes.
+        transition_edge_weight: The value for edges that connect a masked with a non-masked node.
+
+    Returns:
+        The masked edge weights.
     """
     assert np.dtype(mask.dtype) == np.dtype("bool")
     node_ids = grid_graph.projectNodeIdsToPixels()
-    assert node_ids.shape == mask.shape == tuple(grid_graph.shape),\
+    assert node_ids.shape == mask.shape == tuple(grid_graph.shape), \
         f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
     masked_ids = node_ids[~mask]
 
@@ -374,20 +433,25 @@ def apply_mask_to_grid_graph_weights(grid_graph, mask, weights, masked_edge_weig
     return weights
 
 
-def apply_mask_to_grid_graph_edges_and_weights(grid_graph, mask, edges, weights, transition_edge_weight=1.0):
-    """ Remove uv ids that connect masked nodes and set weights that connect masked to non-masked nodes to
-    a fixed value.
+def apply_mask_to_grid_graph_edges_and_weights(
+    grid_graph, mask: np.ndarray, edges: np.ndarray, weights: np.ndarray, transition_edge_weight: float = 1.0
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Remove uv ids that connect masked nodes and set weights that connect masked to non-masked nodes to a fixed value.
 
-    Parameters:
-        grid_graph [grid-graph] - the grid graph
-        mask [np.ndarray[bool]] - binary mask, foreground (=non-masked) is True
-        edges [np.ndarray[int]] - the edges (uv-ids)
-        weights [np.ndarray[float]] - the edge weights
-        transition_edge_weight [float] - value for edges that connect a masked with a non-masked node (default: 1.0)
+    Args:
+        grid_graph: The grid graph.
+        mask: The binary mask, foreground (=non-masked) is True.
+        edges: The edges (uv-ids).
+        weights: The edge weights.
+        transition_edge_weight: The value for edges that connect a masked with a non-masked node.
+
+    Returns:
+        The edge uv-ids.
+        The edge weights.
     """
     assert np.dtype(mask.dtype) == np.dtype("bool")
     node_ids = grid_graph.projectNodeIdsToPixels()
-    assert node_ids.shape == mask.shape == tuple(grid_graph.shape),\
+    assert node_ids.shape == mask.shape == tuple(grid_graph.shape), \
         f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
     masked_ids = node_ids[~mask]
 
@@ -406,6 +470,8 @@ def apply_mask_to_grid_graph_edges_and_weights(grid_graph, mask, edges, weights,
 #
 
 def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
+    """@private
+    """
     if max_graph_distance < 2:
         raise ValueError(f"Graph distance must be greater equal 2, got {max_graph_distance}")
     if isinstance(graph, nifty.graph.UndirectedGraph):
@@ -420,6 +486,8 @@ def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
 
 
 def feats_to_costs_default(lifted_labels, lifted_features):
+    """@private
+    """
     # we assume that we only have different classes for a given lifted
     # edge here (mode = "different") and then set all edges to be repulsive
 
@@ -430,10 +498,16 @@ def feats_to_costs_default(lifted_labels, lifted_features):
     return lifted_costs
 
 
-def lifted_problem_from_probabilities(rag, watershed, input_maps,
-                                      assignment_threshold, graph_depth,
-                                      feats_to_costs=feats_to_costs_default,
-                                      mode="different", n_threads=None):
+def lifted_problem_from_probabilities(
+    rag,
+    watershed: np.ndarray,
+    input_maps: List[np.ndarray],
+    assignment_threshold: float,
+    graph_depth: int,
+    feats_to_costs: callable = feats_to_costs_default,
+    mode: str = "different",
+    n_threads: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Compute lifted problem from probability maps by mapping them to superpixels.
 
     Example: compute a lifted problem from two attributions (axon, dendrite) that induce
@@ -451,29 +525,25 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
     )
     ```
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - the region adjacency graph
-        watershed [np.ndarray] - the watershed over segmentation
-        input_maps [list[np.ndarray]] - list of probability maps. Each
-            map must have the same shape as the watersheds and each map is
-            treated as the probability to correspond to a different class.
-        assignment_threshold [float] - minimal expression level to assign a
-            class to a graph node (= watershed segment)
-        graph_depth [int] - maximal graph depth up to which
-            lifted edges will be included
-        feats_to_costs [callable] - function to calculate the lifted costs from the
-            class assignment probabilities. The input to the function are `lifted_labels`,
-            which stores the two classes assigned to a lifted edge, and `lifted_features`,
-            which stores the two assignment probabilities. (default: feats_to_costs_default).
-        mode [str] - mode for insertion of lifted edges. Can be
-            "all" - lifted edges will be inserted in between all nodes with attribution
-            "different" - lifted edges will only be inserted in between nodes attributed to different classes
-            "same" - lifted edges will only be inserted in between nodes attribted to the same class
-            (default: "different")
-        n_threads [int] - number of threads used for the calculation (default: None)
+    Args:
+        rag: The region adjacency graph.
+        watershed: The watershed over-segmentation.
+        input_maps: List of probability maps. Each map must have the same shape as the watersheds
+            and each map is treated as the probability to correspond to a different class.
+        assignment_threshold: Minimal expression level to assign a class to a graph node (= watershed segment).
+        graph_depth: Maximal graph depth up to which lifted edges will be included.
+        feats_to_costs: Function to calculate the lifted costs from the class assignment probabilities.
+            The input to the function are `lifted_labels`, which stores the two classes assigned to a lifted edge,
+            and `lifted_features`, which stores the two assignment probabilities.
+        mode: The mode for insertion of lifted edges. One of:
+            "all" - lifted edges will be inserted in between all nodes with attribution.
+            "different" - lifted edges will only be inserted in between nodes attributed to different classes.
+            "same" - lifted edges will only be inserted in between nodes attribted to the same class.
+        n_threads: The number of threads used for the calculation.
+
     Returns:
-        np.ndarray - the lifted uv ids (= superpixel ids connected by the lifted edge)
-        np.ndarray - the lifted costs (= cost associated with each lifted edge)
+        The lifted uv ids (= superpixel ids connected by the lifted edge).
+        The lifted costs (= cost associated with each lifted edge).
     """
     assert ndist is not None, "Need nifty.distributed package"
 
@@ -520,30 +590,36 @@ def lifted_problem_from_probabilities(rag, watershed, input_maps,
 
 
 # TODO support setting costs proportional to overlaps
-def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
-                                     overlap_threshold, graph_depth, same_segment_cost,
-                                     different_segment_cost,
-                                     mode="all", n_threads=None):
-    """ Compute lifted problem from segmentation by mapping segments to superpixels.
+def lifted_problem_from_segmentation(
+    rag,
+    watershed: np.ndarray,
+    input_segmentation: np.ndarray,
+    overlap_threshold: float,
+    graph_depth: int,
+    same_segment_cost: float,
+    different_segment_cost: float,
+    mode: str = "all",
+    n_threads: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute lifted problem from segmentation by mapping segments to superpixels.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - the region adjacency graph
-        watershed [np.ndarray] - the watershed over segmentation
-        input_segmentation [np.ndarray] - segmentation used to determine node attribution.
-        overlap_threshold [float] - minimal overlap to assign a segment id to node
-        graph_depth [int] - maximal graph depth up to which
-            lifted edges will be included
-        same_segment_cost [float] - costs for edges between nodes with same segment id attribution
-        different_segment_cost [float] - costs for edges between nodes with different segment id attribution
-        mode [str] - mode for insertion of lifted edges. Can be
-            "all" - lifted edges will be inserted in between all nodes with attribution
-            "different" - lifted edges will only be inserted in between nodes attributed to different classes
-            "same" - lifted edges will only be inserted in between nodes attribted to the same class
-            (default: "different")
-        n_threads [int] - number of threads used for the calculation (default: None)
+    Args:
+        rag: The region adjacency graph.
+        watershed: The watershed over-segmentation.
+        input_segmentation: The segmentation used to determine node attribution.
+        overlap_threshold: The minimal overlap to assign a segment id to node.
+        graph_depth: The maximal graph depth up to which lifted edges will be included
+        same_segment_cost: The cost for edges between nodes with same segment id attribution.
+        different_segment_cost: The cost for edges between nodes with different segment id attribution.
+        mode: The mode for insertion of lifted edges. One of:
+            "all" - lifted edges will be inserted in between all nodes with attribution.
+            "different" - lifted edges will only be inserted in between nodes attributed to different classes.
+            "same" - lifted edges will only be inserted in between nodes attribted to the same class.
+        n_threads: The number of threads used for the calculation.
+
     Returns:
-        np.ndarray - the lifted uv ids (= superpixel ids connected by the lifted edge)
-        np.ndarray - the lifted costs (= cost associated with each lifted edge)
+        The lifted uv ids (= superpixel ids connected by the lifted edge).
+        The lifted costs (= cost associated with each lifted edge).
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     assert input_segmentation.shape == watershed.shape
@@ -593,13 +669,24 @@ def lifted_problem_from_segmentation(rag, watershed, input_segmentation,
 # Misc
 #
 
-def get_stitch_edges(rag, seg, block_shape, n_threads=None, verbose=False):
-    """ Get the edges between blocks.
+def get_stitch_edges(
+    rag,
+    seg: np.ndarray,
+    block_shape: Tuple[int, ...],
+    n_threads: Optional[int] = None,
+    verbose: bool = False
+) -> np.ndarray:
+    """Get the edges between blocks.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        seg [np.ndarray] - segmentation underlying the rag
-        block_shape [list[int] or tuple[int]] - shape of the blocking.
+    Args:
+        rag: The region adjacency graph.
+        seg: The segmentation underlying the rag.
+        block_shape: The shape of the blocking.
+        n_threads: The number of threads used for the calculation.
+        verbose: Whether to be verbose.
+
+    Returns:
+        The edge mask indicating edges between blocks.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     ndim = seg.ndim
@@ -656,28 +743,36 @@ def get_stitch_edges(rag, seg, block_shape, n_threads=None, verbose=False):
     return full_edges
 
 
-def project_node_labels_to_pixels(rag, node_labels, n_threads=None):
-    """ Project label values for graph nodes back to pixels to obtain segmentation.
+def project_node_labels_to_pixels(rag, node_labels: np.ndarray, n_threads: Optional[int] = None) -> np.ndarray:
+    """Project label values for graph nodes back to pixels to obtain segmentation.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        node_labels [np.ndarray] - array with node labels
-        n_threads [int] - number of threads used, set to cpu count by default. (default: None)
+    Args:
+        rag: The region adjacency graph.
+        node_labels: The array with node labels.
+        n_threads: The number of threads used, set to cpu count by default.
+
+    Returns:
+        The segmentation.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     if len(node_labels) != rag.numberOfNodes:
-        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels),
-                                                                         rag.numberOfNodes))
-    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels,
-                                             numberOfThreads=n_threads)
+        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels), rag.numberOfNodes))
+    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels, numberOfThreads=n_threads)
     return seg
 
 
-def compute_z_edge_mask(rag, watershed):
-    """ Compute edge mask of in-between plane edges for flat superpixels.
+def compute_z_edge_mask(rag, watershed: np.ndarray) -> np.ndarray:
+    """Compute edge mask of in-between plane edges for flat superpixels.
 
-    This function does not check wether the input watersheds are
-    actually flat!
+    Flat superpixels are volumetric superpixels that are independent across slices.
+    This function does not check wether the input watersheds are actually flat.
+
+    Args:
+        rag: The region adjacency graph.
+        watershed: The underlying watershed over-segmentation (superpixels).
+
+    Returns:
+        The edge mask indicating in-between slice edges.
     """
     node_z_coords = np.zeros(rag.numberOfNodes, dtype="uint32")
     for z in range(watershed.shape[0]):

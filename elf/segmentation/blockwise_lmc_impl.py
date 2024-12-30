@@ -6,6 +6,8 @@ from vigra.analysis import relabelConsecutive
 
 
 def find_inner_lifted_edges(lifted_uv_ids, node_list):
+    """@private
+    """
     lifted_indices = np.arange(len(lifted_uv_ids), dtype="uint64")
     # find overlap of node_list with u-edges
     inner_us = np.in1d(lifted_uv_ids[:, 0], node_list)
@@ -18,6 +20,8 @@ def find_inner_lifted_edges(lifted_uv_ids, node_list):
 
 def solve_subproblems(graph, costs, lifted_uv_ids, lifted_costs,
                       segmentation, solver, blocking, halo, n_threads):
+    """@private
+    """
 
     uv_ids = graph.uvIds()
 
@@ -74,6 +78,8 @@ def solve_subproblems(graph, costs, lifted_uv_ids, lifted_costs,
 
 
 def update_edges(uv_ids, costs, labels, n_threads):
+    """@private
+    """
     edge_mapping = nifty.tools.EdgeMapping(uv_ids, labels, numberOfThreads=n_threads)
     new_uv_ids = edge_mapping.newUvIds()
     new_costs = edge_mapping.mapEdgeValues(costs, "sum", numberOfThreads=n_threads)
@@ -82,7 +88,8 @@ def update_edges(uv_ids, costs, labels, n_threads):
 
 
 def reduce_problem(graph, costs, lifted_uv_ids, lifted_costs, merge_edges, n_threads):
-
+    """@private
+    """
     # merge node pairs with ufd
     nodes = np.arange(graph.numberOfNodes, dtype="uint64")
     uv_ids = graph.uvIds()
@@ -108,6 +115,8 @@ def reduce_problem(graph, costs, lifted_uv_ids, lifted_costs, merge_edges, n_thr
 def hierarchy_level(graph, costs, lifted_uv_ids, lifted_costs,
                     labels, segmentation, blocking,
                     internal_solver, n_threads, halo):
+    """@private
+    """
     merge_edges = solve_subproblems(graph, costs, lifted_uv_ids, lifted_costs,
                                     segmentation, internal_solver,
                                     blocking, halo, n_threads)
@@ -126,6 +135,8 @@ def hierarchy_level(graph, costs, lifted_uv_ids, lifted_costs,
 def blockwise_lmc_impl(graph, costs, lifted_uv_ids, lifted_costs,
                        segmentation, internal_solver,
                        block_shape, n_threads, n_levels=1, halo=None):
+    """@private
+    """
     shape = segmentation.shape
     graph_, costs_ = graph, costs
     lifted_uv_ids_, lifted_costs_ = lifted_uv_ids, lifted_costs

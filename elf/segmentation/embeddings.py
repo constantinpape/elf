@@ -1,5 +1,6 @@
 # IMPORTANT do threadctl import first (before numpy imports)
 from threadpoolctl import threadpool_limits
+from typing import List, Optional
 
 import numpy as np
 import vigra
@@ -23,10 +24,17 @@ from .mutex_watershed import mutex_watershed_clustering
 #
 
 
-def embedding_pca(embeddings, n_components=3, as_rgb=True):
-    """
-    """
+def embedding_pca(embeddings: np.ndarray, n_components: int = 3, as_rgb: bool = True) -> np.ndarray:
+    """Compute PCA of per-pixel embeddings.
 
+    Args:
+        embeddings: The per-pixel embeddings.
+        n_components: The number of PCA components.
+        as_rgb: Whether to reshape the output so that it can be displayed as RGB image.
+
+    Returns:
+        The PCA of the embeddings.
+    """
     if as_rgb and n_components != 3:
         raise ValueError("")
 
@@ -51,15 +59,27 @@ def _embeddings_to_probabilities(embed1, embed2, delta, embedding_axis):
     return probs
 
 
-def edge_probabilities_from_embeddings(embeddings, segmentation, rag, delta):
+def edge_probabilities_from_embeddings(
+    embeddings: np.ndarray, segmentation: np.ndarray, rag, delta: float
+) -> np.ndarray:
+    """Derive edge probabilities from pixel embeddings.
+
+    Args:
+        embeddings: The pixel embeddings.
+        segmentation: The segmentation.
+        rag: The region adjacency graph derived from the segmentation.
+        delta: The delta factor used in the push force when training the embeddings.
+
+    Returns:
+        The edge probabilties.
+    """
     n_nodes = rag.numberOfNodes
     embed_dim = embeddings.shape[0]
 
     segmentation = segmentation.astype("uint32")
     mean_embeddings = np.zeros((n_nodes, embed_dim), dtype="float32")
     for cid in range(embed_dim):
-        mean_embed = vigra.analysis.extractRegionFeatures(embeddings[cid],
-                                                          segmentation, features=["mean"])["mean"]
+        mean_embed = vigra.analysis.extractRegionFeatures(embeddings[cid], segmentation, features=["mean"])["mean"]
         mean_embeddings[:, cid] = mean_embed
 
     uv_ids = rag.uvIds()
@@ -69,11 +89,15 @@ def edge_probabilities_from_embeddings(embeddings, segmentation, rag, delta):
     return edge_probabilities
 
 
-# could probably be implemented more efficiently with shift kernels
-# instead of explicit call to shift
+# Could probably be implemented more efficiently with shift kernels instead of explicit call to shift.
 # (or implement in C++ to save memory)
-def embeddings_to_affinities(embeddings, offsets, delta, invert=False):
-    """ Convert embeddings to affinities.
+def embeddings_to_affinities(
+    embeddings: np.ndarray,
+    offsets: List[List[int]],
+    delta: float,
+    invert: bool = False,
+) -> np.ndarray:
+    """Convert pixel embeddings to affinities.
 
     Computes the affinity according to the formula
     a_ij = max((2 * delta - ||x_i - x_j||) / 2 * delta, 0) ** 2,
@@ -81,11 +105,14 @@ def embeddings_to_affinities(embeddings, offsets, delta, invert=False):
     Introduced in "Learning Dense Voxel Embeddings for 3D Neuron Reconstruction":
     https://arxiv.org/pdf/1909.09872.pdf
 
-    Arguments:
-        embeddings [np.ndarray] - the array with embeddings
-        offsets [list] - the offset vectors for which to compute affinities
-        delta [float] - the delta factor used in the push force when training the embeddings
-        invert [bool] - whether to invert the affinites (default=False)
+    Args:
+        embeddings: The pixel embeddings.
+        offsets: The offset vectors for which to compute affinities.
+        delta: The delta factor used in the push force when training the embeddings.
+        invert: Whether to invert the affinites.
+
+    Returns:
+        The affinity values.
     """
     ndim = embeddings.ndim - 1
     if not all(len(off) == ndim for off in offsets):
@@ -146,7 +173,24 @@ def _cluster(embeddings, clustering_alg, semantic_mask=None, remove_largest=Fals
     return result.reshape(output_shape)
 
 
-def segment_hdbscan(embeddings, min_size, eps, remove_largest, n_jobs=1):
+def segment_hdbscan(
+    embeddings: np.ndarray,
+    min_size: int, eps: float,
+    remove_largest: bool,
+    n_jobs: int = 1,
+) -> np.ndarray:
+    """Compute a segmentation by clustering pixel emeddings with HDBSCAN.
+
+    Args:
+        embeddings: The pixel embeddings.
+        min_size: The minimal segment size.
+        eps: Epsilon factor for HDBSCAN.
+        remove_largest: Whether to remove the largest (=background) object.
+        n_jobs: The number of jobs for parallelizing HDBSCAN.
+
+    Returns:
+        The segmentation.
+    """
     assert hdbscan is not None, "Needs hdbscan library"
     with threadpool_limits(limits=n_jobs):
         clustering = hdbscan.HDBSCAN(
@@ -156,14 +200,50 @@ def segment_hdbscan(embeddings, min_size, eps, remove_largest, n_jobs=1):
     return result
 
 
-def segment_mean_shift(embeddings, bandwidth, n_jobs=1):
+def segment_mean_shift(embeddings: np.ndarray, bandwidth: float, n_jobs: int = 1) -> np.ndarray:
+    """Compute a segmentation by clustering pixel emeddings with mean shift.
+
+    Args:
+        embeddings: The pixel embeddings.
+        bandwidth: The bandwidth parameter for the mean shift algorithm.
+        n_jobs: The number of jobs for parallelizing MeanShift.
+
+    Returns:
+        The segmentation.
+    """
     with threadpool_limits(limits=n_jobs):
         clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=n_jobs)
         result = _cluster(embeddings, clustering).astype("uint64")
     return result
 
 
-def segment_consistency(embeddings1, embeddings2, bandwidth, iou_threshold, num_anchors, skip_zero=True, n_jobs=1):
+def segment_consistency(
+    embeddings1: np.ndarray,
+    embeddings2: np.ndarray,
+    bandwidth: float,
+    iou_threshold: float,
+    num_anchors: int,
+    skip_zero: bool = True,
+    n_jobs: int = 1
+) -> np.ndarray:
+    """Compute a segmentation by clustering pixel emeddings via mean shift and consistency.
+
+    First, the segmentation is computed using mean shift. Then, for each instance in this
+    segmentation the corresponding instance mask is derived from the second set of embeddings.
+    Masks that have a low IOU with the corresponding instance mask are removed.
+
+    Args:
+        embeddings1: The first set of pixel embeddings, used for mean shift clustering.
+        embeddings2: The second set of pixel embeddings, used for consistency.
+        bandwidth: The bandwidth parameter for the mean shift algorithm.
+        iou_threshold: The threshold for consistency filtering.
+        num_anchors: The number of anchors for computing the instance masks for consistency.
+        skip_zero: Whether to skip the background label.
+        n_jobs: The number of jobs for parallelizing MeanShift.
+
+    Returns:
+        The segmentation.
+    """
     def _iou(gt, seg):
         epsilon = 1e-5
         inter = (gt & seg).sum()
@@ -337,13 +417,37 @@ def _embeddings_to_problem(embed, distance_type, beta=None,
 # weight function based on the seung paper, using the push delta
 # of the discriminative loss term.
 def discriminative_loss_weight(dist, delta):
+    """@private
+    """
     dist = (2 * delta - dist) / (2 * delta)
     dist = 1. - np.maximum(dist, 0) ** 2
     return dist
 
 
-def segment_embeddings_mws(embeddings, distance_type, offsets, bias=0.0,
-                           strides=None, weight_function=None, mask=None):
+def segment_embeddings_mws(
+    embeddings: np.ndarray,
+    distance_type: str,
+    offsets: List[List[int]],
+    bias: float = 0.0,
+    strides: List[int] = None,
+    weight_function: Optional[callable] = None,
+    mask: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Compute a segmentation by computing a mutex watershed based on pixel emeddings.
+
+    Args:
+        embeddings: The pixel embeddings.
+        distance_type: The distance type for deriving affinities from embeddings.
+        offsets: The affinity offsets.
+        bias: Additional bias factor to apply to the affinities.
+            This can be used to reduce under-segmentation (positive value) or over-segmentation (negative value).
+        strides: The strides for sub-sampling repulsive mutex edges.
+        weight_function: Optional function for weighting the affinity values.
+        mask: Mask to ignore in the segmentation.
+
+    Returns:
+        The segmentation.
+    """
     g, costs, mutex_uvs, mutex_costs = _embeddings_to_problem(
         embeddings, distance_type, beta=None,
         offsets=offsets, strides=strides,
@@ -353,9 +457,7 @@ def segment_embeddings_mws(embeddings, distance_type, offsets, bias=0.0,
     if bias > 0:
         mutex_costs += bias
     uvs = g.uvIds()
-    seg = mutex_watershed_clustering(
-        uvs, mutex_uvs, costs, mutex_costs
-    ).reshape(embeddings.shape[1:])
+    seg = mutex_watershed_clustering(uvs, mutex_uvs, costs, mutex_costs).reshape(embeddings.shape[1:])
     if mask is not None:
         seg = _ensure_mask_is_zero(seg, mask)
     return seg
