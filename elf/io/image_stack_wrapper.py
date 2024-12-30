@@ -4,7 +4,7 @@ from concurrent import futures
 from glob import glob
 
 import numpy as np
-import imageio
+import imageio.v3 as imageio
 
 try:
     import tifffile
@@ -149,7 +149,7 @@ class ImageStackDataset:
         return imageio.imread(self.files[index])
 
     def _read_volume(self):
-        return imageio.volread(self.files)
+        return imageio.imread(self.files)
 
     def _load_roi_from_stack(self, roi):
         return self._volume[roi]

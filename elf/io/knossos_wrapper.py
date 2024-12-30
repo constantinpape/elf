@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from concurrent import futures
 
 import numpy as np
-import imageio
+import imageio.v3 as imageio
 from ..util import (normalize_index, squeeze_singletons,
                     map_chunk_to_roi, chunks_overlapping_roi)
 
