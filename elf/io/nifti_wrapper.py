@@ -1,4 +1,7 @@
+import os
 from collections.abc import Mapping
+from typing import Union
+
 from ..util import normalize_index, squeeze_singletons
 
 import numpy as np
@@ -9,7 +12,13 @@ except ImportError:
 
 
 class NiftiFile(Mapping):
-    def __init__(self, path, mode="r"):
+    """Root object for a file handle representing a nifti file.
+
+    Args:
+        path: The filepath of the nifti file.
+        mode: The mode for opening the folder, only supports 'r' (read mode).
+    """
+    def __init__(self, path: Union[os.PathLike, str], mode: str = "r"):
         if nibabel is None:
             raise AttributeError("nibabel is required for nifti images, but is not installed.")
         self.path = path
@@ -44,6 +53,8 @@ class NiftiFile(Mapping):
 
 
 class NiftiDataset:
+    """Dataset object for a file handle representing a nifti file.
+    """
     def __init__(self, data):
         self._data = data
 

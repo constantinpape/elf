@@ -21,6 +21,8 @@ def _check_intern_importable():
 
 
 class InternDataset:
+    """Dataset object for a handle representing an intern resource.
+    """
     def __init__(self, cloud_path):
         _check_intern_importable()
         self._data = array(cloud_path)
@@ -60,10 +62,14 @@ class InternDataset:
 
 
 class InternFile(Mapping):
-    """ Wrapper for an intern dataset
+    """Root object for a handle representing an intern resource.
+
+    Args:
+        path: The URL of the intern resource to open.
+        mode: The mode for opening the resource. Only 'r' (read mode) is supported.
     """
 
-    def __init__(self, path, mode="r"):
+    def __init__(self, path: str, mode: str = "r"):
         _check_intern_importable()
         self.path = path
         self.mode = mode

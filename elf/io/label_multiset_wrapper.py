@@ -7,8 +7,7 @@ from ..util import (normalize_index, squeeze_singletons,
 
 
 class LabelMultisetWrapper:
-    """ Wrap a label multiset dataset so that it can be
-    accessed via arbitrary slices.
+    """Wrapper class for a label multiset dataset so that it can be accessed via arbitrary slices.
     """
     def __init__(self, dataset):
         self._dataset = dataset
@@ -16,7 +15,7 @@ class LabelMultisetWrapper:
 
     @property
     def dtype(self):
-        return np.dtype('uint64')
+        return np.dtype("uint64")
 
     @property
     def ndim(self):
@@ -44,13 +43,13 @@ class LabelMultisetWrapper:
 
         # init data (dtype is hard-coded to uint64)
         roi_shape = tuple(rr.stop - rr.start for rr in roi)
-        data = np.zeros(roi_shape, dtype='uint64')
+        data = np.zeros(roi_shape, dtype="uint64")
 
         def load_chunk(chunk_id):
             chunk_shape = self._dataset.get_chunk_shape(chunk_id)
             chunk_data = self._dataset.read_chunk(chunk_id)
             if chunk_data is None:
-                chunk_data = np.zeros(chunk_shape, dtype='uint64')
+                chunk_data = np.zeros(chunk_shape, dtype="uint64")
             else:
                 chunk_data = deserialize_labels(chunk_data, chunk_shape)
 

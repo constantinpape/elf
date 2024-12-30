@@ -11,7 +11,6 @@ from elf.io.extensions import h5py, z5py, pyn5, zarr, zarr_open, FILE_CONSTRUCTO
 
 
 class FileTestBase(unittest.TestCase):
-    # todo: use https://github.com/clbarnes/tempcase/
     tmp_dir = "./tmp"
 
     def setUp(self):

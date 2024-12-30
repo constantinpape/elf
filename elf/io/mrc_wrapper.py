@@ -1,5 +1,7 @@
+import os
 import warnings
 from collections.abc import Mapping
+from typing import Union
 
 import numpy as np
 
@@ -10,12 +12,11 @@ except ImportError:
 
 
 class MRCDataset:
+    """Dataset object for a file handle representing a mrc file.
+    """
     def __init__(self, data_object):
-        im = data_object
-        # need to swap and flip to meet axes conventions
-        data0 = np.swapaxes(im, 0, -1)
-        data1 = np.fliplr(data0)
-        self._data = np.swapaxes(data1, 0, -1)
+        # Need to flip the data's axis to meet axes conventions.
+        self._data = np.flip(data_object, axis=1) if data_object.ndim == 3 else np.flip(data_object, axis=0)
 
     @property
     def dtype(self):
@@ -48,10 +49,13 @@ class MRCDataset:
 
 
 class MRCFile(Mapping):
-    """ Wrapper for an mrc file
-    """
+    """Root object for a file handle representing a mrc file.
 
-    def __init__(self, path, mode="r"):
+    Args:
+        path: The filepath of the mrc file.
+        mode: The mode for opening the folder, only supports 'r' (read mode).
+    """
+    def __init__(self, path: Union[os.PathLike, str], mode: str = "r"):
         self.path = path
         self.mode = mode
         if mrcfile is None:
@@ -79,7 +83,6 @@ class MRCFile(Mapping):
                         f"Opening mrcfile {self.path} failed with unknown error {e} without permissive opening."
                         "The file will still be opened but the contents may be incorrect."
                     )
-
 
     def __getitem__(self, key):
         if key != "data":
