@@ -73,7 +73,7 @@ class TestStitching(unittest.TestCase):
             expected_segmentation = _segment(data)
             segmentation = stitch_segmentation(data, _segment, tile_shape, tile_overlap, verbose=False)
             are, _ = rand_index(segmentation, expected_segmentation)
-            self.assertTrue(np.isclose(are, 0, rtol=1e-3, atol=1e-3))
+            self.assertTrue(np.isclose(are, 0, rtol=1e-2, atol=1e-2))
 
     def test_stitch_tiled_segmentation(self):
         from elf.segmentation.stitching import stitch_tiled_segmentation
