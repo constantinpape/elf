@@ -1,4 +1,9 @@
+from numbers import Number
+from typing import List, Optional, Tuple
+
 import numpy as np
+from numpy.typing import ArrayLike
+
 from .base import WrapperBase
 from ..transformation import compute_affine_matrix, transform_subvolume_affine
 from ..util import normalize_index, squeeze_singletons
@@ -7,24 +12,36 @@ from ..util import normalize_index, squeeze_singletons
 # we need to support origin shifts,
 # but it's probably better to do this with the affine matrix already
 class AffineVolume(WrapperBase):
-    """ Apply affine transformation to the volume.
+    """Wrapper to apply affine transformation to data on the fly.
 
-    Arguments:
-        volume: volume to which to apply the affine.
-        shape: output shape, deduced from data by default (default: None)
-        affine_matrix: matrix defining the affine transformation (default: None)
-        scale: scale factor (default: None)
-        rotation: rotation in degrees (default: None)
-        shear: shear in degrees (default: None)
-        translation: translation in pixel (default: None)
-        order: order of interpolation (supports 0 up to 5) (default: 0)
-        fill_value: fill value for invalid regions (default: 0)
-        sigma_anti_aliasing: sigma used for smoothing (default: None)
+    The transformation can either be defined by an affine matrix,
+    or by individual paramters for scale, rotation, shear and translation.
+
+    Args:
+        volume: The data to wrap.
+        shape: The output shape, deduced from the data by default.
+        affine_matrix: The matrix defining the affine transformation.
+        scale: The scale factors.
+        rotation: The rotation angles in degrees.
+        shear: The shear angles in degrees.
+        translation: The translation vector.
+        order: The order of interpolation, supports 0 to 5.
+        fill_value: The fill value for invalid regions.
+        sigma_anti_aliasing: The sigma value used for smoothing.
     """
-    def __init__(self, volume, shape=None, affine_matrix=None,
-                 scale=None, rotation=None, shear=None, translation=None,
-                 order=0, fill_value=0, sigma_anti_aliasing=None):
-
+    def __init__(
+        self,
+        volume: ArrayLike,
+        shape: Optional[Tuple[int, ...]] = None,
+        affine_matrix: Optional[np.ndarray] = None,
+        scale: Optional[List[float]] = None,
+        rotation: Optional[List[float]] = None,
+        shear: Optional[List[float]] = None,
+        translation: Optional[List[float]] = None,
+        order: int = 0,
+        fill_value: Number = 0,
+        sigma_anti_aliasing: Optional[float] = None,
+    ):
         # TODO support 2d + channels and 3d + channels
         assert volume.ndim in (2, 3), "Only 2d or 3d supported"
         super().__init__(volume)
