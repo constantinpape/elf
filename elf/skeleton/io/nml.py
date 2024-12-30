@@ -1,22 +1,16 @@
 import zipfile
 from xml.dom import minidom
+from typing import List
 
 
-#
-# nml / nmx parser
-#
-# based on:
-# https://github.com/knossos-project/knossos_utils/blob/master/knossos_utils/skeleton.py
-#
+def _parse_attributes(xml_elem, parse_input) -> List:
+    """Parse xml input.
 
-
-def parse_attributes(xml_elem, parse_input):
-    """ Parse xml input:
-
-    Arguments:
-        xml_elem: an XML parsing element containing an "attributes" member
+    Args:
+        xml_elem: An XML parsing element containing an "attributes" member.
         parse_input: [["attribute_name", python_type_name],
                       ["52", int], ["1.234", float], ["neurite", str], ...]
+
     Returns:
         list of python-typed values - [52, 1.234, "neurite", ...]
     """
@@ -36,6 +30,8 @@ def parse_attributes(xml_elem, parse_input):
 
 # Construct annotation. Annotations are trees (called things inside the nml files).
 def read_coords_from_nml(nml):
+    """@private
+    """
     annotation_elems = nml.getElementsByTagName("thing")
     skeleton_coordinates = {}
 
@@ -44,17 +40,17 @@ def read_coords_from_nml(nml):
         node_elems = annotation_elem.getElementsByTagName("node")
         coords = []
         for node_elem in node_elems:
-            x, y, z = parse_attributes(node_elem,
-                                       [['x', float], ['y', float], ['z', float]])
+            x, y, z = _parse_attributes(node_elem, [["x", float], ["y", float], ["z", float]])
             # TODO is this stored in physical coordinates?
             # need to transform appropriately
             coords.append([z, y, x])
         skeleton_coordinates[skel_id] = coords
-    #
     return skeleton_coordinates
 
 
 def read_edges_from_nml(nml):
+    """@private
+    """
     annotation_elems = nml.getElementsByTagName("thing")
     skeleton_edges = {}
 
@@ -65,7 +61,7 @@ def read_edges_from_nml(nml):
         edges = []
 
         for edge_elem in edge_elems:
-            src_id, trgt_id = parse_attributes(edge_elem, [["source", int], ["target", int]])
+            src_id, trgt_id = _parse_attributes(edge_elem, [["source", int], ["target", int]])
             edges.append([src_id, trgt_id])
 
         skeleton_edges[skel_id] = edges
@@ -75,6 +71,8 @@ def read_edges_from_nml(nml):
 
 # TODO read and return tree structure, comments etc.
 def parse_nml(nml_str):
+    """@private
+    """
     # TODO figure this out
     # read the pixel size
     # try:
@@ -91,31 +89,34 @@ def parse_nml(nml_str):
 
 # TODO return additional annotations etc
 # TODO figure out scaling
-def read_nml(input_path):
-    """ Read skeleton stored in nml or nmx format
+def read_nml(input_path: str):
+    """Read skeleton stored in nml or nmx format.
 
-    NML format used by Knossos
-    For details on the nml format see .
+    The nml format is used by Knossos. For details on the nml format see:
+    https://github.com/knossos-project/knossos_utils/blob/master/knossos_utils/skeleton.py
 
-    Arguments:
-        input_path [str]: path to nml/nmx file
+    Args:
+        input_path: Path to the nml/nmx file.
+
+    Returns:
+        The parsed skeleton.
     """
     # from knossos zip
-    if input_path.endswith('k.zip'):
+    if input_path.endswith("k.zip"):
         zipper = zipfile.ZipFile(input_path)
-        if 'annotation.xml' not in zipper.namelist():
+        if "annotation.xml" not in zipper.namelist():
             raise Exception("k.zip file does not contain annotation.xml")
-        xml_string = zipper.read('annotation.xml')
+        xml_string = zipper.read("annotation.xml")
         nml = minidom.parseString(xml_string)
         out = parse_nml(nml)
 
     # from nmx (pyKnossos)
-    elif input_path.endswith('nmx'):
+    elif input_path.endswith("nmx"):
 
         out = {}
-        with zipfile.ZipFile(input_path, 'r') as zf:
+        with zipfile.ZipFile(input_path, "r") as zf:
             for ff in zf.namelist():
-                if not ff.endswith('.nml'):
+                if not ff.endswith(".nml"):
                     continue
                 nml = minidom.parseString(zf.read(ff))
                 out[ff] = parse_nml(nml)
@@ -128,5 +129,5 @@ def read_nml(input_path):
     return out
 
 
-def write_nml():
-    pass
+# def write_nml():
+#     pass

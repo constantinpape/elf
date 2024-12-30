@@ -4,7 +4,7 @@ import numpy as np
 
 from .thinning import thinning
 
-# TODO get a teasar impl
+# Add teasar implementation?
 METHODS = {"thinning": thinning}
 DEFAULT_PARAMS = {}
 

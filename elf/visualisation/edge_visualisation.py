@@ -1,25 +1,31 @@
 import multiprocessing
+from typing import Optional, Tuple
+
 import numpy as np
 import nifty.graph.rag as nrag
 
 
-def visualise_edges(rag, edge_values,
-                    edge_direction=2, ignore_edges=None,
-                    n_threads=None):
-    """ Visualize values mapped to the edges of a rag as volume.
+def visualise_edges(
+    rag,
+    edge_values: np.ndarray,
+    edge_direction: int = 2,
+    ignore_edges: Optional[np.ndarray] = None,
+    n_threads: Optional[int] = None,
+) -> np.ndarray:
+    """Visualize values mapped to the edges of a rag as image.
 
-    Arguments:
-        rag [nifty.rag] - region adjacency graph
-        edge_values [np.ndarray] - values mapped to rag edges
-        edge_direction [int] - direction into which the edges will be drawn:
+    Args:
+        rag: The egion adjacency graph.
+        edge_values: The values mapped to the rag edges.
+        edge_direction: The direction into which the edges will be drawn:
             0 - drawn in both directions
             1 - drawn in negative direction
             2 - drawn in positive direction
-        ignore_edges [np.ndarray]: mask or indices of edges that should not be drawn
-        n_threads [int] - number of threads (default: None)
+        ignore_edges: Mask or indices of edges that should not be drawn.
+        n_threads: Number of threads for parallelization.
 
     Returns:
-        np.ndarray - edge volume
+        The image with edge visualizations.
     """
     assert rag.numberOfEdges == len(edge_values), "%i, %i" % (rag.numberOfEdges,
                                                               len(edge_values))
@@ -43,26 +49,32 @@ def _scale_values(values, threshold, invert):
     return values
 
 
-def visualise_attractive_and_repulsive_edges(rag, edge_values, threshold,
-                                             large_values_are_attractive=True, edge_direction=2,
-                                             ignore_edges=None, n_threads=None):
-    """ Visualize values mapped to the edges of a rag that are attractive and repulsive.
+def visualise_attractive_and_repulsive_edges(
+    rag,
+    edge_values: np.ndarray,
+    threshold: float,
+    large_values_are_attractive: bool = True,
+    edge_direction: int = 2,
+    ignore_edges: Optional[np.ndarray] = None,
+    n_threads: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Visualize values mapped to the edges of a rag that are attractive and repulsive.
 
-    Arguments:
-        rag [nifty.rag] - region adjacency graph
-        edge_values [np.ndarray] - values mapped to rag edges
-        threshold [float] - values below this threhold are repulsive, above repulsive
-        large_values_are_attractive [bool] - are large values or small values attractive? (default: True)
-        edge_direction [int] - direction into which the edges will be drawn: (default: 2)
+    Args:
+        rag: The region adjacency graph.
+        edge_values: The values mapped to the rag edges.
+        threshold: The values below this threhold are repulsive, above attractive.
+        large_values_are_attractive: Are large values or small values attractive?
+        edge_direction: The direction into which the edges will be drawn:
             0 - drawn in both directions
             1 - drawn in negative direction
             2 - drawn in positive direction
-        ignore_edges [np.ndarray]: mask or indices of edges that should not be drawn
-        n_threads [int] - number of threads (default: None)
+        ignore_edges: The mask or indices of edges that should not be drawn.
+        n_threads: The number of threads used for parallelization.
 
     Returns:
-        np.ndarray - volume of attractive edges
-        np.ndarray - volume of repulsive edges
+        Image visualizing the attractive edges.
+        Image visualizing the repulsive edges.
     """
     assert rag.numberOfEdges == len(edge_values), "%i, %i" % (rag.numberOfEdges,
                                                               len(edge_values))

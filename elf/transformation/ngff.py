@@ -1,6 +1,9 @@
 import json
 import os
 import warnings
+from typing import Dict, List, Optional, Union
+
+import numpy as np
 
 from .affine import (affine_matrix_2d, affine_matrix_3d,
                      scale_from_matrix, translation_from_matrix)
@@ -62,18 +65,19 @@ def _get_axis_indices(multiscales, axes, version):
         raise RuntimeError(f"Unsupported version {version}")
 
 
-def ngff_to_native(multiscales, scale_level=0, axes=None):
+def ngff_to_native(
+    multiscales: Union[str, List[Dict], Dict], scale_level: int = 0, axes: Optional[str] = None
+) -> np.ndarray:
     """Convert NGFF transformation to affine transformation matrix.
 
-    Arguments:
-        multiscales [str, lis[dict] or dict] - the ngff multiscales metadata.
-            Can be either a filepath to the corresponding zarr array or a dict
-             containing the deserialzed ngff metadata.
-        scale_level [int] - the scale level for which to compute the transformation (default: 0)
-        axes [str] - subset of axes for which to compute the transformation.
-            E.g. "zyx" to compute only for spatial axes (default: None)
+    Args:
+        multiscales: The ngff multiscales metadata.
+            Can be either a filepath to the zarr file or a dict containing the deserialzed ngff metadata.
+        scale_level: The scale level for which to compute the transformation.
+        axes: Subset of axes for which to compute the transformation, e.g. 'zyx' to compute only for spatial axes.
+
     Returns:
-        np.ndarray - the 3x3 (2d data) or 4x4 (3d data) transformation matrix
+        The affine transformation matrix.
     """
     if isinstance(multiscales, str):
         assert os.path.exists(multiscales)
@@ -128,15 +132,15 @@ def _to_04_trafo(transformation):
 
 
 # TODO implement expanding to axes, e.g. expanding zyx to tczyx trafo
-def native_to_ngff(transformation, version=None):
+def native_to_ngff(transformation: np.ndarray, version: Optional[str] = None) -> Dict:
     """Convert affine transformation matrix to NGFF transformation.
 
-    Arguments:
-        transformation [np.ndarray] - the transformation matrix
-        version [str] - the ngff version to use.
-            By default will use the latest supported version (default: None)
+    Args:
+        transformation: The transformation matrix.
+        version: The ngff version to use. Will use the latest supported version by default.
+
     Returns:
-        dict - the ngff transformation
+        The NGFF transformation.
     """
     if transformation.shape not in [(3, 3), (4, 4)]:
         raise ValueError(

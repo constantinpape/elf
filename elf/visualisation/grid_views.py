@@ -2,6 +2,7 @@
 # simple grid image views implemented on top of napari
 # simplified version of elf.htm
 #
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -14,6 +15,8 @@ except ImportError:
 
 
 def get_position(grid_shape, image_shape, i, spacing):
+    """@private
+    """
     unraveled = np.unravel_index([i], grid_shape)
     grid_x, grid_y = unraveled[0][0], unraveled[1][0]
     x = (image_shape[-2] + spacing) * grid_x
@@ -22,6 +25,8 @@ def get_position(grid_shape, image_shape, i, spacing):
 
 
 def add_grid_sources(name, images, grid_shape, settings, add_source, spacing, is_rgb):
+    """@private
+    """
     layers = []
     for i, image in enumerate(images):
         layer = add_source(image, name=f"{name}-{i}", **settings)
@@ -32,6 +37,8 @@ def add_grid_sources(name, images, grid_shape, settings, add_source, spacing, is
 
 
 def set_camera(viewer, grid_shape, image_shape, spacing):
+    """@private
+    """
     # find the full extent in pixels
     extent = [gsh * (ish + spacing) for gsh, ish in zip(grid_shape, image_shape[-2:])]
 
@@ -44,27 +51,31 @@ def set_camera(viewer, grid_shape, image_shape, spacing):
     viewer.camera.zoom /= max_len
 
 
-# TODO make is_rgb support a list
+# TODO make is_rgb support a dict
 def simple_grid_view(
-    image_data,
-    label_data=None,
-    settings=None,
-    grid_shape=None,
-    spacing=16,
-    show=True,
-    is_rgb=False,
-):
-    """
+    image_data: Dict[str, List[np.ndarray]],
+    label_data: Optional[Dict[str, List[np.ndarray]]] = None,
+    settings: Optional[Dict[str, Dict]] = None,
+    grid_shape: Optional[Tuple[int, int]] = None,
+    spacing: int = 16,
+    show: bool = True,
+    is_rgb: bool = False,
+) -> napari.Viewer:
+    """Show images in napari using a simple grid view.
+
     Args:
-        image_data [dict[list[np.ndarray]]] -
-        label_data [dict[list[np.ndarray]]] -
-        settings [dict] -
-        grid_shape [tuple] -
-        spacing [int] -
-        show [bool] -
-        is_rgb [bool, List[]]
+        image_data: Dictionary with the image data for the grid positions.
+        label_data: Dictionary with the label data for the grid positions.
+        settings: The napari layer settings for images / labels.
+        grid_shape: The shape of the grid. If None, it will be derived from the number of images.
+        spacing: The spacing between images in the grid.
+        show: Whether to start the napari viewer.
+        is_rgb: Whether the image data is rgb.
+
+    Returns:
+        The napari viewer.
     """
-    assert napari is not None and link_layers is not None, "Require napari"
+    assert napari is not None and link_layers is not None, "Requires napari"
 
     n_images = len(next(iter(image_data.values())))
     image_shape = next(iter(image_data.values()))[0].shape

@@ -1,3 +1,4 @@
+from typing import List, Optional
 import numpy as np
 from . import elastix_parser
 from .affine import affine_matrix_2d, affine_matrix_3d
@@ -26,20 +27,26 @@ from .affine import affine_matrix_2d, affine_matrix_3d
 #
 
 def pretty_print_trafo(trafo):
+    """@private
+    """
     if isinstance(trafo, np.ndarray) and trafo.ndim == 2:
         trafo = matrix_to_parameters(trafo)
     trafo = " ".join([f"{param:.4f}" for param in trafo])
     print(trafo)
 
 
-def matrix_to_parameters(matrix):
-    """ Affine matrix to parameter vector.
+def matrix_to_parameters(matrix: np.ndarray) -> List[float]:
+    """Convert affine matrix to parameter vector.
 
-    Returns parameter vector layed out as
-    2d:
-        [a00, a01, a02, a10, a11, a12]
-    3d:
-        [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
+    The parameter vector returned has the layout:
+        [a00, a01, a02, a10, a11, a12] (for 2d) or
+        [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23] (for 3d)
+
+    Args:
+        matrix: The affine matrix.
+
+    Returns:
+        The parameter vector.
     """
     if matrix.shape[0] == 4:
         assert matrix.shape == (4, 4)
@@ -50,17 +57,21 @@ def matrix_to_parameters(matrix):
     return trafo
 
 
-def parameters_to_matrix(trafo):
-    """ Parameter vector to affine matrix.
+def parameters_to_matrix(trafo: List[float]) -> np.ndarray:
+    """Converts parameter vector to affine matrix.
 
-    Assumes parameter vector layed out as
-    2d:
-        [a00, a01, a02, a10, a11, a12]
-    3d:
-        [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23]
+    Assumes parameter vector that has the layout:
+        [a00, a01, a02, a10, a11, a12] (for 2d) or
+        [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23] (for 3d)
+
+    Args:
+        trafo: The transformation parameter vector.
+
+    Returns:
+        The affine transformation matrix.
     """
     if len(trafo) == 12:
-        sub_matrix = np.zeros((3, 3), dtype='float64')
+        sub_matrix = np.zeros((3, 3), dtype="float64")
         sub_matrix[0, 0] = trafo[0]
         sub_matrix[0, 1] = trafo[1]
         sub_matrix[0, 2] = trafo[2]
@@ -81,7 +92,7 @@ def parameters_to_matrix(trafo):
         matrix[3, 3] = 1
 
     elif len(trafo) == 6:
-        sub_matrix = np.zeros((2, 2), dtype='float64')
+        sub_matrix = np.zeros((2, 2), dtype="float64")
         sub_matrix[0, 0] = trafo[0]
         sub_matrix[0, 1] = trafo[1]
 
@@ -107,7 +118,7 @@ def parameters_to_matrix(trafo):
 
 def _elastix_affine_to_bdv(trafo):
     if len(trafo) == 12:  # 3d transformation
-        sub_matrix = np.zeros((3, 3), dtype='float64')
+        sub_matrix = np.zeros((3, 3), dtype="float64")
         sub_matrix[0, 0] = trafo[0]
         sub_matrix[0, 1] = trafo[1]
         sub_matrix[0, 2] = trafo[2]
@@ -128,7 +139,7 @@ def _elastix_affine_to_bdv(trafo):
         matrix[3, 3] = 1
 
     elif len(trafo) == 6:  # 2d transformation
-        sub_matrix = np.zeros((2, 2), dtype='float64')
+        sub_matrix = np.zeros((2, 2), dtype="float64")
         sub_matrix[0, 0] = trafo[0]
         sub_matrix[0, 1] = trafo[1]
 
@@ -193,24 +204,28 @@ def _elastix_translation_to_bdv(trafo):
     return matrix
 
 
-def elastix_parameter_to_bdv_matrix(trafo, trafo_type):
-    """ Convert elastix parameters to affine matrix in bdv convention.
+def elastix_parameter_to_bdv_matrix(trafo: List[int], trafo_type: str) -> np.ndarray:
+    """Convert elastix transformation parameters to affine matrix in bdv convention.
 
-    Note that the elastix parameter use a different convention than
-    what is used natively and by bdv.
+    Note that elastix uses a different convention than the native python or bdv order.
+
+    Args:
+        trafo: The transformation parameters.
+        trafo_type: The transformation types.
+
+    Returns:
+        The affine matrix.
     """
-
-    if trafo_type == 'AffineTransform':
+    if trafo_type == "AffineTransform":
         matrix = _elastix_affine_to_bdv(trafo)
-    elif trafo_type == 'EulerTransform':
+    elif trafo_type == "EulerTransform":
         matrix = _elastix_euler_to_bdv(trafo)
-    elif trafo_type == 'SimilarityTransform':
+    elif trafo_type == "SimilarityTransform":
         matrix = _elastix_similarity_to_bdv(trafo)
-    elif trafo_type == 'TranslationTransform':
+    elif trafo_type == "TranslationTransform":
         matrix = _elastix_translation_to_bdv(trafo)
     else:
         raise ValueError(f"Invalid transformation type {trafo_type}")
-
     return matrix
 
 
@@ -338,18 +353,24 @@ def _get_elastix_trafo_files(trafo_file, load_initial_trafos):
     return trafo_files[::-1]
 
 
-def elastix_to_bdv(trafo_file, resolution, scale_factor=1e3, load_initial_trafos=True):
-    """ Convert elastix transformation in text file to bdv transformation.
+def elastix_to_bdv(
+    trafo_file: str,
+    resolution: List[float],
+    scale_factor: float = 1e3,
+    load_initial_trafos: bool = True,
+) -> List[float]:
+    """Convert elastix transformation in text file to bdv transformation.
 
-    Arguments:
-        trafo_file [str] - the file defining the elastix transformation
-        resolution [list[float]] - resolution of the data in physical units
-        scale_factor [float] - scale factor of physical units compared to millimeter, which is
+    Args:
+        trafo_file: The file defining the elastix transformation.
+        resolution: Resolution of the data in physical units.
+        scale_factor: Scale factor of physical units compared to millimeter, which is
             the default unit for elastix tranformations. By default, assume that physical
-            units is in micrometer, which corresponds to a scale of 10^3 (default: 1e3)
-        load_initial_trafos [bool] - whether to load the initial transformations (default: True)
+            units is in micrometer, which corresponds to a scale of 10^3.
+        load_initial_trafos: Whether to load the initial transformations.
+
     Returns:
-        list - parameter vector for bdv transformation
+        Parameter vector for bdv transformation.
     """
 
     # get elastix trafos in bdv matrix format
@@ -363,29 +384,37 @@ def elastix_to_bdv(trafo_file, resolution, scale_factor=1e3, load_initial_trafos
     trafo = _combine_elastix_trafos_bdv(trafos, resolution[::-1], scale_factor)
 
     # return the transformation as parameter vector instead of affine matrix
-    trafo = matrix_to_parameters(trafo)
-    return trafo
+    return matrix_to_parameters(trafo)
 
 
-def elastix_to_native(trafo_file, resolution, scale_factor=1e3, load_initial_trafos=True):
-    """ Convert elastix transformation in text file to native transformation.
+def elastix_to_native(
+    trafo_file: str,
+    resolution: List[float],
+    scale_factor: float = 1e3,
+    load_initial_trafos: bool = True
+) -> np.ndarray:
+    """Convert elastix transformation in text file to native transformation.
 
-    Arguments:
-        trafo_file [str] - the file defining the elastix transformation
-        load_initial_trafos [bool] - whether to load the initial transformations (default: True)
+    Args:
+        trafo_file: The file defining the elastix transformation.
+        resolution: Resolution of the data in physical units.
+        scale_factor: Scale factor of physical units compared to millimeter, which is
+            the default unit for elastix tranformations. By default, assume that physical
+            units is in micrometer, which corresponds to a scale of 10^3.
+        load_initial_trafos: Whether to load the initial transformations.
+
     Returns:
-        np.ndarray - 4x4 affine matrix in native format
+        Affine transformation matrix in native format.
     """
     # get elastix trafo in bdv parameter format format
-    trafo = elastix_to_bdv(trafo_file, resolution,
-                           scale_factor, load_initial_trafos)
+    trafo = elastix_to_bdv(trafo_file, resolution, scale_factor, load_initial_trafos)
     # convert to native format
     trafo = bdv_to_native(trafo, resolution, invert=True)
     return trafo
 
 
 def _native_to_elastix_trafo(trafo, resolution=None):
-    """ Convert native transformation matrix to elastix transformantion parameter.
+    """Convert native transformation matrix to elastix transformation parameter.
     """
     params = 12 * [0]
 
@@ -417,28 +446,27 @@ def _native_to_elastix_trafo(trafo, resolution=None):
 # BigDataViewer
 #
 
-def bdv_to_native(trafo, resolution=None, invert=True):
-    """ Convert bdv transformation parameter vector to
-    affine matrix in native format.
+def bdv_to_native(
+    trafo: List[float], resolution: Optional[List[float]] = None, invert: bool = True
+) -> np.ndarray:
+    """Convert bdv transformation parameters to affine matrix in native format.
 
     Bdv and elf expect the transformation in the opposite direction.
-    So to be directly applied the transformation also needs to be inverted.
-    (In addition to changing between the axis conventions.)
-    The bdv transformations often also include the transformation from
-    voxel space to physical space.
+    So to be directly applied, the transformation also needs to be inverted,
+    in addition to changing between the axis conventions.
+    The bdv transformations often also include the transformation from voxel space to physical space.
 
-    Arguments:
-        trafo [listlike] - parameter vector of the bdv transformation
-        resolution [listlike] - physical resolution of the data in bdv.
-            If given, the transformation will be scaled to voxel space (default: None)
-        invert [bool] - invert the resulting affine matrix.
-            This is necessary to apply the affine matrix directly in elf (default: True)
+    Args:
+        trafo: Parameter vector of the bdv transformation.
+        resolution: Physical resolution of the data. If given, the transformation will be scaled to voxel space.
+        invert: Invert the resulting affine matrix. This is necessary to apply the affine matrix directly in elf.
+
     Returns:
-        np.ndarray - 3x3 or 4x4 affine matrix
+        The affine transformation matrix.
     """
 
     if len(trafo) == 12:  # 3d case
-        sub_matrix = np.zeros((3, 3), dtype='float64')
+        sub_matrix = np.zeros((3, 3), dtype="float64")
         sub_matrix[0, 0] = trafo[10]
         sub_matrix[0, 1] = trafo[9]
         sub_matrix[0, 2] = trafo[8]
@@ -459,7 +487,7 @@ def bdv_to_native(trafo, resolution=None, invert=True):
         matrix[3, 3] = 1
 
     elif len(trafo) == 6:  # 2d case
-        sub_matrix = np.zeros((2, 2), dtype='float64')
+        sub_matrix = np.zeros((2, 2), dtype="float64")
         sub_matrix[0, 0] = trafo[4]
         sub_matrix[0, 1] = trafo[3]
 
@@ -483,31 +511,29 @@ def bdv_to_native(trafo, resolution=None, invert=True):
 
     # scale from physical resolution to voxels
     if resolution is not None:
-        scale = affine_matrix_3d(scale=resolution) if len(trafo) == 12\
-            else affine_matrix_2d(scale=resolution)
+        scale = affine_matrix_3d(scale=resolution) if len(trafo) == 12 else affine_matrix_2d(scale=resolution)
         matrix = matrix @ scale
 
     return matrix
 
 
-def native_to_bdv(matrix, resolution=None, invert=True):
-    """ Convert affine matrix in native format to
-    bdv transformation parameter vector.
+def native_to_bdv(
+    matrix: np.ndarray, resolution: Optional[List[float]] = None, invert: bool = True
+) -> List[float]:
+    """Convert affine matrix in native format to bdv transformation parameter vector.
 
     Bdv and elf expect the transformation in the opposite direction.
-    So to be directly applied the transformation also needs to be inverted.
-    (In addition to changing between the axis conventions.)
-    The bdv transformations often also include the transformation from
-    voxel space to physical space.
+    So to be directly applied the transformation also needs to be inverted,
+    in addition to changing between the axis conventions.
+    The bdv transformations often also include the transformation from voxel space to physical space.
 
-    Arguments:
-        matrix [np.ndarray] - native affine transformation matrix
-        resolution [listlike] - physical resolution of the data in bdv.
-            If given, the transformation will be scaled to voxel sapec (default: None)
-        invert [bool] - invert the resulting affine matrix.
-            This is necessary to apply the affine matrix directly in elf (default: True)
+    Args:
+        matrix: Native affine transformation matrix.
+        resolution: Physical resolution of the data. If given, the transformation will be scaled to voxel space.
+        invert: Invert the resulting affine matrix. This is necessary to apply the affine matrix directly in elf.
+
     Returns:
-        Vector with transformation parameters
+        Vector with transformation parameters.
     """
     # TODO include scaling transformation from physical space to voxel space
     if resolution is not None:

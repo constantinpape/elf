@@ -3,6 +3,13 @@ import numpy as np
 from skimage.segmentation import relabel_sequential
 from elf.evaluation.matching import label_overlap, intersection_over_union
 
+try:
+    import napari
+    from magicgui import magic_factory
+except ImportError:
+    napari = None
+    magic_factory = None
+
 
 def _compute_matches(prediction, ground_truth, overlap_matrix, iou_threshold):
     matches = overlap_matrix > iou_threshold
@@ -38,12 +45,11 @@ def run_metric_visualization(
     """Visualize the metric scores over a range of thresholds.
 
     Args:
-        image: The input image
+        image: The input image.
         prediction: The predictions generated over the input image.
         ground_truth: The true labels for the input image.
     """
-    import napari
-    from magicgui import magic_factory
+    assert napari is not None and magic_factory is not None, "Requires napari"
 
     ground_truth = relabel_sequential(ground_truth)[0]
     prediction = relabel_sequential(prediction)[0]

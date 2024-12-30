@@ -1,3 +1,5 @@
+from typing import Optional, Tuple, Union
+
 import numpy as np
 import nifty
 
@@ -6,17 +8,24 @@ import nifty
 # http://research.mssm.edu/cnic/swc.html.
 
 
-def read_swc(input_path, return_radius=False, return_type=False):
-    """ Read skeleton stored in .swc
+def read_swc(
+    input_path: str, return_radius: bool = False, return_type: bool = False
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Read skeleton stored in swc format.
 
     For details on the swc format for skeletons, see
     http://research.mssm.edu/cnic/swc.html.
     This function expects the swc catmaid flavor.
 
-    Arguments:
-        input_path [str]: path to swc file
-        retun_radius [bool]: return radius measurements (default: False)
-        retun_type [bool]: return type variable (default: False)
+    Args:
+        input_path: Path to the swc file.
+        retun_radius: Return radius measurements.
+        retun_type: Return type variable.
+
+    Returns:
+        The skeleton ids.
+        The skeleton coordinates.
+        The skeleton parents.
     """
     ids, coords, parents = [], [], []
     radii, types = [], []
@@ -53,20 +62,26 @@ def read_swc(input_path, return_radius=False, return_type=False):
     return ids, coords, parents
 
 
-def write_swc(output_path, nodes, edges, resolution=None, invert_coords=False):
-    """ Write skeleton to .swc
+def write_swc(
+    output_path: str,
+    nodes: np.ndarray,
+    edges: np.ndarray,
+    resolution: Optional[Union[float, Tuple[float, float, float]]] = None,
+    invert_coords: bool = False,
+):
+    """Write skeleton to a swc file.
 
     For details on the swc format for skeletons, see
     http://research.mssm.edu/cnic/swc.html.
     This writes the swc catmaid flavor.
 
-    Arguments:
-        output_path [str]: output_path for swc file
-        nodes [np.ndarray]: the coordinates of the skeleton trace
-        edges [np.ndarray]: the edges between skeleton nodes
-        resolution [list or float]: pixel resolution (default: None)
-        invert_coords [bool]: whether to invert the coordinates
-            This may be useful because swc expects xyz, but numpy convention is zyx (default: False)
+    Args:
+        output_path: Path to the output swc file.
+        nodes: The coordinates of the skeleton trace.
+        edges: The edges between skeleton nodes.
+        resolution: Pixel resolution.
+        invert_coords: Whether to invert the coordinates.
+            To switch between xyz (expected by swc) and zyx (numpy default) order.
     """
     # map coords to resolution and invert if necessary
     if resolution is not None:
@@ -87,8 +102,8 @@ def write_swc(output_path, nodes, edges, resolution=None, invert_coords=False):
     # radius (hard-coded to 0.0 here)
     # parent id
 
-    # TODO implement in numba (can it handle nifty? otherwise use different graph impl)
-    with open(output_path, 'w') as f:
+    # Implement in numba (can it handle nifty? otherwise use different graph impl)?
+    with open(output_path, "w") as f:
         for node_id in range(n_nodes):
 
             ngbs = [adj[0] for adj in graph.nodeAdjacency(node_id)]
@@ -103,5 +118,5 @@ def write_swc(output_path, nodes, edges, resolution=None, invert_coords=False):
                 # TODO can we just assume that we get consistent output if we set parent to min ???
                 parent = np.min(ngbs)
             coord = nodes[node_id]
-            line = '%i 0 %f %f %f 0.0 %i \n' % (node_id, coord[0], coord[1], coord[2], parent)
+            line = "%i 0 %f %f %f 0.0 %i \n" % (node_id, coord[0], coord[1], coord[2], parent)
             f.write(line)
