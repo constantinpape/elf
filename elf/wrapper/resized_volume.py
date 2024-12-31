@@ -17,7 +17,7 @@ from ..util import normalize_index, squeeze_singletons
 class ResizedVolume(WrapperBase):
     """Wrapper to resize a volume on the fly.
 
-    Arguments:
+    Args:
         volume: The data to wrap.
         shape: The target shape for resizing.
         order: The interpolation order to use.

@@ -250,7 +250,7 @@ def semantic_mutex_watershed(
 
     This function changes the affinities inplace. To avoid this, pass a copy.
 
-    Arguments:
+    Args:
         affs: The innput affinity map.
         semantic_preds: The input semantic predictions.
         offsets: The pixel offsets corresponding to affinity channels.
@@ -298,7 +298,7 @@ def blockwise_mutex_watershed(
     Solves mutex watershed in parallel for blocking of the input volume
     and then stitches block-wise segmentation with biased multicut.
 
-    Arguments:
+    Args:
         affs: The input affinity map.
         offsets: The pixel offsets corresponding to affinity channels.
         strides: The strides used to sub-sample long range edges.

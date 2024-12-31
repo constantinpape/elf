@@ -181,7 +181,7 @@ def lifted_multicut_fusion_moves(
     Introduced in "An efficient fusion move algorithm for the minimum cost lifted multicut problem":
     https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/1939997197/beier_16_efficient.pdf
 
-    Arguments:
+    Args:
         graph: The graph of the lifted multicut problem.
         costs: The edge costs of the lifted multicut problem.
         lifted_uv_ids: The lifted edges.

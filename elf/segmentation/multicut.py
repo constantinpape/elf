@@ -270,7 +270,7 @@ def multicut_gaec(
     Introduced in "Fusion moves for correlation clustering":
     http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
-    Arguments:
+    Args:
         graph: The graph of the multicut problem.
         costs: The edge costs of the multicut problem.
         time_limit: The time limit for inference in seconds.
@@ -358,7 +358,7 @@ def multicut_decomposition(
     Introduced in "Break and Conquer: Efficient Correlation Clustering for Image Segmentation":
     https://link.springer.com/chapter/10.1007/978-3-642-39140-8_9
 
-    Arguments:
+    Args:
         graph: The graph of the multicut problem.
         costs: The dge costs of the multicut problem.
         time_limit: The time limit for inference in seconds.

@@ -204,7 +204,7 @@ def _generate_structure_tensor(filter_name):
     doc_str =\
         """Comppute %s response block-wise and in parallel.
 
-        Arguments:
+        Args:
             data: Input data, numpy array or similar like h5py or zarr dataset.
             sigma: Sigma value for filter.
             outer_scale: Outer scale value.
