@@ -1,0 +1,66 @@
+name: Build and Deploy Docs
+
+on:
+  push:
+    paths:
+      - "doc/*.md"   # Trigger on changes to any markdown file
+      - "elf/**/*.py"   # Optionally include changes in Python files
+    branches:
+      - master        # Run the workflow only on pushes to the main branch
+  workflow_dispatch:
+
+# security: restrict permissions for CI jobs.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Micromamba
+      uses: mamba-org/setup-micromamba@v2
+      with:
+        micromamba-version: "latest"
+        environment-file: environment.yaml
+        init-shell: bash
+        cache-environment: true
+        post-cleanup: 'all'
+
+    - name: Install package
+      shell: bash -l {0}
+      run: pip install -e .
+
+    - name: Install pdoc
+      shell: bash -l {0}
+      run: pip install pdoc
+
+    - name: Generate Documentation
+      shell: bash -l {0}
+      run: pdoc elf/ -d google -o doc/
+
+    - name: Verify Documentation Output
+      run: ls -la doc/
+
+    - name: Upload Documentation Artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: doc/
+
+  deploy:
+    name: Deploy Documentation
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GiHub Pages
+        uses: actions/deploy-pages@v4
