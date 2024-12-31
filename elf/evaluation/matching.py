@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -6,6 +6,8 @@ from .util import contigency_table
 
 
 def intersection_over_union(overlap):
+    """@private
+    """
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
@@ -15,6 +17,8 @@ def intersection_over_union(overlap):
 
 
 def intersection_over_true(overlap):
+    """@private
+    """
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_true = np.sum(overlap, axis=1, keepdims=True)
@@ -22,6 +26,8 @@ def intersection_over_true(overlap):
 
 
 def intersection_over_pred(overlap):
+    """@private
+    """
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
@@ -31,22 +37,32 @@ def intersection_over_pred(overlap):
 MATCHING_CRITERIA = {"iou": intersection_over_union,
                      "iot": intersection_over_true,
                      "iop": intersection_over_pred}
+"""@private
+"""
 
 
 def precision(tp, fp, fn):
+    """@private
+    """
     return tp/(tp+fp) if tp > 0 else 0
 
 
 def recall(tp, fp, fn):
+    """@private
+    """
     return tp/(tp+fn) if tp > 0 else 0
 
 
 def segmentation_accuracy(tp, fp, fn):
+    """@private
+    """
     # -> https://www.kaggle.com/c/data-science-bowl-2018#evaluation
     return tp/(tp+fp+fn) if tp > 0 else 0
 
 
 def f1(tp, fp, fn):
+    """@private
+    """
     return (2*tp)/(2*tp+fp+fn) if tp > 0 else 0
 
 
@@ -58,9 +74,9 @@ def label_overlap(
     """Compute the number of overlapping elements for objects in two label images.
 
     Args:
-        seg_a: candidate segmentation to evaluate
-        seg_b: candidate segmentation to compare to
-        ignore_label: overlap of any objects with this label are not
+        seg_a: Candidate segmentation to evaluate.
+        seg_b: Segmentation to compare to.
+        ignore_label: Overlap of any objects with this label are not
             taken into account in the output. `None` indicates that no label
             should be ignored. It is assumed that the `ignore_label` has the
             same meaning in both segmentations.
@@ -132,21 +148,30 @@ def _compute_tps(scores, n_matched, threshold):
     return tp
 
 
-def matching(segmentation, groundtruth, threshold=0.5, criterion="iou", ignore_label=0):
-    """ Scores from matching objects in segmentation and groundtruth.
+def matching(
+    segmentation: np.ndarray,
+    groundtruth: np.ndarray,
+    threshold: float = 0.5,
+    criterion: str = "iou",
+    ignore_label: int = 0,
+) -> Dict[str, float]:
+    """Compute scores from matching objects in segmentation and groundtruth.
 
     Implementation based on:
     https://github.com/mpicbg-csbd/stardist/blob/master/stardist/matching.py
 
-    Arguments:
-        segmentation [np.ndarray] - candidate segmentation to evaluate
-        groundtruth [np.ndarray] - groundtruth segmentation
-        threshold [float] - overlap threshold (default: 0.5)
-        criterion [str] - matching criterion. Can be one of "iou", "iop", "iot". (default: "iou")
-        ignore_label [int] - overlap of any objects with this label are not
+    Args:
+        segmentation: Candidate segmentation to evaluate.
+        groundtruth: Groundtruth segmentation.
+        threshold: Overlap threshold.
+        criterion: Matching criterion. Can be one of "iou", "iop", "iot".
+        ignore_label: Overlap of any objects with this label are not
             taken into account in the output. `None` indicates that no label
             should be ignored. It is assumed that the `ignore_label` has the
             same meaning in both segmentations.
+
+    Returns:
+        Mapping of the names for different metrics to their respective scores.
     """
 
     n_true, n_matched, n_pred, scores = _compute_scores(segmentation, groundtruth, criterion, ignore_label)
@@ -160,22 +185,33 @@ def matching(segmentation, groundtruth, threshold=0.5, criterion="iou", ignore_l
     return stats
 
 
-def mean_segmentation_accuracy(segmentation, groundtruth, thresholds=None, return_accuracies=False, ignore_label=0):
-    """This implements the segmentation accuracy metrics from PascalVoc.
-    See https://link.springer.com/article/10.1007/s11263-009-0275-4
+def mean_segmentation_accuracy(
+    segmentation: np.ndarray,
+    groundtruth: np.ndarray,
+    thresholds: Optional[List[float]] = None,
+    return_accuracies: bool = False,
+    ignore_label: int = 0,
+) -> Union[float, Tuple[float, List[float]]]:
+    """Compute the mean segmentation accuracy metrics for comparing two segmentation results.
 
-    The implementation follows the DSB 2018 Nucelus Segmentation Challenge.
+    This metric was introduced in the PascalVoc Challenge:
+    https://link.springer.com/article/10.1007/s11263-009-0275-4
+    The implementation used here follows the DSB 2018 Nucelus Segmentation Challenge.
 
-    Arguments:
-        segmentation [np.ndarray] - candidate segmentation to evaluate
-        groundtruth [np.ndarray] - groundtruth segmentation
-        thresholds [sequence of floats] - overlap thresholds,
-            by default np.arange(0.5, 1., 0.05) is used (default: None)
-        return_aps [bool] - whether to return intermediate aps (default: false)
-        ignore_label [int] - overlap of any objects with this label are not
+    Args:
+        segmentation: Candidate segmentation to evaluate.
+        groundtruth: Groundtruth segmentation.
+        thresholds: Overlap thresholds, by default np.arange(0.5, 1., 0.05) is used.
+        return_accuracies: Whether to return intermediate scores.
+        ignore_label: Overlap of any objects with this label are not
             taken into account in the output. `None` indicates that no label
             should be ignored. It is assumed that the `ignore_label` has the
             same meaning in both segmentations.
+
+    Returns:
+        The mean segmentation accuracy score.
+        The segmentation accuracies for the individual overlap thresholds.
+            Only returned if return_accuracies is set to True.
     """
     n_true, n_matched, n_pred, scores = _compute_scores(
         segmentation, groundtruth, criterion="iou", ignore_label=ignore_label

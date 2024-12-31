@@ -15,15 +15,25 @@ __all__ = [
 ]
 
 FILE_CONSTRUCTORS = {}
+"""@private
+"""
 ZARR_EXTS = [".zarr", ".zr"]
+"""@private
+"""
 N5_EXTS = [".n5"]
+"""@private
+"""
 
 GROUP_LIKE = []
+"""@private
+"""
 DATASET_LIKE = [np.ndarray]
+"""@private
+"""
 
 
 def _ensure_iterable(item):
-    """Ensure item is a non-string iterable (wrap in a list if not)"""
+    """Ensure item is a non-string iterable (wrap in a list if not)."""
     try:
         len(item)
         has_len = True
@@ -36,6 +46,8 @@ def _ensure_iterable(item):
 
 
 def register_filetype(constructor, extensions=(), groups=(), datasets=(), overwrite=False):
+    """@private
+    """
     extensions = _ensure_iterable(extensions)
     FILE_CONSTRUCTORS.update({
         ext.lower(): constructor
@@ -90,10 +102,14 @@ except ImportError:
 
 
 def identity(arg):
+    """@private
+    """
     return arg
 
 
 def noop(*args, **kwargs):
+    """@private
+    """
     pass
 
 
@@ -106,6 +122,8 @@ try:
     # This wrapper patches in those methods.
     @functools.wraps(zarr.open)
     def zarr_open(*args, **kwargs):
+        """@private
+        """
         z = zarr.open(*args, **kwargs)
         ztype = type(z)
         if not hasattr(ztype, "__enter__"):
@@ -123,6 +141,8 @@ except ImportError:
 
 
 def folder_based(path, mode="a"):
+    """@private
+    """
     try:
         return KnossosFile(path, mode)
     except RuntimeError:

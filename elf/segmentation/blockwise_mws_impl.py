@@ -12,6 +12,8 @@ from . import multicut
 
 
 def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
+    """@private
+    """
 
     def edges_from_face(lower_block_id, upper_block_id, axis):
         lower_block = blocking.getBlock(lower_block_id)
@@ -70,6 +72,8 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
                        randomize_strides=False, mask=None, noise_level=0,
                        solver_name="kernighan-lin", beta0=.75, beta1=.5,
                        n_threads=None):
+    """@private
+    """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
     # allocate the segmentation

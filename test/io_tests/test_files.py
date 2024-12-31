@@ -1,15 +1,16 @@
 import os
 import unittest
-from unittest.mock import patch
-from shutil import rmtree
 
+from pathlib import Path
+from shutil import rmtree
+from unittest.mock import patch
+
+import imageio.v3 as imageio
 import numpy as np
-import imageio
 from elf.io.extensions import h5py, z5py, pyn5, zarr, zarr_open, FILE_CONSTRUCTORS
 
 
 class FileTestBase(unittest.TestCase):
-    # todo: use https://github.com/clbarnes/tempcase/
     tmp_dir = "./tmp"
 
     def setUp(self):
@@ -31,25 +32,34 @@ class FileTestMixin:
 
     def test_open(self):
         from elf.io import open_file
+
         shape = (128,) * 2
         data = np.random.rand(*shape)
         fname = self.path_to("data" + self.ext)
-        with self.constructor(fname, 'a') as f:
-            f.create_dataset('data', data=data)
+        with self.constructor(fname, "a") as f:
+            f.create_dataset("data", data=data)
 
         with patch("elf.io.extensions.FILE_CONSTRUCTORS", {self.ext: self.constructor}):
             with open_file(fname) as f:
-                out = f['data'][:]
+                out = f["data"][:]
+
+        self.assertEqual(data.shape, out.shape)
+        self.assertTrue(np.allclose(data, out))
+
+        fname_path = Path(fname)
+        with patch("elf.io.extensions.FILE_CONSTRUCTORS", {self.ext: self.constructor}):
+            with open_file(fname_path) as f:
+                out = f["data"][:]
 
         self.assertEqual(data.shape, out.shape)
         self.assertTrue(np.allclose(data, out))
 
     def test_is_group(self):
         from elf.io import is_group
+
         f = self.constructor(self.path_to("data" + self.ext), mode="a")
-        g = f.create_group('group')
-        ds = f.create_dataset('dataset', data=np.ones((100, 100)),
-                              chunks=(10, 10))
+        g = f.create_group("group")
+        ds = f.create_dataset("dataset", data=np.ones((100, 100)), chunks=(10, 10))
         self.assertTrue(is_group(f))
         self.assertTrue(is_group(g))
         self.assertFalse(is_group(ds))
@@ -97,7 +107,7 @@ class TestBackendPreference(unittest.TestCase):
 
 class TestImageStack(unittest.TestCase):
     tmp_dir = "./tmp"
-    pattern = '*.tiff'
+    pattern = "*.tiff"
     shape = (16, 128, 128)
 
     def tearDown(self):
@@ -108,9 +118,9 @@ class TestImageStack(unittest.TestCase):
 
     def setUp(self):
         os.makedirs(self.tmp_dir)
-        self.data = np.random.randint(0, 128, dtype='uint8', size=self.shape)
+        self.data = np.random.randint(0, 128, dtype="uint8", size=self.shape)
         for z in range(self.data.shape[0]):
-            name = 'z%03i.tiff' % z
+            name = "z%03i.tiff" % z
             path = os.path.join(self.tmp_dir, name)
             imageio.imwrite(path, self.data[z])
 
@@ -129,5 +139,5 @@ class TestImageStack(unittest.TestCase):
 # test loading N5 files using zarr-python
 # test loading knossos file
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

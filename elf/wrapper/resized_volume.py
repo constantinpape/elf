@@ -1,5 +1,8 @@
+from typing import Tuple
+
 import numpy as np
 import vigra
+from numpy.typing import ArrayLike
 from skimage.transform import resize
 
 from .base import WrapperBase
@@ -12,14 +15,14 @@ from ..util import normalize_index, squeeze_singletons
 # - implement loading with halo for sub-slices to avoid boundary artifacts
 # - support more dimensions and multichannel
 class ResizedVolume(WrapperBase):
-    """ Resized volume to a different shape.
+    """Wrapper to resize a volume on the fly.
 
-    Arguments:
-        volume [np.ndarray]: input volume
-        shape [tuple]: target shape for interpolation
-        order [int]: order used for interpolation
+    Args:
+        volume: The data to wrap.
+        shape: The target shape for resizing.
+        order: The interpolation order to use.
     """
-    def __init__(self, volume, shape, order=0):
+    def __init__(self, volume: ArrayLike, shape: Tuple[int, ...], order: int = 0):
         if len(shape) != volume.ndim:
             raise ValueError(f"Expect volume and shape to have same dimensionality, got {len(shape)}, {volume.ndim}")
         if volume.ndim not in (2, 3):

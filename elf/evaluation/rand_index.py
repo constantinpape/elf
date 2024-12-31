@@ -1,7 +1,12 @@
+from typing import Optional, Sequence, Tuple
+
+import numpy as np
 from .util import contigency_table, compute_ignore_mask
 
 
 def compute_rand_scores(a_dict, b_dict, p_counts, n_points):
+    """@private
+    """
 
     # compute the rand-primitves
     a_counts = a_dict.values()
@@ -24,19 +29,25 @@ def compute_rand_scores(a_dict, b_dict, p_counts, n_points):
     return ari, ri
 
 
-def rand_index(segmentation, groundtruth, ignore_seg=None, ignore_gt=None):
-    """ Compute rand index derived scores between two segmentations.
+def rand_index(
+    segmentation: np.ndarray,
+    groundtruth: np.ndarray,
+    ignore_seg: Optional[Sequence[int]] = None,
+    ignore_gt: Optional[Sequence[int]] = None,
+) -> Tuple[float, float]:
+    """Compute rand index derived scores between two segmentations.
 
-    Computes adapted rand error and rand index.
+    This function computes the adapted rand error and rand index.
 
-    Arguments:
-        segmentation [np.ndarray] - candidate segmentation to evaluate
-        groundtruth [np.ndarray] - groundtruth
-        ignore_seg [listlike] - ignore ids for segmentation (default: None)
-        ignore_gt [listlike] - ignore ids for groundtruth (default: None)
+    Args:
+        segmentation: Candidate segmentation to evaluate.
+        groundtruth: The groundtruth segmentation.
+        ignore_seg: Ignore ids for the segmentation.
+        ignore_gt: Ignore ids for the groundtruth.
+
     Retuns:
-        float - adapted rand error
-        float - rand index
+        The adapted rand error.
+        The rand index.
     """
     ignore_mask = compute_ignore_mask(segmentation, groundtruth,
                                       ignore_seg, ignore_gt)

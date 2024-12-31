@@ -8,7 +8,7 @@ def contigency_table(
     seg_a: np.ndarray,
     seg_b: np.ndarray,
 ) -> Tuple[Dict[int, int], Dict[int, int], np.ndarray, np.ndarray]:
-    """ Compute the pairs and counts in the contingency table of seg_a and seg_b.
+    """Compute the pairs and counts in the contingency table for two segmentations.
 
     The contingency table counts the number of pixels that are shared between
     objects from seg_a and seg_b.
@@ -47,6 +47,8 @@ def contigency_table(
 
 
 def compute_ignore_mask(seg_a, seg_b, ignore_a, ignore_b):
+    """@private
+    """
     if ignore_a is None and ignore_b is None:
         return None
     ignore_mask_a = None if ignore_a is None else np.isin(seg_a, ignore_a)

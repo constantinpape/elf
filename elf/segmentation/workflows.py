@@ -1,6 +1,8 @@
 import os
 import pickle
 from copy import deepcopy
+from typing import Dict, List, Optional, Union, TYPE_CHECKING
+
 import numpy as np
 
 from .import features as elf_feats
@@ -9,11 +11,20 @@ from .import lifted_multicut as elf_lmc
 from .import multicut as elf_mc
 from .import watershed as elf_ws
 
-FEATURE_NAMES = {'raw-edge-features', 'raw-region-features', 'boundary-edge-features'}
-DEFAULT_WS_KWARGS = {'threshold': 0.25, 'sigma_seeds': 2., 'sigma_weights': 2.,
-                     'min_size': 100, 'alpha': 0.9, 'pixel_pitch': None,
-                     'apply_nonmax_suppression': False}
-DEFAULT_RF_KWARGS = {'ignore_label': None, 'n_estimators': 200, 'max_depth': 10}
+if TYPE_CHECKING:
+    from sklearn.ensemble import RandomForestClassifier
+
+FEATURE_NAMES = {"raw-edge-features", "raw-region-features", "boundary-edge-features"}
+"""@private
+"""
+DEFAULT_WS_KWARGS = {"threshold": 0.25, "sigma_seeds": 2., "sigma_weights": 2.,
+                     "min_size": 100, "alpha": 0.9, "pixel_pitch": None,
+                     "apply_nonmax_suppression": False}
+"""@private
+"""
+DEFAULT_RF_KWARGS = {"ignore_label": None, "n_estimators": 200, "max_depth": 10}
+"""@private
+"""
 
 
 def _compute_watershed(boundaries, use_2dws, mask, ws_kwargs, n_threads):
@@ -45,11 +56,11 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
     rag = elf_feats.compute_rag(watershed, n_threads=n_threads)
 
     features = []
-    if 'raw-edge-features' in feature_names:
+    if "raw-edge-features" in feature_names:
         feats = elf_feats.compute_boundary_features_with_filters(rag, raw, use_2dws,
                                                                  n_threads=n_threads)
         features.append(feats)
-    if 'boundary-edge-features' in feature_names:
+    if "boundary-edge-features" in feature_names:
         if isinstance(boundaries, np.ndarray):
             feats = elf_feats.compute_boundary_features_with_filters(rag, boundaries, use_2dws,
                                                                      n_threads=n_threads)
@@ -62,9 +73,8 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
                 raise ValueError("Invalid boundary maps")
             feats = _compute_xyz_boundary_features(rag, boundaries, watershed, use_2dws, n_threads)
         features.append(feats)
-    if 'raw-region-features' in feature_names:
-        feats = elf_feats.compute_region_features(rag.uvIds(), raw, watershed.astype('uint32'),
-                                                  n_threads=n_threads)
+    if "raw-region-features" in feature_names:
+        feats = elf_feats.compute_region_features(rag.uvIds(), raw, watershed.astype("uint32"), n_threads=n_threads)
         features.append(feats)
 
     # for now, we always append the length as one other feature
@@ -79,10 +89,11 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
     return rag, features
 
 
-def _compute_features_and_labels(raw, boundaries, watershed, labels, mask,
-                                 use_2dws, feature_names, ignore_label, n_threads):
+def _compute_features_and_labels(
+    raw, boundaries, watershed, labels, mask, use_2dws, feature_names, ignore_label, n_threads
+):
     rag, features = _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_threads)
-    edge_mask = np.ones(len(features), dtype='bool')
+    edge_mask = np.ones(len(features), dtype="bool")
 
     if ignore_label is None:
         edge_labels = elf_learn.compute_edge_labels(rag, labels, n_threads=n_threads)
@@ -127,30 +138,40 @@ def _mask_edges(rag, edge_costs):
 #
 
 
-def edge_training(raw, boundaries, labels, use_2dws, watershed=None, mask=None,
-                  feature_names=FEATURE_NAMES, ws_kwargs=DEFAULT_WS_KWARGS,
-                  learning_kwargs=DEFAULT_RF_KWARGS, n_threads=None):
-    """ Train random forest classifier for edges.
+def edge_training(
+    raw: Union[np.ndarray, List[np.ndarray]],
+    boundaries: Union[np.ndarray, List[np.ndarray]],
+    labels: Union[np.ndarray, List[np.ndarray]],
+    use_2dws: bool,
+    watershed: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    mask: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    feature_names: List[str] = FEATURE_NAMES,
+    ws_kwargs: Dict = DEFAULT_WS_KWARGS,
+    learning_kwargs: Dict = DEFAULT_RF_KWARGS,
+    n_threads: Optional[int] = None,
+) -> "RandomForestClassifier":
+    """Train random forest classifier for edges.
 
-    Arguments:
-        raw [np.ndarray or list[np.ndarray]] - raw data or list of raw data arrays
-        boundaries [np.ndarray or list[np.ndarray]] - boundary maps or list of boundary maps
-        labels [np.ndarray or list[np.ndarray]] - groundtruth segmentation
-        use_2dws [bool] - whether to run watersheds in 2d and stack them
-            or if the watersheds passed are 2d and stacked
-        watershed [np.ndarray or list[np.ndarray]] - watershed segmentation.
-            will be computed if None is passed (default: None)
-        mask [np.ndarray or list[np.ndarray]] - mask (default: None)
-        feature_names [list] - names of features that will be computed (default: all available)
-        ws_kwargs [dict] - keyword arguments for watershed function
-        learning_kwargs [dict] - keyword arguments for random forest
-        n_threads [int] - number of threads (default: None)
+    Args:
+        raw: Raw data or list of raw data arrays.
+        boundaries: Boundary maps or list of boundary maps.
+        labels: The groundtruth segmentation(s).
+        use_2dws: Whether to run watersheds in 2d and stack them or if the watersheds passed are 2d and stacked.
+        watershed: Watershed segmentation(s). Will be computed if None is passed.
+        mask: Mask(s) to exclude from training data.
+        feature_names: The names of features that will be computed.
+        ws_kwargs: The keyword arguments for watershed function.
+        learning_kwargs: The keyword arguments for random forest.
+        n_threads: The number of threads.
+
+    Returns:
+        The trained random forest classifier.
     """
 
     # we store the ignore label(s) in the random forest kwargs,
     # but they need to be removed before this is passed to the rf implementation
     rf_kwargs = deepcopy(learning_kwargs)
-    ignore_label = rf_kwargs.pop('ignore_label', None)
+    ignore_label = rf_kwargs.pop("ignore_label", None)
 
     # if the raw data is a numpy array, we assume that we have a single training set
     if isinstance(raw, np.ndarray):
@@ -207,14 +228,13 @@ def edge_training(raw, boundaries, labels, use_2dws, watershed=None, mask=None,
         if use_2dws:
             z_edges = np.concatenate(z_edges, axis=0)
 
-    assert len(features) == len(edge_labels), "%i, %i" % (len(features),
-                                                          len(edge_labels))
-
+    assert len(features) == len(edge_labels), "%i, %i" % (len(features), len(edge_labels))
     # train the random forest (2 separate random forests for in-plane and between plane edges for stacked 2d watersheds)
     if use_2dws:
         assert len(features) == len(z_edges)
-        rf = elf_learn.learn_random_forests_for_xyz_edges(features, edge_labels, z_edges, n_threads=n_threads,
-                                                          **rf_kwargs)
+        rf = elf_learn.learn_random_forests_for_xyz_edges(
+            features, edge_labels, z_edges, n_threads=n_threads, **rf_kwargs
+        )
     else:
         rf = elf_learn.learn_edge_random_forest(features, edge_labels, n_threads=n_threads, **rf_kwargs)
     return rf
@@ -240,42 +260,49 @@ def _load_rf(rf, use_2dws):
         rf = _load(rf)
         return rf
 
-# TODO
-# - multicut_workflow_from_config(config_file)
 #
 # multicut workflows
 #
 
 
-def multicut_segmentation(raw, boundaries, rf, use_2dws,
-                          multicut_solver='kernighan-lin', watershed=None, mask=None,
-                          feature_names=FEATURE_NAMES, weighting_scheme=None,
-                          ws_kwargs=DEFAULT_WS_KWARGS, solver_kwargs={},
-                          beta=0.5, n_threads=None, return_intermediates=False,
-                          cost_callback=None):
-    """ Instance segmentation with multicut with edge costs
-    derived from random forest predictions.
+def multicut_segmentation(
+    raw: np.ndarray,
+    boundaries: np.ndarray,
+    rf: Union[str, "RandomForestClassifier"],
+    use_2dws: bool,
+    multicut_solver: Union[str, callable] = "kernighan-lin",
+    watershed: Optional[np.ndarray] = None,
+    mask: Optional[np.ndarray] = None,
+    feature_names: List[str] = FEATURE_NAMES,
+    weighting_scheme: Optional[str] = None,
+    ws_kwargs: Dict = DEFAULT_WS_KWARGS,
+    solver_kwargs: Dict = {},
+    beta: float = 0.5,
+    n_threads: Optional[int] = None,
+    return_intermediates: bool = False,
+    cost_callback: Optional[callable] = None,
+) -> np.ndarray:
+    """Compute instance segmentation with multicut based on edge costs derived from random forest predictions.
 
-    Arguments:
-        raw [np.ndarray] - raw data
-        boundaries [np.ndarray] - boundary maps
-        rf [RandomForestClassifier or str] - edge classifier, path to pickled rf is also possible
-        use_2dws [bool] - whether to run watersheds in 2d and stack them
-            or if the watersheds passed are 2d and stacked
-        multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
-        or custom solver function (default: 'kernighan-lin')
-        watershed [np.ndarray] - watershed segmentation.
-            will be computed if None is passed (default: None)
-        mask [np.ndarray] - mask to ignore in segmentation (default: None)
-        feature_names [list] - names of features that will be computed (default: all available)
-        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
-        ws_kwargs [dict] - keyword arguments for watershed function
-        solver_kwargs [dict] - keyword arguments for multicut solver (default: {})
-        beta [float] - boundary bias (default: 0.5)
-        n_threads [int] - number of threads (default: None)
-        return_intermediates [bool] - whether to also return intermediate results (default: False)
-        cost_callback [callable] - callback to modify the costs.
-            It will be passed the costs, rag and watershed (default: None)
+    Args:
+        raw: The raw data.
+        boundaries: The boundary maps.
+        rf: The edge classifier, may also be the path to a pickled rf.
+        use_2dws: Whether to run watersheds in 2d and stack them or if the watersheds passed are 2d and stacked.
+        multicut_solver: Name of multicut solver in elf.segmentation.multicut or custom solver function.
+        watershed: Watershed segmentation. Will be computed if None is passed.
+        mask: Mask to ignore in segmentation.
+        feature_names: Names of features that will be computed.
+        weighting_scheme: Strategy to weight multicut edge costs by size.
+        ws_kwargs: Keyword arguments for watershed function.
+        solver_kwargs: Keyword arguments for multicut solver.
+        beta: The boundary bias.
+        n_threads: The number of threads.
+        return_intermediates: Whether to also return intermediate results.
+        cost_callback: Callback to modify the costs. It will be passed the costs, rag and watershed.
+
+    Returns:
+        The multicut segmentation.
     """
 
     # get the multicut solver
@@ -335,54 +362,64 @@ def multicut_segmentation(raw, boundaries, rf, use_2dws,
     seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
 
     if return_intermediates:
-        return {'watershed': watershed,
-                'rag': rag,
-                'features': features,
-                'edge_costs': edge_costs,
-                'node_labels': node_labels,
-                'segmentation': seg}
+        return {"watershed": watershed,
+                "rag": rag,
+                "features": features,
+                "edge_costs": edge_costs,
+                "node_labels": node_labels,
+                "segmentation": seg}
     else:
         return seg
 
 
-def multicut_workflow(train_raw, train_boundaries, train_labels,
-                      raw, boundaries, use_2dws, multicut_solver='kernighan-lin',
-                      train_watershed=None, watershed=None, train_mask=None, mask=None,
-                      feature_names=FEATURE_NAMES, weighting_scheme=None,
-                      ws_kwargs=DEFAULT_WS_KWARGS, learning_kwargs=DEFAULT_RF_KWARGS,
-                      solver_kwargs={}, beta=0.5, n_threads=None):
-    """ Run workflow for multicut segmentation based on boundary maps with edge weights learned via random forest.
+def multicut_workflow(
+    train_raw: Union[np.ndarray, List[np.ndarray]],
+    train_boundaries: Union[np.ndarray, List[np.ndarray]],
+    train_labels: Union[np.ndarray, List[np.ndarray]],
+    raw: np.ndarray,
+    boundaries: np.ndarray,
+    use_2dws: bool,
+    multicut_solver: Union[str, callable] = "kernighan-lin",
+    train_watershed: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    watershed: np.ndarray = None,
+    train_mask: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    mask: Optional[np.ndarray] = None,
+    feature_names: List[str] = FEATURE_NAMES,
+    weighting_scheme: Optional[str] = None,
+    ws_kwargs: Dict = DEFAULT_WS_KWARGS,
+    learning_kwargs: Dict = DEFAULT_RF_KWARGS,
+    solver_kwargs: Dict = {},
+    beta: float = 0.5,
+    n_threads: Optional[int] = None,
+) -> np.ndarray:
+    """Run workflow for multicut segmentation based on boundary maps with edge weights learned via random forest.
 
     Based on "Multicut brings automated neurite segmentation closer to human performance":
     https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/217205318/beier_17_multicut.pdf
 
-    Arguments:
-        train_raw [np.ndarray or list[np.ndarray]] - raw data for training data-sets,
-            can be list if there are multiple training sets
-        train_boundaries [np.ndarray or list[np.ndarray]] - boundary maps for training data-sets,
-            can be list if there are multiple training sets
-        train_labels [np.ndarray or list[np.ndarray]] - segmentation ground-truth for training data-sets,
-            can be list if there are multiple training sets
-        raw [np.ndarray] - raw data of the data-set to be segmented
-        boundaries [np.ndarray] - boundary maps of the data-set to be segmented
-        use_2dws [bool] - whether to run watersheds in 2d and stack them
-            or if the watersheds passed are 2d and stacked
-        multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
-            or custom solver function (default: 'kernighan-lin')
-        train_watershed [np.ndarray] - watershed segmentation for the training data-sets
-            can be list if there are multiple training sets,
-            will be computed if None is passed (default: None)
-        watershed [np.ndarray] - watershed segmentation for the data to be segmented.
-            will be computed if None is passed (default: None)
-        train_mask [np.ndarray] - mask to ignre in waterheds for training datasets (default: None)
-        mask [np.ndarray] - mask to ignore in segmentation (default: None)
-        feature_names [list] - names of features that will be computed (default: all available)
-        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
-        ws_kwargs [dict] - keyword arguments for watershed function
-        learning_kwargs [dict] - keyword arguments for the random forest
-        solver_kwargs [dict] - keyword arguments for multicut solver (default: {})
-        beta [float] - boundary bias (default: 0.5)
-        n_threads [int] - number of threads (default: None)
+    Args:
+        train_raw: Raw data for training data-sets, can be list if there are multiple training sets.
+        train_boundaries: Boundary maps for training data-sets, can be list if there are multiple training sets.
+        train_labels: Segmentation ground-truth for training data-sets, can be list if there are multiple training sets.
+        raw: The raw data of the data-set to be segmented.
+        boundaries: The boundary maps of the data-set to be segmented.
+        use_2dws: Whether to run watersheds in 2d and stack them or if the watersheds passed are 2d and stacked.
+        multicut_solver: Name of multicut solver in elf.segmentation.multicut or custom solver function.
+        train_watershed: Watershed segmentation for the training data-sets can be list if there are
+            multiple training sets, will be computed if None is passed.
+        watershed: Watershed segmentation for the data to be segmented. Will be computed if None is passed.
+        train_mask: Mask to ignre in waterheds for training datasets.
+        mask: Mask to ignore in segmentation.
+        feature_names: The names of features that will be computed.
+        weighting_scheme: Strategy to weight multicut edge costs by size.
+        ws_kwargs: Keyword arguments for watershed function.
+        learning_kwargs: Keyword arguments for the random forest.
+        solver_kwargs: Keyword arguments for multicut solver.
+        beta: The boundary bias.
+        n_threads: The number of threads.
+
+    Returns:
+        THe multicut segemntation.
     """
     # train random forest for edge classification based on the training data-sets
     rf = edge_training(train_raw, train_boundaries, train_labels, use_2dws,
@@ -450,34 +487,43 @@ def _simple_mc_problem(input_, use_2dws, watershed, mask, weighting_scheme, ws_k
     return watershed, rag, edge_probs, edge_costs
 
 
-def simple_multicut_workflow(input_, use_2dws, multicut_solver='kernighan-lin', watershed=None, mask=None,
-                             weighting_scheme=None, ws_kwargs=DEFAULT_WS_KWARGS,
-                             solver_kwargs={}, beta=0.5, offsets=None, n_threads=None,
-                             return_intermediates=False, cost_callback=None):
-    """ Run simplified multicut segmentation workflow from affinity or boundary maps.
+def simple_multicut_workflow(
+    input_: np.ndarray,
+    use_2dws: bool,
+    multicut_solver: Union[str, callable] = "kernighan-lin",
+    watershed: Optional[np.ndarray] = None,
+    mask: Optional[np.ndarray] = None,
+    weighting_scheme: Optional[str] = None,
+    ws_kwargs: Dict = DEFAULT_WS_KWARGS,
+    solver_kwargs: Dict = {},
+    beta: float = 0.5,
+    offsets: List[List[int]] = None,
+    n_threads: int = None,
+    return_intermediates: bool = False,
+    cost_callback: Optional[callable] = None
+) -> np.ndarray:
+    """Run simplified multicut segmentation workflow from affinity or boundary maps.
 
     Adapted from "Multicut brings automated neurite segmentation closer to human performance":
     https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/217205318/beier_17_multicut.pdf
 
-    Arguments:
-        input_ [np.ndarray] - input data, either boundary or affinity map
-        use_2dws [bool] - whether to run watersheds in 2d and stack them
-            or if the watersheds passed are 2d and stacked
-        multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
-            or custom solver function (default: 'kernighan-lin')
-        watershed [np.ndarray] - watershed over-segmentation, if None is passed,
-            the overr-segmentation witll be computted (default: None)
-        mask [np.ndarray] - binary mask to exclude from the segmentation;
-            values that are False will be excluded (default: None)
-        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
-        ws_kwargs [dict] - keyword arguments for the watershed function (default: None)
-        solver_kwargs [dict] - keyword arguments for multicut solver (default: {})
-        beta [float] - boundary bias (default: 0.5)
-        offsets [list] - pixel offsets for affintities, by default assume nearest neighbor offsets (default: None)
-        n_threads [int] - number of threads (default: None)
-        return_intermediates [bool] - whether to also return intermediate results (default: False)
-        cost_callback [callable] - callback to modify the costs.
-            It will be passed the costs, rag and watershed (default: None)
+    Args:
+        input_: The input data, either boundary or affinity map.
+        use_2dws: Whether to run watersheds in 2d and stack them, or if the watersheds passed are 2d and stacked.
+        multicut_solver: Name of multicut solver in elf.segmentation.multicut or custom solver function.
+        watershed: Watershed over-segmentation, if None is passed, the overr-segmentation will be computed.
+        mask: Binary mask to exclude from the segmentation; values that are False will be excluded.
+        weighting_scheme: Strategy to weight multicut edge costs by size.
+        ws_kwargs: Keyword arguments for the watershed function.
+        solver_kwargs: Keyword arguments for multicut solver.
+        beta: The boundary bias.
+        offsets: The pixel offsets for affintities, by default assume nearest neighbor offsets.
+        n_threads: The number of threads.
+        return_intermediates: Whether to also return intermediate results.
+        cost_callback: Callback to modify the costs. It will be passed the costs, rag and watershed.
+
+    Returns:
+        The multicut segmentation.
     """
     # get the multicut solver
     solver = _get_solver(multicut_solver)
@@ -496,22 +542,21 @@ def simple_multicut_workflow(input_, use_2dws, multicut_solver='kernighan-lin', 
     seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
 
     if return_intermediates:
-        return {'watershed': watershed,
-                'rag': rag,
-                'probs': edge_probs,
-                'costs': edge_costs,
-                'node_labels': node_labels,
-                'segmentation': seg}
+        return {"watershed": watershed,
+                "rag": rag,
+                "probs": edge_probs,
+                "costs": edge_costs,
+                "node_labels": node_labels,
+                "segmentation": seg}
     else:
         return seg
 
 
-# TODO:
-# - lifted_multicut_from_probabilities_workflow
-# - learning based lifted multicut workflows
-# - lifted_multicut_workflow_from_config(config_file)
 #
 # lifted multicut workflows
+# Possiible additional workflows::
+# - lifted_multicut_from_probabilities_workflow
+# - learning based lifted multicut workflows
 #
 
 
@@ -523,49 +568,59 @@ def _get_lifted_solver(solver):
     return solver
 
 
-def lifted_multicut_from_segmentation_workflow(input_, segmentation, use_2dws,
-                                               overlap_threshold, graph_depth,
-                                               same_segment_cost, different_segment_cost,
-                                               lifted_multicut_solver='kernighan-lin', watershed=None, mask=None,
-                                               weighting_scheme=None, ws_kwargs=DEFAULT_WS_KWARGS, mode='all',
-                                               solver_kwargs={}, beta=0.5, offsets=None, n_threads=None,
-                                               return_intermediates=False, cost_callback=None):
+def lifted_multicut_from_segmentation_workflow(
+    input_: np.ndarray,
+    segmentation: np.ndarray,
+    use_2dws: bool,
+    overlap_threshold: float,
+    graph_depth: int,
+    same_segment_cost: float,
+    different_segment_cost: float,
+    lifted_multicut_solver: Union[str, callable] = "kernighan-lin",
+    watershed: Optional[np.ndarray] = None,
+    mask: Optional[np.ndarray] = None,
+    weighting_scheme: Optional[str] = None,
+    ws_kwargs: Dict = DEFAULT_WS_KWARGS,
+    mode: str = "all",
+    solver_kwargs: Dict = {},
+    beta: float = 0.5,
+    offsets: List[List[int]] = None,
+    n_threads: Optional[int] = None,
+    return_intermediates: bool = False,
+    cost_callback: Optional[callable] = None,
+) -> np.ndarray:
     """ Run simple lifted multicut segmentation workflow from affinity or boundary maps and using lifted edges
     derived from priors by mapping a separate segmentation to the watersheds.
 
     Adapted from "Leveraging domain knowledge to improve microscopy image segmentation with lifted multicuts":
     https://doi.org/10.3389/fcomp.2019.00006
 
-    Arguments:
-        input_ [np.ndarray] - input data, either boundary or affinity map
-        segmentation [np.ndarray] - the segmentation used to derive priors
-        use_2dws [bool] - whether to run watersheds in 2d and stack them
-            or if the watersheds passed are 2d and stacked
-        overlap_threshold [float] - minimal overlap to assign a segment id to node
-        graph_depth [int] - maximal graph depth up to which
-            lifted edges will be included
-        same_segment_cost [float] - costs for edges between nodes with same segment id attribution
-        different_segment_cost [float] - costs for edges between nodes with different segment id attribution
-        lifted_multicut_solver [str or callable] - name of multicut solver in elf.segmentation.multicut
-            or custom solver function (default: 'kernighan-lin')
-        watershed [np.ndarray] - watershed over-segmentation, if None is passed,
-            the overr-segmentation witll be computted (default: None)
-        mask [np.ndarray] - binary mask to exclude from the segmentation;
-            values that are False will be excluded (default: None)
-        weighting_scheme [str] - strategy to weight multicut edge costs by size (default: None)
-        ws_kwargs [dict] - keyword arguments for the watershed function (default: None)
-        mode [str] - mode for insertion of lifted edges. Can be
-            "all" - lifted edges will be inserted in between all nodes with attribution
-            "different" - lifted edges will only be inserted in between nodes attributed to different classes
-            "same" - lifted edges will only be inserted in between nodes attribted to the same class
-            (default: "different")
-        solver_kwargs [dict] - keyword arguments for the lifted multicut solver (default: {})
-        beta [float] - boundary bias (default: 0.5)
-        offsets [list] - pixel offsets for affintities, by default assume nearest neighbor offsets (default: None)
-        n_threads [int] - number of threads (default: None)
-        return_intermediates [bool] - whether to also return intermediate results (default: False)
-        cost_callback [callable] - callback to modify the costs.
-            It will be passed the costs, rag and watershed (default: None)
+    Args:
+        input_: The input data, either boundary or affinity map.
+        segmentation: The segmentation used to derive priors for lifted edges.
+        use_2dws: Whether to run watersheds in 2d and stack them, or if the watersheds passed are 2d and stacked.
+        overlap_threshold: Minimal overlap to assign a segment id to node.
+        graph_depth: Maximal graph depth up to which lifted edges will be included.
+        same_segment_cost: Costs for edges between nodes with same segment id attribution.
+        different_segment_cost: Costs for edges between nodes with different segment id attribution.
+        lifted_multicut_solver: Name of multicut solver in elf.segmentation.multicut or custom solver function.
+        watershed: Watershed over-segmentation, if None is passed, the over-segmentation will be computed.
+        mask: Binary mask to exclude from the segmentation; values that are False will be excluded.
+        weighting_scheme: Strategy to weight multicut edge costs by size.
+        ws_kwargs: Keyword arguments for the watershed function.
+        mode: Mode for insertion of lifted edges. One of:
+            "all" - lifted edges will be inserted in between all nodes with attribution.
+            "different" - lifted edges will only be inserted in between nodes attributed to different classes.
+            "same" - lifted edges will only be inserted in between nodes attribted to the same class.
+        solver_kwargs: Keyword arguments for the lifted multicut solver.
+        beta: The boundary bias.
+        offsets: The pixel offsets for affintities, by default assume nearest neighbor offsets.
+        n_threads: The number of threads for parallelization.
+        return_intermediates: Whether to also return intermediate results.
+        cost_callback: Callback to modify the costs. It will be passed the costs, rag and watershed.
+
+    Retruns:
+        The lifted multicut segmentation.
     """
     # get the multicut solver
     solver = _get_lifted_solver(lifted_multicut_solver)
@@ -590,13 +645,13 @@ def lifted_multicut_from_segmentation_workflow(input_, segmentation, use_2dws,
     seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
 
     if return_intermediates:
-        return {'watershed': watershed,
-                'rag': rag,
-                'probs': edge_probs,
-                'costs': edge_costs,
-                'lifted_edges': lifted_uvs,
-                'lifted_costs': lifted_costs,
-                'node_labels': node_labels,
-                'segmentation': seg}
+        return {"watershed": watershed,
+                "rag": rag,
+                "probs": edge_probs,
+                "costs": edge_costs,
+                "lifted_edges": lifted_uvs,
+                "lifted_costs": lifted_costs,
+                "node_labels": node_labels,
+                "segmentation": seg}
     else:
         return seg

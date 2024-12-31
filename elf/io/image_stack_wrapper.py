@@ -2,6 +2,7 @@ import os
 from collections.abc import Mapping
 from concurrent import futures
 from glob import glob
+from typing import Union
 
 import numpy as np
 import imageio.v3 as imageio
@@ -15,7 +16,13 @@ from ..util import normalize_index, squeeze_singletons
 
 
 class ImageStackFile(Mapping):
-    def __init__(self, path, mode="r"):
+    """Root object for a file handle representing multiple image files in a folder.
+
+    Args:
+        path: The filepath to the folder.
+        mode: The mode for opening the folder, only supports 'r' (read mode).
+    """
+    def __init__(self, path: Union[os.PathLike, str], mode: str = "r"):
         self.path = path
         self.file_name = os.path.split(self.path)[1]
 
@@ -42,6 +49,8 @@ class ImageStackFile(Mapping):
 
     # this could be done more sophisticated to find more complex patterns
     def get_all_patterns(self):
+        """@private
+        """
         all_files = glob(os.path.join(self.path, "*"))
         extensions = list(set(os.path.splitext(ff)[1] for ff in all_files))
         patterns = ["*" + ext for ext in extensions]
@@ -74,17 +83,25 @@ class ImageStackFile(Mapping):
     # dummy attrs to be compatible with h5py/z5py/zarr API
     @property
     def attrs(self):
+        """@private
+        """
         return {}
 
 
 class ImageStackDataset:
+    """Dataset object for a file handle representing multiple image files in a folder.
+    """
 
     def get_im_shape_and_dtype(self, files):
+        """@private
+        """
         im0 = imageio.imread(files[0])
         assert im0.ndim == 2
         return im0.shape, im0.dtype
 
     def initialize_from_slices(self, files, sort_files=True):
+        """@private
+        """
         if sort_files:
             files.sort()
         self.files = files
@@ -99,6 +116,8 @@ class ImageStackDataset:
         self._size = np.prod(list(self._shape))
 
     def initialize_from_stack(self, files):
+        """@private
+        """
         self.files = files
         self._volume = self._read_volume()
 
@@ -110,11 +129,15 @@ class ImageStackDataset:
 
     @classmethod
     def from_pattern(cls, folder, pattern, n_threads=1):
+        """@private
+        """
         files = glob(os.path.join(folder, pattern))
         return cls(files, n_threads=n_threads, sort_files=True)
 
     @classmethod
     def from_stack(cls, stack_path, n_threads=1):
+        """@private
+        """
         return cls(stack_path, n_threads=n_threads, is_stack=True)
 
     def __init__(self, files, n_threads=1, sort_files=True, is_stack=False):
@@ -197,6 +220,8 @@ class ImageStackDataset:
 
 
 class TifStackDataset(ImageStackDataset):
+    """Dataset object for a file handle representing multiple tif files in a folder.
+    """
     tif_exts = (".tif", ".tiff")
 
     @staticmethod

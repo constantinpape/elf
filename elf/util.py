@@ -1,11 +1,24 @@
 import numbers
-from math import ceil
 from itertools import product
+from math import ceil
+from typing import List, Sequence, Tuple, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
-def slice_to_start_stop(s, size):
-    """For a single dimension with a given size, normalize slice to size.
-     Returns slice(None, 0) if slice is invalid."""
+def slice_to_start_stop(s: slice, size: int) -> slice:
+    """Normalize a slice so that its start and stop correspond to the positive coordinates for indexing.
+
+    Returns slice(None, 0) if the slice is invalid.
+
+    Args:
+        s: The input slice.
+        size: The size of the axis of the slice.
+
+    Returns:
+        The normalized slice with positive coordinates for start and stop.
+    """
     if s.step not in (None, 1):
         raise ValueError("Nontrivial steps are not supported")
 
@@ -31,9 +44,16 @@ def slice_to_start_stop(s, size):
     return slice(start, stop)
 
 
-def int_to_start_stop(i, size):
-    """For a single dimension with a given size, turn an int into slice(start, stop)
-    pair."""
+def int_to_start_stop(i: int, size: int) -> slice:
+    """Returns a slice with for corresponding to an integer coordinate.
+
+    Args:
+        i: The coordinate.
+        size: The size of the axis for this coordinate.
+
+    Returns:
+        The slice corresponding to the input coordinate.
+    """
     if -size < i < 0:
         start = i + size
     elif i >= size or i < -size:
@@ -45,20 +65,25 @@ def int_to_start_stop(i, size):
 
 # For now, I have copied the z5 implementation:
 # https://github.com/constantinpape/z5/blob/master/src/python/module/z5py/shape_utils.py#L126
-# But it"s worth taking a look at @clbarnes more general implementation too
+# But it's worth taking a look at @clbarnes more general implementation too
 # https://github.com/clbarnes/h5py_like
-def normalize_index(index, shape):
-    """ Normalize index to shape.
+def normalize_index(
+    index: Union[int, slice, Ellipsis, Tuple[Union[int, slice, Ellipsis], ...]],
+    shape: Tuple[int, ...]
+) -> Tuple[Tuple[slice, ...], Tuple[int, ...]]:
+    """Normalize an index for a given shape, so that is expressed as tuple of slices with correct coordinates.
 
-    Normalize input, which can be a slice or a tuple of slices / ellipsis to
-    be of same length as shape and be in bounds of shape.
+    The input index can be an integer coordinate, a slice or a tuple of slices / ellipsis.
+    It will be returned as a tuple of slices of same length as the shape and will be normalized,
+    so that its start and stop coordinates are positive and in bounds.
 
-    Argumentss:
-        index [int or slice or ellipsis or tuple[int or slice or ellipsis]]: slices to be normalized
+    Args:
+        index: Index to be normalized.
+        shape: The shape of the array-like object to be indexed.
 
     Returns:
-        tuple[slice]: normalized slices (start and stop are both non-None)
-        tuple[int]: which singleton dimensions should be squeezed out
+        The normalized index.
+        List containing singleton dimensions that should be squeezed after indexing.
     """
     type_msg = "Advanced selection inappropriate. " \
                "Only numbers, slices (`:`), and ellipsis (`...`) are valid indices (or tuples thereof)"
@@ -97,8 +122,8 @@ def normalize_index(index, shape):
     return tuple(normalized), tuple(squeeze)
 
 
-def squeeze_singletons(item, to_squeeze):
-    """ Squeeze singletons in item.
+def squeeze_singletons(item: "np.ndarray", to_squeeze: Tuple[int, ...]) -> "np.ndarray":
+    """Squeeze singleton dimensions in a numpy array.
 
     This should be used with `normalize_index` like so:
     ```
@@ -106,6 +131,13 @@ def squeeze_singletons(item, to_squeeze):
     out = data[index]
     out = squeeze_singletons(out, to_squeeze)
     ```
+
+    Args:
+        item: The input data.
+        to_squeeze: The axes to squeeze.
+
+    Returns:
+        The data with squeezed dimensions.
     """
     if len(to_squeeze) == len(item.shape):
         return item.flatten()[0]
@@ -115,17 +147,22 @@ def squeeze_singletons(item, to_squeeze):
         return item
 
 
-def map_chunk_to_roi(chunk_id, roi, chunks):
-    """ Given a chunk id, roi and the chunk shape, determine the coordinate
-    overlap, both in the roi's and the chunk's coordinate sytem.
+def map_chunk_to_roi(
+    chunk_id: Sequence[int], roi: Tuple[slice, ...], chunks: Tuple[int, ...]
+) -> Tuple[Tuple[slice, ...], Tuple[slice, ...]]:
+    """Computes the overlap of a chunk with a region of interest.
 
-    Arguments:
-        chunk_id [listlike[int]] - the nd chunk index.
-        roi [tuple[slices]] - the region of interest
-        chunks [tuple] - the chunk shape
+    The overlap will be returned both in the (global) coordinate system that the
+    ROI referes to and in the local coordinates system of the chunk.
+
+    Args:
+        chunk_id: The index of the chunk index, corresponding to its grid index.
+        roi: The region of interest.
+        chunks: The chunk shape.
+
     Returns:
-        tuple[slice] - overlap of the chuk and roi in chunk coordinates
-        tuple[slice] - overlap of the chuk and roi in roi coordinates
+        Overlap of the chunk and roi in chunk coordinates.
+        Overlap of the chunk and roi in roi coordinates.
     """
     # block begins and ends
     block_begin = [cid * ch for cid, ch in zip(chunk_id, chunks)]
@@ -176,40 +213,55 @@ def map_chunk_to_roi(chunk_id, roi, chunks):
     return tuple(chunk_bb), tuple(roi_bb)
 
 
-def chunks_overlapping_roi(roi, chunks):
-    """ Find all the chunk ids overlapping with given roi.
+def chunks_overlapping_roi(roi: Tuple[slice, ...], chunks: Tuple[int, ...]) -> Sequence[Tuple[int, ...]]:
+    """Find all the chunk ids overlapping with a region of interest.
+
+    Args:
+        roi: The region of interest.
+        chunks: The chunk shape.
+
+    Returns:
+        Sequence of chunk ids, where each chunk id is the nd grid coordinate of the chunk.
     """
     ranges = [range(rr.start // ch, rr.stop // ch if rr.stop % ch == 0 else rr.stop // ch + 1)
               for rr, ch in zip(roi, chunks)]
     return product(*ranges)
 
 
-def downscale_shape(shape, scale_factor, ceil_mode=True):
-    """ Compute new shape after downscaling a volume by given scale factor.
+def downscale_shape(
+    shape: Tuple[int, ...],
+    scale_factor: Union[Tuple[int, ...], int],
+    ceil_mode: bool = True,
+) -> Tuple[int, ...]:
+    """Compute new shape after downscaling a volume by given scale factor.
 
-    Arguments:
-        shape [tuple] - input shape
-        scale_factor [tuple or int] - scale factor used for down-sampling.
-        ceil_mode [bool] - whether to apply ceil to output shape (default: True)
+    Args:
+        shape: The input shape.
+        scale_factor: The scale factor used for downscaling.
+        ceil_mode: Whether to apply ceil to output shape.
+
+    Returns:
+        The shape after downscaling.
     """
-    scale_ = (scale_factor,) * len(shape) if isinstance(scale_factor, int)\
-        else scale_factor
+    scale_ = (scale_factor,) * len(shape) if isinstance(scale_factor, int) else scale_factor
     if ceil_mode:
-        return tuple(sh // sf + int((sh % sf) != 0)
-                     for sh, sf in zip(shape, scale_))
+        return tuple(sh // sf + int((sh % sf) != 0) for sh, sf in zip(shape, scale_))
     else:
         return tuple(sh // sf for sh, sf in zip(shape, scale_))
 
 
-def sigma_to_halo(sigma, order):
-    """ Compute the halo value to apply filter in parallel.
+def sigma_to_halo(sigma: Union[float, Sequence[float]], order: int) -> Union[int, List[int]]:
+    """Compute the halo value for applying an image filter in parallel.
 
     Based on:
     https://github.com/ukoethe/vigra/blob/master/include/vigra/multi_blockwise.hxx#L408
 
-    Arguments:
-        sigma [float or list[float]] - sigma value
-        order [int] - order of the filter
+    Args:
+        sigma: The sigma value of the filter.
+        order: The order of the filter.
+
+    Returns:
+        The halo for enlarging blocks used for parallelization.
     """
     # NOTE it seems like the halo given here is not sufficient and the test in ilastik
     # for the reference implementation do not catch this because of insufficient block-shape:
@@ -280,6 +332,8 @@ def _make_checkerboard_with_roi(blocking, roi_begin, roi_end):
 
 
 def divide_blocks_into_checkerboard(blocking, roi_begin=None, roi_end=None):
+    """@private
+    """
     assert (roi_begin is None) == (roi_end is None)
     if roi_begin is None:
         return _make_checkerboard(blocking)

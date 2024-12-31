@@ -13,6 +13,8 @@ from .features import compute_grid_graph_affinity_features
 
 
 class AccumulatorLongRangeAffs:
+    """@private
+    """
     def __init__(self, offsets,
                  used_offsets=None,
                  offsets_weights=None,
@@ -152,8 +154,10 @@ class AccumulatorLongRangeAffs:
 
 
 def get_rag(segmentation, nb_threads):
+    """@private
     """
-    If the segmentation has values equal to -1, those are interpreted as background pixels.
+
+    """If the segmentation has values equal to -1, those are interpreted as background pixels.
 
     When this rag is build, the node IDs will be taken from segmentation and the background_node will have ID
     previous_max_label+1
@@ -187,12 +191,12 @@ def build_lifted_graph_from_rag(rag,
                                 number_of_threads=-1,
                                 has_background_label=False,
                                 add_lifted_edges=True):
+    """@private
     """
-    If has_background_label is true, it assumes that it has label rag.numberOfNodes - 1 (See function `get_rag`)
+
+    """If has_background_label is true, it assumes that it has label rag.numberOfNodes - 1 (See function `get_rag`)
     The background node and all the edges connecting to it are ignored when creating
     the new (possibly lifted) undirected graph.
-    -------
-
     """
     # TODO: in order to support an edge_mask,
     # getting the lifted edges is the easy part, but then I also need to accumulate
@@ -247,6 +251,8 @@ def build_lifted_graph_from_rag(rag,
 
 
 def edge_mask_from_offsets_prob(shape, offsets_probabilities, edge_mask=None):
+    """@private
+    """
     shape = tuple(shape) if not isinstance(shape, tuple) else shape
 
     offsets_probabilities = np.require(offsets_probabilities, dtype='float32')
@@ -264,6 +270,8 @@ def edge_mask_from_offsets_prob(shape, offsets_probabilities, edge_mask=None):
 
 
 def from_foreground_mask_to_edge_mask(foreground_mask, offsets, mask_used_edges=None):
+    """@private
+    """
     _, valid_edges = compute_affinities(foreground_mask.astype('uint64'), offsets.tolist(), True, 0)
 
     if mask_used_edges is not None:
@@ -281,10 +289,7 @@ def build_pixel_long_range_grid_graph_from_offsets(image_shape,
                                                    offset_weights=None,
                                                    set_only_direct_neigh_as_mergeable=True,
                                                    foreground_mask=None):
-    """
-    Parameters
-    ----------
-    offset_weights: Defines the size of each edge in the graph, depending on the associated offset.
+    """@private
     """
     # TODO: add support for foreground mask (masked nodes are removed from final undirected graph
 
@@ -349,6 +354,8 @@ def build_pixel_long_range_grid_graph_from_offsets(image_shape,
 
 
 def check_offsets(offsets):
+    """@private
+    """
     if isinstance(offsets, (list, tuple)):
         offsets = np.array(offsets)
     else:
@@ -358,6 +365,8 @@ def check_offsets(offsets):
 
 
 def find_indices_direct_neighbors_in_offsets(offsets):
+    """@private
+    """
     offsets = check_offsets(offsets)
     indices_dir_neighbor = []
     is_dir_neighbor = np.empty(offsets.shape[0], dtype='bool')

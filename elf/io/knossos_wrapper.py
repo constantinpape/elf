@@ -1,14 +1,16 @@
 import os
 from collections.abc import Mapping
 from concurrent import futures
+from typing import Union
 
 import numpy as np
 import imageio.v3 as imageio
-from ..util import (normalize_index, squeeze_singletons,
-                    map_chunk_to_roi, chunks_overlapping_roi)
+from ..util import normalize_index, squeeze_singletons, map_chunk_to_roi, chunks_overlapping_roi
 
 
 class KnossosDataset:
+    """Dataset object for a file handle representing a knossos dataset.
+    """
     block_size = 128
 
     @staticmethod
@@ -18,10 +20,12 @@ class KnossosDataset:
         return len(files)
 
     def get_shape_and_grid(self):
+        """@private
+        """
         cx = self._chunks_dim(self.path)
-        y_root = os.path.join(self.path, 'x0000')
+        y_root = os.path.join(self.path, "x0000")
         cy = self._chunks_dim(y_root)
-        z_root = os.path.join(y_root, 'y0000')
+        z_root = os.path.join(y_root, "y0000")
         cz = self._chunks_dim(z_root)
 
         grid = (cz, cy, cx)
@@ -30,7 +34,7 @@ class KnossosDataset:
 
     def __init__(self, path, file_prefix, load_png):
         self.path = path
-        self.ext = 'png' if load_png else 'jpg'
+        self.ext = "png" if load_png else "jpg"
         self.file_prefix = file_prefix
 
         self._ndim = 3
@@ -40,7 +44,7 @@ class KnossosDataset:
 
     @property
     def dtype(self):
-        return np.dtype('uint8')
+        return np.dtype("uint8")
 
     @property
     def ndim(self):
@@ -56,10 +60,9 @@ class KnossosDataset:
 
     def load_block(self, grid_id):
         # NOTE need to reverse grid id, because knossos folders are stored in x, y, z order
-        block_path = ['%s%04i' % (dim, gid) for dim, gid in zip(('x', 'y', 'z'),
-                                                                grid_id[::-1])]
-        dim_str = '_'.join(block_path)
-        fname = '%s_%s.%s' % (self.file_prefix, dim_str, self.ext)
+        block_path = ["%s%04i" % (dim, gid) for dim, gid in zip(("x", "y", "z"), grid_id[::-1])]
+        dim_str = "_".join(block_path)
+        fname = "%s_%s.%s" % (self.file_prefix, dim_str, self.ext)
         block_path.append(fname)
         path = os.path.join(self.path, *block_path)
         data = np.array(imageio.imread(path)).reshape(self._chunks)
@@ -71,7 +74,7 @@ class KnossosDataset:
 
         # init data (dtype is hard-coded to uint8)
         roi_shape = tuple(rr.stop - rr.start for rr in roi)
-        data = np.zeros(roi_shape, dtype='uint8')
+        data = np.zeros(roi_shape, dtype="uint8")
 
         def load_tile(grid_id):
             tile_data = self.load_block(grid_id)
@@ -84,7 +87,6 @@ class KnossosDataset:
                 [t.result() for t in tasks]
         else:
             [load_tile(sp) for sp in grid_points]
-        #
         return data
 
     def __getitem__(self, key):
@@ -105,11 +107,14 @@ class KnossosDataset:
 
 
 class KnossosFile(Mapping):
-    """ Wrapper for knossos file structure
+    """Root object for a file handle representing a knossos dataset.
+
+    Args:
+        path: Filepath to the knossos dataset.
+        mode: The mode for opening the folder, only supports 'r' (read mode).
     """
-    # NOTE: the file mode is a dummy parameter to be consistent with other file impls
-    def __init__(self, path, mode='r', load_png=True):
-        if not os.path.exists(os.path.join(path, 'mag1')):
+    def __init__(self, path: Union[os.PathLike, str], mode: str = "r", load_png: bool = True):
+        if not os.path.exists(os.path.join(path, "mag1")):
             raise RuntimeError("Not a knossos file structure")
         self.path = path
         self.load_png = load_png
@@ -119,14 +124,14 @@ class KnossosFile(Mapping):
         sub_path = os.path.join(self.path, key)
         if not os.path.exists(sub_path):
             raise ValueError("Key %s does not exist" % key)
-        if not os.path.isdir(sub_path) and key.startswith('mag'):
+        if not os.path.isdir(sub_path) and key.startswith("mag"):
             raise ValueError("Key %s is not a valid knossos dataset" % key)
-        file_prefix = '%s_%s' % (self.file_name, key)
+        file_prefix = "%s_%s" % (self.file_name, key)
         return KnossosDataset(sub_path, file_prefix, self.load_png)
 
     def __iter__(self):
         for name in os.listdir(self.path):
-            if os.path.isdir(os.path.join(self.path, name)) and name.startswith('mag'):
+            if os.path.isdir(os.path.join(self.path, name)) and name.startswith("mag"):
                 yield name
 
     def __len__(self):
@@ -136,7 +141,7 @@ class KnossosFile(Mapping):
         return counter
 
     def __contains__(self, name):
-        return super().__contains__(name.lstrip('/'))
+        return super().__contains__(name.lstrip("/"))
 
     def __enter__(self):
         return self

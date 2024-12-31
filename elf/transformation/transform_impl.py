@@ -1,8 +1,12 @@
 from functools import partial
 from numbers import Number
+from typing import Optional, Tuple
 
 import numpy as np
 import nifty.tools as nt
+
+from numpy.typing import ArrayLike
+
 from ..util import sigma_to_halo
 try:
     import fastfilters as ff
@@ -15,9 +19,9 @@ except ImportError:
 #
 
 
-def apply_transform_chunked(data, out,
-                            transform_coordinate, interpolate_coordinates,
-                            start, stop, blocking, sigma):
+def apply_transform_chunked(data, out, transform_coordinate, interpolate_coordinates, start, stop, blocking, sigma):
+    """@private
+    """
     ndim = data.ndim
     # initialise the chunk cache
     chunk_cache = {}
@@ -90,9 +94,9 @@ def apply_transform_chunked(data, out,
     return out
 
 
-def apply_transform(data, out,
-                    transform_coordinate, interpolate_coordinates,
-                    start, stop):
+def apply_transform(data, out, transform_coordinate, interpolate_coordinates, start, stop):
+    """@private
+    """
 
     ndim = data.ndim
     # precompute for range check
@@ -137,6 +141,8 @@ def apply_transform(data, out,
 
 # nearest neighbor sampling / order 0
 def interpolate_nn(coord, where_format=False):
+    """@private
+    """
     if where_format:
         return tuple(np.array([round(co, 0)], dtype='uint64') for co in coord), np.ones(1)
     else:
@@ -145,6 +151,8 @@ def interpolate_nn(coord, where_format=False):
 
 # linear sampling / order 1
 def interpolate_linear(coord, where_format=False):
+    """@private
+    """
     # determine upper and lower coordinate bound
     ndim = len(coord)
     lower = [int(co) for co in coord]
@@ -170,34 +178,45 @@ def interpolate_linear(coord, where_format=False):
 # TODO implement the higher orders
 # quadratic sampling / order 2
 def interpolate_quadratic(coord, where_format=False):
+    """@private
+    """
     pass
 
 
 # cubic sampling / order 3
 def interpolate_cubic(coord, where_format=False):
+    """@private
+    """
     pass
 
 
 # TODO support multichannel transformation -> don't transform first coordinate dimension
 # prototype impl for on the fly coordinate, transformation of sub-volumes / bounding boxes
-def transform_subvolume(data, transform, bb,
-                        order=0, fill_value=0, sigma=None):
-    """ Apply transform transformation to subvolume.
+def transform_subvolume(
+    data: ArrayLike,
+    transform: callable,
+    bb: Tuple[slice, ...],
+    order: int = 0,
+    fill_value: Number = 0,
+    sigma: Optional[float] = None,
+) -> np.ndarray:
+    """Apply transform transformation to subvolume.
 
-    Arguments:
-        data [array_like] - input data
-        transform [callable] - coordinate transfotmation
-        bb [tuple[slice]] - bounding box into the output data
-        order [int] - interpolation order (default: 0)
-        fill_value [scalar] - output value for invald coordinates (default: 0)
-        sigma [float] - sigma value used for pre-smoothing the input
-            in order to avoid aliasing effects (default: None)
+    Args:
+        data: The input data, can be a numpy array or another array-like object.
+        transform: The coordinate transfotmation.
+        bb: The bounding box into the output data.
+        order: The interpolation order.
+        fill_value: The output value for invald coordinates.
+        sigma: The sigma value used for pre-smoothing the input in order to avoid aliasing effects.
+
+    Returns:
+        The transformed subvolume.
     """
     ndim = data.ndim
     if ndim not in (2, 3):
         raise ValueError("Only support 2 or 3 dimensional data, not %i dimensions" % ndim)
-
-    chunks = getattr(data, 'chunks', None)
+    chunks = getattr(data, "chunks", None)
 
     start = tuple(b.start for b in bb)
     stop = tuple(b.stop for b in bb)
@@ -220,5 +239,4 @@ def transform_subvolume(data, transform, bb,
         raise NotImplementedError("Only interpolation with order < 2 is currently implemented.")
 
     out = np.full(sub_shape, fill_value, dtype=data.dtype)
-    out = _apply(data, out, transform, interpolate, start, stop)
-    return out
+    return _apply(data, out, transform, interpolate, start, stop)

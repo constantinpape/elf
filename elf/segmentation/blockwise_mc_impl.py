@@ -6,7 +6,8 @@ from vigra.analysis import relabelConsecutive
 
 def solve_subproblems(graph, costs, segmentation,
                       solver, blocking, halo, n_threads):
-
+    """@private
+    """
     uv_ids = graph.uvIds()
 
     # solve sub-problem from one block
@@ -61,7 +62,8 @@ def solve_subproblems(graph, costs, segmentation,
 
 
 def reduce_problem(graph, costs, merge_edges, n_threads):
-
+    """@private
+    """
     # merge node pairs with ufd
     nodes = np.arange(graph.numberOfNodes, dtype="uint64")
     uv_ids = graph.uvIds()
@@ -90,6 +92,8 @@ def reduce_problem(graph, costs, merge_edges, n_threads):
 def hierarchy_level(graph, costs, labels,
                     segmentation, blocking,
                     internal_solver, n_threads, halo):
+    """@private
+    """
     merge_edges = solve_subproblems(graph, costs, segmentation,
                                     internal_solver, blocking, halo, n_threads)
     graph, costs, new_labels = reduce_problem(graph, costs, merge_edges, n_threads)
@@ -104,6 +108,8 @@ def hierarchy_level(graph, costs, labels,
 
 def blockwise_mc_impl(graph, costs, segmentation, internal_solver,
                       block_shape, n_threads, n_levels=1, halo=None):
+    """@private
+    """
     shape = segmentation.shape
     graph_, costs_ = graph, costs
     block_shape_ = block_shape

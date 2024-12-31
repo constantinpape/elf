@@ -40,12 +40,13 @@ def extract_tracks_as_volume(
 ) -> np.ndarray:
     """Extract tracks as volume from MaMuT xml.
 
-    Arguments:
+    Args:
         path: Path to the xml file with tracks stored in MaMuT format.
         timepoint: Timepoint for which to extract the tracks.
         shape: Shape of the output volume.
         voxel_size: Voxel size of the volume.
         binary: Whether to return the volume as binary labels and not instance ids.
+
     Returns:
         The volume with instance ids or binary ids.
     """

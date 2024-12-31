@@ -1,14 +1,15 @@
 import os
 import subprocess
 from shutil import rmtree
+from typing import List, Tuple, Union
 
 import numpy as np
 
 
 def _set_ld_library_path(elastix_folder):
-    lib_path = os.environ.get('LD_LIBRARY_PATH', '')
-    elastix_lib_path = os.path.join(elastix_folder, 'lib')
-    os.environ['LD_LIBRARY_PATH'] = f"{lib_path}:{elastix_lib_path}"
+    lib_path = os.environ.get("LD_LIBRARY_PATH", "")
+    elastix_lib_path = os.path.join(elastix_folder, "lib")
+    os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{elastix_lib_path}"
 
 
 def _write_coordinates(coordinates, out_file):
@@ -21,7 +22,7 @@ def _write_coordinates(coordinates, out_file):
         raise ValueError(f"Expect 2d or 3d input coordinates, got {ndim}")
 
     n_coords = len(coordinates)
-    with open(out_file, 'w') as f:
+    with open(out_file, "w") as f:
         f.write("index\n")
         f.write(f"{n_coords}\n")
         # TODO this can probably be vectorized
@@ -34,7 +35,7 @@ def _read_coordinates(coord_file):
     coords = []
     with open(coord_file) as f:
         for line in f:
-            parsed = line.split(';')[4].lstrip().rstrip()
+            parsed = line.split(";")[4].lstrip().rstrip()
             parsed = parsed.split()
             x = float(parsed[3])
             y = float(parsed[4])
@@ -48,38 +49,36 @@ def _read_coordinates(coord_file):
 
 
 def transform_coordinates(
-    coordinates,
-    transformation_file,
-    elastix_folder
-):
+    coordinates: Union[np.ndarray, List, Tuple],
+    transformation_file: str,
+    elastix_folder: str,
+) -> np.ndarray:
     """Transform coordinates with transformix.
 
-    Argument:
-        coordinates [np.ndarray, list, tuple] - coordinate list to transform
-        transformation_file [str] - file with the transformation elastix transformation parameter
-        elastix_folder [str] - folder with the elastix files
+    Args:
+        coordinates: The coordinate list to transform.
+        transformation_file: The file with the elastix transformation parameter.
+        elastix_folder: The folder with the elastix files.
+
+    Returns:
+        The transformed coordinates.
     """
 
-    tmp_folder = './coords_out'
+    tmp_folder = "./coords_out"
     os.makedirs(tmp_folder, exist_ok=True)
-    coord_in_file = os.path.join(tmp_folder, 'coords_temp.txt')
+    coord_in_file = os.path.join(tmp_folder, "coords_temp.txt")
 
     _write_coordinates(coordinates, coord_in_file)
-
-    transformix_bin = os.path.join(
-        elastix_folder,
-        'bin',
-        'transformix'
-    )
+    transformix_bin = os.path.join(elastix_folder, "bin", "transformix")
 
     _set_ld_library_path(elastix_folder)
     cmd = [transformix_bin,
-           '-def', coord_in_file,
-           '-out', tmp_folder,
-           '-tp', transformation_file]
+           "-def", coord_in_file,
+           "-out", tmp_folder,
+           "-tp", transformation_file]
     subprocess.run(cmd)
 
-    coord_out_file = os.path.join(tmp_folder, 'outputpoints.txt')
+    coord_out_file = os.path.join(tmp_folder, "outputpoints.txt")
     out = _read_coordinates(coord_out_file)
 
     try:
@@ -94,6 +93,7 @@ def transform_coordinates(
     return out
 
 
-# TODO
 def transform_volume():
+    """@private
+    """
     raise NotImplementedError

@@ -1,25 +1,48 @@
+import os
+from typing import Optional, Tuple, Union
+
 import numpy as np
 
 
-def read_numpy(path):
-    """ Read mesh from compressed numpy format
+def read_numpy(path: Union[os.PathLike, str]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Read mesh from compressed numpy format.
+
+    Args:
+        path: The file with the mesh saved as compressed numpy file.
+
+    Returns:
+        The vertices of the mesh.
+        The faces of the mesh.
+        The normals of the mesh.
     """
     mesh = np.load(path)
     return mesh["verts"], mesh["faces"], mesh["normals"]
 
 
-def write_numpy(path, verts, faces, normals):
-    """ Write mesh to compressed numpy format
+def write_numpy(path: Union[os.PathLike, str], verts: np.ndarray, faces: np.ndarray, normals: np.ndarray):
+    """Write mesh to compressed numpy format.
+
+    Args:
+        path: The path for saving the mesh.
+        verts: The vertices of the mesh.
+        faces: The faces of the mesh.
+        normals: The normals of the mesh.
     """
-    np.savez_compressed(path,
-                        verts=verts,
-                        faces=faces,
-                        normals=normals)
+    np.savez_compressed(path, verts=verts, faces=faces, normals=normals)
 
 
 # TODO support different format for faces
-def read_obj(path):
-    """ Read mesh from obj
+def read_obj(path: Union[os.PathLike, str]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Read mesh from an obj file.
+
+    Args:
+        path: The file with the mesh saved as obj.
+
+    Returns:
+        The vertices of the mesh.
+        The faces of the mesh.
+        The normals of the mesh.
+        The face normals of the mesh.
     """
     verts = []
     faces = []
@@ -51,8 +74,23 @@ def read_obj(path):
 
 
 # TODO support different format for faces
-def write_obj(path, verts, faces, normals=None, face_normals=None, zero_based_face_index=False):
-    """ Write mesh to obj
+def write_obj(
+    path: Union[os.PathLike, str],
+    verts: np.ndarray,
+    faces: np.ndarray,
+    normals: Optional[np.ndarray] = None,
+    face_normals: Optional[np.ndarray] = None,
+    zero_based_face_index: bool = False,
+):
+    """Write mesh to an obj file.
+
+    Args:
+        path: The path for saving the mesh.
+        verts: The vertices of the mesh.
+        faces: The faces of the mesh.
+        normals: The normals of the mesh.
+        face_normals: The face normals of the mesh.
+        zero_based_face_index: Whether to use 0- or 1- based indexing for the faces.
     """
     with open(path, "w") as f:
         for vert in verts:
@@ -79,13 +117,19 @@ def write_obj(path, verts, faces, normals=None, face_normals=None, zero_based_fa
                 f.write("\n")
         else:
             for face, normal in zip(faces, face_normals):
-                f.write(" ".join(["f"] + ["/".join([str(fa), "1", str(no)])
-                                          for fa, no in zip(face, normal)]))
+                f.write(" ".join(["f"] + ["/".join([str(fa), "1", str(no)]) for fa, no in zip(face, normal)]))
                 f.write("\n")
 
 
-def read_ply(path):
+def read_ply(path: Union[os.PathLike, str]) -> Tuple[np.ndarray, np.ndarray]:
     """Read mesh from ply data format.
+
+    Args:
+        path: The file with the mesh saved as ply.
+
+    Returns:
+        The vertices of the mesh.
+        The faces of the mesh.
     """
     verts = []
     faces = []
@@ -124,8 +168,13 @@ def read_ply(path):
 
 
 # https://web.archive.org/web/20161221115231/http://www.cs.virginia.edu/~gfx/Courses/2001/Advanced.spring.01/plylib/Ply.txt
-def write_ply(path, verts, faces):
+def write_ply(path: Union[os.PathLike, str], verts: np.ndarray, faces: np.ndarray):
     """Write mesh to ply data format.
+
+    Args:
+        path: The path for saving the mesh.
+        verts: The vertices of the mesh.
+        faces: The faces of the mesh.
     """
 
     header = f"""ply

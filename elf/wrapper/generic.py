@@ -1,15 +1,22 @@
+from typing import Tuple
+
 import numpy as np
+from numpy.typing import ArrayLike
+
 from .base import SimpleTransformationWrapper, WrapperBase
 from ..util import normalize_index, squeeze_singletons
 
 
-# TODO allow arbitrary range for normalization
 class NormalizeWrapper(SimpleTransformationWrapper):
-    """ Wrapper to normalize tensor to 0, 1.
+    """Wrapper to normalize data to [0, 1] on the fly.
+
+    Args:
+        volume: The data to wrap
+        dtype: The data type.
     """
     eps = 1.e-6
 
-    def __init__(self, volume, dtype="float32"):
+    def __init__(self, volume: ArrayLike, dtype: str = "float32"):
         super().__init__(volume, self._normalize, dtype=np.dtype(dtype))
 
     def _normalize(self, input_):
@@ -20,10 +27,14 @@ class NormalizeWrapper(SimpleTransformationWrapper):
 
 
 class ThresholdWrapper(SimpleTransformationWrapper):
-    """ Wrapper to threshold tensor on the fly.
-    """
+    """Wrapper to apply a threshold to data on the fly.
 
-    def __init__(self, volume, threshold, operator=np.greater):
+    Args:
+        volume: The data to wrap.
+        threshold: The threshold.
+        operator: The operator for thresholding.
+    """
+    def __init__(self, volume: ArrayLike, threshold: float, operator: callable = np.greater):
         super().__init__(volume, lambda x: operator(x, threshold), dtype=np.dtype("bool"))
         self._threshold = threshold
 
@@ -33,9 +44,13 @@ class ThresholdWrapper(SimpleTransformationWrapper):
 
 
 class RoiWrapper(WrapperBase):
-    """ Wrapper to only expose region of interest of the volume.
+    """Wrapper to restrict data to a region of interest.
+
+    Args:
+        volume: The data to wrap.
+        roi: The region of interest
     """
-    def __init__(self, volume, roi):
+    def __init__(self, volume: ArrayLike, roi: Tuple[slice, ...]):
         super().__init__(volume)
         self._roi, _ = normalize_index(roi, volume.shape)
 

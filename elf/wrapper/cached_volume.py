@@ -1,7 +1,9 @@
 from collections import OrderedDict
 from collections.abc import MutableMapping
+from typing import Optional, Tuple
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 # import blosc for chunk compression
 try:
@@ -10,8 +12,7 @@ except ImportError:
     blosc = None
 
 from .base import WrapperBase
-from ..util import (normalize_index, squeeze_singletons,
-                    map_chunk_to_roi, chunks_overlapping_roi)
+from ..util import normalize_index, squeeze_singletons, map_chunk_to_roi, chunks_overlapping_roi
 
 
 # TODO implement compression
@@ -19,10 +20,13 @@ from ..util import (normalize_index, squeeze_singletons,
 class Cache(MutableMapping):
     """ Base class for chunk cache.
 
-    Derving class must define `_store` (dict-like) and
-    implement `delete_item_from_cache`.
+    A child class must define `_store` (dict-like) and implement `delete_item_from_cache`.
+
+    Args:
+        max_cache_size: The maximal number of chunks to cache.
+        compression: The compression method.
     """
-    def __init__(self, max_cache_size, compression=None):
+    def __init__(self, max_cache_size: int, compression: Optional[str] = None):
         self._max_cache_size = max_cache_size
         if compression is not None:
             raise NotImplementedError
@@ -51,9 +55,13 @@ class Cache(MutableMapping):
 
 
 class FIFOCache(Cache):
-    """ FIFO cache implementation, using an OrderedDict internally.
+    """FIFO cache implementation, using an OrderedDict internally.
+
+    Args:
+        max_cache_size: The maximal number of chunks to cache.
+        compression: The compression method.
     """
-    def __init__(self, max_cache_size, compression=None):
+    def __init__(self, max_cache_size: int, compression: Optional[str] = None):
         super().__init__(max_cache_size, compression)
         self._store = OrderedDict()
 
@@ -81,11 +89,19 @@ class FIFOCache(Cache):
 # -- OR use daemon process to compres chunks
 # -- mover impl to c++
 class CachedVolume(WrapperBase):
-    """
+    """Wrapper around array-like data to cache loaded chunks.
+
+    This can improve the performance for data with high latency,
+    for example data streamed from S3 or similar web protocols.
+
+    Args:
+        volume: The data to wrap.
+        cache: The cache implementation.
+        chunks: The chunk shape. By default the chunks of the wrapped data are used.
     """
     preload_internal_chunks = False  # TODO implement this and make param
 
-    def __init__(self, volume, cache, chunks=None):
+    def __init__(self, volume: ArrayLike, cache: Cache, chunks: Optional[Tuple[int, ...]] = None):
         super().__init__(volume)
 
         try:

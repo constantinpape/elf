@@ -1,4 +1,5 @@
 import argparse
+from typing import List, Optional
 
 import numpy as np
 try:
@@ -9,8 +10,27 @@ except ImportError:
 from ..io import open_file, is_dataset
 
 
-def view_container(path, include=None, exclude=None, lazy=False, show=True):
-    assert napari is not None, "Need napari"
+def view_container(
+    path: str,
+    include: Optional[List[str]] = None,
+    exclude: Optional[List[str]] = None,
+    lazy: bool = False,
+    show: bool = True,
+) -> "napari.Viewer":
+    """Display the contents of an hdf5 file or similar in napari.
+
+    Args:
+        path: The filepath to the container.
+        include: Optional list of datasets to include.
+            If given, only the datasets with names matching the list will be shown.
+        exclude: Optional list of datasets to exclude.
+        lazy: Whether to use lazy loading for the data in the container.
+        show: Whether to start the napari viewer.
+
+    Returns:
+        The napari viewer.
+    """
+    assert napari is not None, "Requires napari"
     assert sum((include is not None, exclude is not None)) != 2
 
     v = napari.Viewer()
@@ -44,6 +64,8 @@ def view_container(path, include=None, exclude=None, lazy=False, show=True):
 
 
 def main():
+    """@private
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("path")
     parser.add_argument("-i", "--include", default=None, nargs="+")

@@ -1,5 +1,6 @@
 import tempfile
 import warnings
+from typing import Optional, Tuple
 
 import numpy as np
 import vigra
@@ -16,8 +17,10 @@ except ImportError:
 
 
 def vertices_and_faces_to_segmentation(
-    vertices, faces, resolution=[1.0, 1.0, 1.0], shape=None, verbose=False, block_shape=None
+    vertices, faces, resolution=(1.0, 1.0, 1.0), shape=None, verbose=False, block_shape=None
 ):
+    """@private
+    """
     with tempfile.NamedTemporaryFile(suffix=".obj") as f:
         tmp_path = f.name
         write_obj(tmp_path, vertices, faces)
@@ -25,21 +28,28 @@ def vertices_and_faces_to_segmentation(
     return seg
 
 
-def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
-                         reverse_coordinates=False, shape=None, verbose=False,
-                         block_shape=None):
-    """ Compute segmentation volume from mesh.
+def mesh_to_segmentation(
+    mesh_file: str,
+    resolution: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+    reverse_coordinates: bool = False,
+    shape: Tuple[int, int, int] = None,
+    verbose: bool = False,
+    block_shape: Optional[Tuple[int, int, int]] = None,
+) -> np.ndarray:
+    """Transform a mesh into a volumetric binary segmentation mask.
 
     Requires madcad and pywavefront as dependency.
 
-    Arguments:
-        mesh_file [str] - path to mesh in obj format
-        resolution [list[float]] - pixel resolution of the vertex coordinates
-        reverse_coordinates [bool] - whether to reverse the coordinate order (default: False)
-        shape [tuple[int]] - shape of the output volume.
-            If None, the maximal extent of the mesh coordinates will be used as shape (default: None)
-        verbose [bool] - whether to activate verbose output (default: False)
-        block_shape [tuple[int]] - block_shape to parallelize the computation (default: None)
+    Args:
+        mesh_file: Path to the mesh in obj format.
+        resolution: Pixel resolution of the vertex coordinates.
+        reverse_coordinates: Whether to reverse the coordinate order.
+        shape: Shape of the output volume. If None, the maximal extent of the mesh coordinates will be used.
+        verbose: Whether to activate verbose output.
+        block_shape: Block_shape to parallelize the computation.
+
+    Returns:
+        The binary segmentation mask.
     """
     if PositionMap is None:
         raise RuntimeError("Need madcad dependency for mesh_to_seg functionality.")
@@ -52,12 +62,7 @@ def mesh_to_segmentation(mesh_file, resolution=[1.0, 1.0, 1.0],
         voxel = hasher.keysfor(mesh.facepoints(face))
         if reverse_coordinates:
             voxel = [vox[::-1] for vox in voxel]
-        voxel = [
-            tuple(
-                int(vv / res) for vv, res in zip(vox, resolution)
-            )
-            for vox in voxel
-        ]
+        voxel = [tuple(int(vv / res) for vv, res in zip(vox, resolution)) for vox in voxel]
         voxels.update(voxel)
 
     voxels = np.array(list(voxels))

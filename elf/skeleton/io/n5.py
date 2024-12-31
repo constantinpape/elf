@@ -1,17 +1,24 @@
+from typing import List, Optional, Tuple
+
 import numpy as np
+from numpy.typing import ArrayLike
 
 
-def read_n5(ds, skel_id):
-    """ Read skeleton stored in custom n5-based format
+def read_n5(ds: ArrayLike, skel_id: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Read skeleton stored in custom n5-based format.
 
     The skeleton data is stored via varlen chunks: each chunk contains
     the data for one skeleton and stores:
     (n_skel_points, coord_z_0, coord_y_0, coord_x_0, ..., coord_z_n, coord_y_n, coord_x_n,
      n_edges, edge_0_u, edge_0_v, ..., edge_n_u, edge_n_v)
 
-    Arguments:
-        ds [z5py.Dataset]: input dataset
-        skel_id [int]: id of the object corresponding to the skeleton
+    Args:
+        ds: The dataset containing the skeleton.
+        skel_id: Id of the object corresponding to the skeleton.
+
+    Returns:
+        The nodes of the skeleton.
+        The edges of the skeleton.
     """
     # read data from chunk
     data = ds.read_chunk((skel_id,))
@@ -35,25 +42,27 @@ def read_n5(ds, skel_id):
     return nodes, edges
 
 
-def write_n5(ds, skel_id, nodes, edges, coordinate_offset=None):
-    """ Write skeleton to custom n5-based format
+def write_n5(
+    ds: ArrayLike, skel_id: int, nodes: np.ndarray, edges: np.ndarray, coordinate_offset: Optional[List[int]] = None
+):
+    """Write skeleton to custom n5-based format.
 
     The skeleton data is stored via varlen chunks: each chunk contains
     the data for one skeleton and stores:
     [n_skel_points, coord_z_0, coord_y_0, coord_x_0, ..., coord_z_n, coord_y_n, coord_x_n,
      n_edges, edge_0_u, edge_0_v, ..., edge_n_u, edge_n_v]
 
-    Arguments:
-        ds [z5py.Dataset]: output dataset
-        skel_id [int]: id of the object corresponding to the skeleton
-        nodes [np.ndarray]: node coordinates
-        edges [np.ndarray]: edges
-        coordinate_offset [listlike]: offset to coordinate (default: None)
+    Args:
+        ds: The dataset the skeleton is written to.
+        skel_id: Id of the object corresponding to the skeleton.
+        nodes: The node coordinates of the skeleton.
+        edges: The edges of the skeleton.
+        coordinate_offset: The coordinate offset for the skeleton nodes.
     """
     # check if we have offset and add up if we do
     if coordinate_offset is not None:
         assert len(coordinate_offset) == 3
-        nodes += np.array(coordinate_offset, dtype='uint64')
+        nodes += np.array(coordinate_offset, dtype="uint64")
 
     # make serialization for number of points and coordinates
     n_points = nodes.shape[0]
@@ -64,4 +73,4 @@ def write_n5(ds, skel_id, nodes, edges, coordinate_offset=None):
     data.extend([np.array([n_edges]), edges.flatten()])
 
     data = np.concatenate(data, axis=0)
-    ds.write_chunk((skel_id,), data.astype('uint64'), True)
+    ds.write_chunk((skel_id,), data.astype("uint64"), True)

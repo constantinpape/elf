@@ -1,9 +1,11 @@
 from abc import ABC
+
+from numpy.typing import ArrayLike
 from ..util import normalize_index, squeeze_singletons
 
 
 class WrapperBase(ABC):
-    """ Base class for a volume / tensor wrapper.
+    """@private
     """
     def __init__(self, volume, shape=None, dtype=None, chunks=None):
         self._volume = volume
@@ -43,13 +45,18 @@ class WrapperBase(ABC):
 
 
 class SimpleTransformationWrapper(WrapperBase):
-    """ Volume wrapper to apply transformation to the data on the fly.
+    """Wrapper to apply simple transformation to data on the fly.
 
-    The transformation needs to be simple: it cannot depend on the coordinate.
-    I.e. the function signature is `def transformation(volume)`
+    The transformation must depend only on the data values, not on coordinates.
+    Hence, the expected function signature is `def transformation(volume)`.
+
+    Args:
+        volume: The data to wrap.
+        transformation: The transformation to apply.
+        with_channels: Whether the data has channels.
+        kwargs: Additional keyword arguments for the base class.
     """
-
-    def __init__(self, volume, transformation, with_channels=False, **kwargs):
+    def __init__(self, volume: ArrayLike, transformation: callable, with_channels: bool = False, **kwargs):
         if not callable(transformation):
             raise ValueError("Expect the transformation to be callable.")
         self.transformation = transformation
@@ -70,14 +77,18 @@ class SimpleTransformationWrapper(WrapperBase):
 
 
 class TransformationWrapper(WrapperBase):
-    """ Volume wrapper to apply transformation to the data on the fly.
+    """Wrapper to apply transformation to data on the fly.
 
-    The transformation is assumed to depend on the coordinate.
-    I.e. the function signature is
-    `def transformation(volume, index)`
+    The transformation may depend on the data values and on the coordinates.
+    Hence, the expected function signature is `def transformation(volume, index)`.
+
+    Args:
+        volume: The data to wrap.
+        transformation: The transformation to apply.
+        with_channels: Whether the data has channels.
+        kwargs: Additional keyword arguments for the base class.
     """
-
-    def __init__(self, volume, transformation, **kwargs):
+    def __init__(self, volume: ArrayLike, transformation: callable, **kwargs):
         if not callable(transformation):
             raise ValueError("Expect the transformation to be callable.")
         self.transformation = transformation
