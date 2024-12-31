@@ -1,5 +1,6 @@
 import numpy as np
 import time
+from typing import Tuple
 
 from affogato import segmentation as aff_segm
 
@@ -17,30 +18,26 @@ from .multicut import compute_edge_costs
 
 
 def run_GASP(
-        graph,
-        signed_edge_weights,
-        linkage_criteria="mean",
-        add_cannot_link_constraints=False,
-        edge_sizes=None,
-        is_mergeable_edge=None,
-        use_efficient_implementations=True,
-        verbose=False,
-        linkage_criteria_kwargs=None,
-        merge_constrained_edges_at_the_end=False,
-        export_agglomeration_data=False,
-        print_every=100000):
-    """
-    Run the Generalized Algorithm for Agglomerative Clustering on Signed Graphs (GASP).
-    The C++ implementation is currently part of the nifty library.
+    graph,
+    signed_edge_weights: np.array,
+    linkage_criteria="mean",
+    add_cannot_link_constraints=False,
+    edge_sizes=None,
+    is_mergeable_edge=None,
+    use_efficient_implementations=True,
+    verbose=False,
+    linkage_criteria_kwargs=None,
+    merge_constrained_edges_at_the_end=False,
+    export_agglomeration_data=False,
+    print_every=100000
+) -> Tuple[np.ndarray, float]:
+    """Run the Generalized Algorithm for Agglomerative Clustering on Signed Graphs (GASP).
 
-    Parameters
-    ----------
-    graph : nifty.graph
-        Instance of a graph, e.g. nifty.graph.UndirectedGraph, nifty.graph.undirectedLongRangeGridGraph or
-        nifty.graph.rag.gridRag
-
-    signed_edge_weights : numpy.array(float) with shape (nb_graph_edges, )
-        Attractive weights are positive; repulsive weights are negative.
+    Args:
+        graph: Instance of a graph, e.g. nifty.graph.UndirectedGraph, nifty.graph.undirectedLongRangeGridGraph
+            or nifty.graph.rag.gridRag.
+        signed_edge_weights: numpy.array(float) with shape (nb_graph_edges, )
+            Attractive weights are positive; repulsive weights are negative.
 
     linkage_criteria : str (default 'mean')
         Specifies the linkage criteria / update rule used during agglomeration.

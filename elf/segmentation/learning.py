@@ -1,18 +1,24 @@
 import multiprocessing
+from typing import Optional, Sequence, Tuple, Union
+
 import numpy as np
 import nifty.graph.rag as nrag
 from sklearn.ensemble import RandomForestClassifier
 
 
-def compute_edge_labels(rag, gt, ignore_label=None, n_threads=None):
-    """ Compute edge labels by mapping ground-truth segmentation to graph nodes.
+def compute_edge_labels(
+    rag, gt: np.ndarray, ignore_label: Optional[Union[int, Sequence[int]]] = None, n_threads: Optional[int] = None
+) -> np.ndarray:
+    """Compute edge labels by mapping ground-truth segmentation to graph nodes.
 
-    Arguments:
-        rag [RegionAdjacencyGraph] - region adjacency graph
-        gt [np.ndarray] - ground-truth segmentation
-        ignore_label [int or np.ndarray] - label id(s) in ground-truth
-            to ignore in learning (default: None)
-        n_threads [int] - number of threads (default: None)
+    Args:
+        rag: The region adjacency graph.
+        gt: The ground-truth segmentation.
+        ignore_label: Label id(s) in the ground-truth to ignore in learning.
+        n_threads: The number of threads.
+
+    Returns:
+        The edge labels.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
@@ -31,16 +37,24 @@ def compute_edge_labels(rag, gt, ignore_label=None, n_threads=None):
     return edge_labels
 
 
-def learn_edge_random_forest(features, labels, edge_mask=None, n_threads=None,
-                             **rf_kwargs):
-    """ Learn random forest for edge classification.
+def learn_edge_random_forest(
+    features: np.ndarray,
+    labels: np.ndarray,
+    edge_mask: Optional[np.ndarray] = None,
+    n_threads: Optional[int] = None,
+    **rf_kwargs,
+) -> RandomForestClassifier:
+    """Learn random forest for edge classification.
 
-    Arguments:
-        features [np.ndarray] - edge features
-        labels [np.ndarray] - edge labels
-        edge_mask [np.ndarray] - mask of edges to ignore in training (default: None)
-        n_threads [int] - number of threads (default: None)
-        rf_kwargs [kwargs] - keyword arguments for sklearn.ensemble.RandomForestClassifier
+    Args:
+        features: The edge features.
+        labels: The edge labels.
+        edge_mask: The mask of edges to ignore in training.
+        n_threads: The number of threads.
+        rf_kwargs: Keyword arguments for sklearn.ensemble.RandomForestClassifier.
+
+    Returns:
+        The trained random forest.
     """
     if len(features) != len(labels):
         raise ValueError("Incomatble feature and label dimensions")
@@ -60,17 +74,27 @@ def learn_edge_random_forest(features, labels, edge_mask=None, n_threads=None,
     return rf
 
 
-def learn_random_forests_for_xyz_edges(features, labels, z_edges,
-                                       edge_mask=None, n_threads=None, **rf_kwargs):
-    """ Learn random forests for classification of xy-and-z edges separately.
+def learn_random_forests_for_xyz_edges(
+    features: np.ndarray,
+    labels: np.ndarray,
+    z_edges: np.ndarray,
+    edge_mask: Optional[np.ndarray] = None,
+    n_threads: Optional[int] = None,
+    **rf_kwargs
+) -> Tuple[RandomForestClassifier, RandomForestClassifier]:
+    """Learn random forests for classification of xy-and-z edges separately.
 
-    Arguments:
-        features [np.ndarray] - edge features
-        labels [np.ndarray] - edge labels
-        z_edges [np.ndarray] - mask for z edges
-        edge_mask [np.ndarray] - mask of edges to ignore in training (default: None)
-        n_threads [int] - number of threads (default: None)
-        rf_kwargs [kwargs] - keyword arguments for sklearn.ensemble.RandomForestClassifier
+    Args:
+        features: The edge features.
+        labels: The edge labels.
+        z_edges: The mask for z edges.
+        edge_mask: The mask of edges to ignore in training.
+        n_threads: The number of threads.
+        rf_kwargs: Keyword arguments for sklearn.ensemble.RandomForestClassifier.
+
+    Returns:
+        Trained random forest classifer for in-plane edges.
+        Trained random forest classifer for between-plane edges.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
@@ -87,13 +111,18 @@ def learn_random_forests_for_xyz_edges(features, labels, z_edges,
     return rf_xy, rf_z
 
 
-def predict_edge_random_forest(rf, features, n_threads=None):
-    """ Predict edge probablities with random forest.
+def predict_edge_random_forest(
+    rf: RandomForestClassifier, features: np.ndarray, n_threads: Optional[int] = None
+) -> np.ndarray:
+    """Predict edge probablities with random forest.
 
-    Arguments:
-        rf [RandomForestClassifier] - the random forest
-        features [np.ndarray] - edge features
-        n_threads [int] - number of threads (default: None)
+    Args:
+        rf: The random forest classifier.
+        features: The edge features.
+        n_threads: The number of threads.
+
+    Returns:
+        The edge probabilities.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     prev_njobs = rf.n_jobs
@@ -106,16 +135,24 @@ def predict_edge_random_forest(rf, features, n_threads=None):
     return edge_probs
 
 
-def predict_edge_random_forests_for_xyz_edges(rf_xy, rf_z, features,
-                                              z_edge_mask, n_threads=None):
-    """ Predict edge probablities with random forests for xy-and-z edges separately.
+def predict_edge_random_forests_for_xyz_edges(
+    rf_xy: RandomForestClassifier,
+    rf_z: RandomForestClassifier,
+    features: np.ndarray,
+    z_edge_mask: np.ndarray,
+    n_threads: Optional[int] = None,
+) -> np.ndarray:
+    """Predict edge probablities with random forests for xy- and z- edges separately.
 
-    Arguments:
-        rf_xy [RandomForestClassifier] - the random forest trained for xy edges
-        rf_z [RandomForestClassifier] - the random forest trained for z edges
-        features [np.ndarray] - edge features
-        z_edges [np.ndarray] - mask for z edges
-        n_threads [int] - number of threads (default: None)
+    Args:
+        rf_xy: The random forest trained for xy edges.
+        rf_z: The random forest trained for z edges.
+        features: The edge features.
+        z_edges: The mask for z edges.
+        n_threads: The number of threads.
+
+    Returns:
+        The edge probabilities.
     """
     edge_probs = np.zeros(len(features))
 

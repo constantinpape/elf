@@ -2,7 +2,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import nifty.graph.agglo as nagglo
-import nifty.graph.UndirectedGraph
+from nifty.graph import UndirectedGraph
 from vigra.analysis import relabelConsecutive
 
 from .features import (compute_rag, compute_affinity_features,
@@ -11,7 +11,7 @@ from .watershed import apply_size_filter
 
 
 def mala_clustering(
-    graph: nifty.graph.UndirectedGraph,
+    graph: UndirectedGraph,
     edge_features: np.ndarray,
     edge_sizes: np.ndarray,
     threshold: float,
@@ -47,7 +47,7 @@ def mala_clustering(
 
 
 def agglomerative_clustering(
-    graph: nifty.graph.UndirectedGraph,
+    graph: UndirectedGraph,
     edge_features: np.ndarray,
     node_sizes: np.ndarray,
     edge_sizes: np.ndarray,

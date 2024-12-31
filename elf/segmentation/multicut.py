@@ -1,4 +1,5 @@
 from functools import partial
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import nifty
@@ -39,18 +40,26 @@ def _weight_populations(costs, edge_sizes, edge_populations, weighting_exponent)
     return costs
 
 
-def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
-                                     edge_populations=None, weighting_exponent=1.):
-    """ Transform probabilities to costs via negative log likelihood.
+def transform_probabilities_to_costs(
+    probs: np.ndarray,
+    beta: float = 0.5,
+    edge_sizes: Optional[np.ndarray] = None,
+    edge_populations: Optional[List[np.ndarray]] = None,
+    weighting_exponent: float = 1.0
+) -> np.ndarray:
+    """Transform probabilities to costs via negative log likelihood.
 
-    Arguments:
-        probs [np.ndarray] - Input probabilities.
-        beta [float] - boundary bias (default: .5)
-        edge_sizes [np.ndarray] - sizes of edges for weighting (default: None)
-        edge_populations [list[np.ndarray]] - different edge populations that will be
-            size weighted independently passed as list of masks or index arrays.
-            This can e.g. be useful if we have flat superpixels in a 3d problem. (default: None)
-        weighting_exponent [float] - exponent used for weighting (default: 1.)
+    Args:
+        probs: The input probabilities.
+        beta: The boundary bias term.
+        edge_sizes: The izes of edges for weighting.
+        edge_populations: Different edge populations that will be weighted by size independently.
+            Have to be passed as list of masks or index arrays.
+            This can for example be used for flat superpixels in a 3d problem.
+        weighting_exponent: The exponent used for weighting.
+
+    Returns:
+        The costs.
     """
     p_min = 0.001
     p_max = 1. - p_min
@@ -67,25 +76,31 @@ def transform_probabilities_to_costs(probs, beta=.5, edge_sizes=None,
     return costs
 
 
-def compute_edge_costs(probs, edge_sizes=None, z_edge_mask=None,
-                       beta=.5, weighting_scheme=None, weighting_exponent=1.):
-    """ Compute edge costs from probabilities with a pre-defined weighting scheme.
+def compute_edge_costs(
+    probs: np.ndarray,
+    edge_sizes: Optional[np.ndarray] = None,
+    z_edge_mask: Optional[np.ndarray] = None,
+    beta: float = 0.5,
+    weighting_scheme: Optional[str] = None,
+    weighting_exponent: float = 1.0,
+) -> np.ndarray:
+    """Compute edge costs from probabilities with a pre-defined weighting scheme.
 
-    Arguments:
-        probs [np.ndarray] - Input probabilities.
-        edge_sizes [np.ndarray] - sizes of edges for weighting (default: None)
-        z_edge_mask [np.ndarray] - edge mask for inter-slice edges,
-            only necessary for weighting schemes z or xyz (default: None)
-        beta [float] - boundary bias (default: .5)
-        weighting_scheme [str] - scheme for weighting the edge costs based on size
-            of the edges (default: None)
-        weighting_exponent [float] - exponent used for weighting (default: 1.)
+    Args:
+        probs: The input probabilities.
+        edge_sizes: The sizes of edges for weighting.
+        z_edge_mask: The edge mask for inter-slice edges, only necessary for weighting schemes 'z' or 'xyz'.
+        beta: The boundary bias.
+        weighting_scheme: The scheme for weighting the edge costs based on size of the edges.
+        weighting_exponent: The exponent used for weighting.
+
+    Returns:
+        The costs.
     """
     schemes = (None, "all", "none", "xyz", "z")
     if weighting_scheme not in schemes:
         schemes_str = ", ".join([str(scheme) for scheme in schemes])
-        raise ValueError("Weighting scheme must be one of %s, got %s" % (schemes_str,
-                                                                         str(weighting_scheme)))
+        raise ValueError("Weighting scheme must be one of %s, got %s" % (schemes_str, str(weighting_scheme)))
 
     if weighting_scheme is None or weighting_scheme == "none":
         edge_pop = edge_sizes_ = None
@@ -181,43 +196,62 @@ def _get_visitor(objective, time_limit=None, **kwargs):
         return None
 
 
-def blockwise_multicut(graph, costs, segmentation,
-                       internal_solver, block_shape,
-                       n_threads, n_levels=1, halo=None, **kwargs):
-    """ Solve multicut with block-wise hierarchical solver.
+def blockwise_multicut(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    segmentation: np.ndarray,
+    internal_solver: Union[str, callable],
+    block_shape: Tuple[int, ...],
+    n_threads: int,
+    n_levels: int = 1,
+    halo: Tuple[int, ...] = None,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut with block-wise hierarchical solver.
 
     Introduced in "Solving large Multicut problems for connectomics via domain decomposition":
     http://openaccess.thecvf.com/content_ICCV_2017_workshops/papers/w1/Pape_Solving_Large_Multicut_ICCV_2017_paper.pdf
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        segmentation [np.ndarray] - segmentation underlying multicut problem
-        internal_solver [str or callable] - internal solver
-        block_shape [listlike] - shape of blocks used to extract sub-problems
-        n_threads [int] - number of threads used to solve sub-problems in parallel
-        n_levels [int] - number of hierarchy levels (default: 1)
-        halo [listlike] - halo used to enlarge block shape (default: None)
+    Args:
+        graph: The graph of the multicut problem.
+        costs: The edge costs of the multicut problem.
+        segmentation: The segmentation underlying the multicut problem.
+        internal_solver: The internal solver.
+        block_shape: The shape of blocks used to extract sub-problems.
+        n_threads: The umber of threads used to solve sub-problems in parallel.
+        n_levels: The number of hierarchy levels.
+        halo: The halo used to enlarge the block shape.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
-    solver = get_multicut_solver(internal_solver) if isinstance(internal_solver, str)\
-        else internal_solver
+    solver = get_multicut_solver(internal_solver) if isinstance(internal_solver, str) else internal_solver
     if not callable(solver):
         raise ValueError("Invalid argument for internal_solver.")
-    return blockwise_mc_impl(graph, costs, segmentation, solver,
-                             block_shape, n_threads, n_levels, halo)
+    return blockwise_mc_impl(graph, costs, segmentation, solver, block_shape, n_threads, n_levels, halo)
 
 
-def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwargs):
-    """ Solve multicut problem with kernighan lin solver.
+def multicut_kernighan_lin(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    warmstart: bool = True,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut problem with kernighan lin solver.
 
     Introduced in "An efficient heuristic procedure for partitioning graphs":
     http://xilinx.asia/_hdl/4/eda.ee.ucla.edu/EE201A-04Spring/kl.pdf
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
-        warmstart [bool] - whether to warmstart with gaec solution (default: True)
+    Args:
+        graph: The graph of the multicut problem.
+        costs: The edge costs of multicut problem.
+        time_limit: The time limit for inference in seconds.
+        warmstart: Whether to warmstart with GAEC solution.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
     solver = objective.kernighanLinFactory(warmStartGreedy=warmstart).create(objective)
@@ -225,16 +259,25 @@ def multicut_kernighan_lin(graph, costs, time_limit=None, warmstart=True, **kwar
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_gaec(graph, costs, time_limit=None, **kwargs):
-    """ Solve multicut problem with greedy-addtive edge contraction solver.
+def multicut_gaec(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut problem with greedy-addtive edge contraction solver.
 
     Introduced in "Fusion moves for correlation clustering":
     http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
     Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
+        graph: The graph of the multicut problem.
+        costs: The edge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
     solver = objective.greedyAdditiveFactory().create(objective)
@@ -242,16 +285,25 @@ def multicut_gaec(graph, costs, time_limit=None, **kwargs):
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
-    """ Solve multicut problem with greedy fixation solver.
+def multicut_greedy_fixation(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut problem with greedy fixation solver.
 
     Introduced in "A Comparative Study of Local Search Algorithms for Correlation Clustering":
     https://link.springer.com/chapter/10.1007/978-3-319-66709-6_9
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
+    Args:
+        graph: The graph of the multicut problem.
+        costs: The edge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
     solver = objective.greedyFixationFactory().create(objective)
@@ -259,20 +311,31 @@ def multicut_greedy_fixation(graph, costs, time_limit=None, **kwargs):
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_cgc(graph, costs, time_limit=None, warmstart=True, warmstart_kl=True, **kwargs):
-    """ Solve multicut problem with cut,glue&cut solver.
+def multicut_cgc(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    warmstart: bool = True,
+    warmstart_kl: bool = True,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut problem with cut, glue & cut solver.
 
     Introduced in "Cut, Glue & Cut: A Fast, Approximate Solver for Multicut Partitioning":
     https://www.cv-foundation.org/openaccess/content_cvpr_2014/html/Beier_Cut_Glue__2014_CVPR_paper.html
 
     Requires nifty build with QPBO.
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
-        warmstart [bool] - whether to warmstart with gaec solution (default: True)
-        warmstart_kl [bool] - also use kernighan lin to warmstart (default: True)
+    Args:
+        graph: The graph of the multicut problem.
+        costs: The edge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        warmstart: Whether to warmstart with GAEC solution.
+        warmstart_kl: Also use kernighan lin to warmstart.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     if not nifty.Configuration.WITH_QPBO:
         raise RuntimeError("multicut_cgc requires nifty built with QPBO")
@@ -282,20 +345,29 @@ def multicut_cgc(graph, costs, time_limit=None, warmstart=True, warmstart_kl=Tru
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_decomposition(graph, costs, time_limit=None,
-                           n_threads=1, internal_solver="kernighan-lin",
-                           **kwargs):
-    """ Solve multicut problem with decomposition solver.
+def multicut_decomposition(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    n_threads: int = 1,
+    internal_solver: str = "kernighan-lin",
+    **kwargs,
+) -> np.ndarray:
+    """Solve multicut problem with decomposition solver.
 
     Introduced in "Break and Conquer: Efficient Correlation Clustering for Image Segmentation":
     https://link.springer.com/chapter/10.1007/978-3-642-39140-8_9
 
     Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
-        n_threads [int] - number of threads (default: 1)
-        internal_solver [str] - name of solver used for connected components (default: "kernighan-lin")
+        graph: The graph of the multicut problem.
+        costs: The dge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        n_threads: The number of threads.
+        internal_solver: The name of the solver to use for connected components.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
     solver_factory = _get_solver_factory(objective, internal_solver)
@@ -308,35 +380,46 @@ def multicut_decomposition(graph, costs, time_limit=None,
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
-                          internal_solver="kernighan-lin",
-                          warmstart=True, warmstart_kl=True,
-                          seed_fraction=.05, num_it=1000, num_it_stop=25, sigma=2.,
-                          **kwargs):
-    """ Solve multicut problem with fusion moves solver.
+def multicut_fusion_moves(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    n_threads: int = 1,
+    internal_solver: str = "kernighan-lin",
+    warmstart: bool = True,
+    warmstart_kl: bool = True,
+    seed_fraction: float = 0.05,
+    num_it: int = 1000,
+    num_it_stop: int = 25,
+    sigma: float = 2.0,
+    **kwargs,
+) -> np.ndarray:
+    """Solve multicut problem with fusion moves solver.
 
     Introduced in "Fusion moves for correlation clustering":
     http://openaccess.thecvf.com/content_cvpr_2015/papers/Beier_Fusion_Moves_for_2015_CVPR_paper.pdf
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
-        n_threasd [int] - number of threads (default: 1)
-        internal_solver [str] - name of solver used for connected components (default: "kernighan-lin")
-        warmstart [bool] - whether to warmstart with gaec solution (default: True)
-        warmstart_kl [bool] - also use kernighan lin to warmstart (default: True)
-        seed_fraction [float] - fraction of nodes used as seeds for proposal generation
-            (default: .05)
-        num_it [int] - maximal number of iterations (default: 1000)
-        num_it_stop [int] - stop if no improvement after num_it_stop (default: 1000)
-        sigma [float] - smoothing factor for weights in proposal generator (default: 2.)
+    Args:
+        graph: The graph of the multicut problem.
+        costs: The dge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        n_threads: The number of threads.
+        internal_solver: The name of solver used for fusion moves.
+        warmstart: Whether to warmstart with GAEC solution.
+        warmstart_kl: Also use kernighan lin to warmstart.
+        seed_fraction: The fraction of nodes used as seeds for proposal generation.
+        num_it: The maximal number of iterations.
+        num_it_stop: Stop if no improvement after num_it_stop.
+        sigma: The smoothing factor for weights in proposal generator.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
     sub_solver = _get_solver_factory(objective, internal_solver)
     sub_solver = objective.fusionMoveSettings(mcFactory=sub_solver)
     proposal_gen = objective.watershedCcProposals(sigma=sigma, numberOfSeeds=seed_fraction)
-
     solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
                                                 warmStartGreedy=warmstart,
                                                 warmStartKl=warmstart_kl,
@@ -348,18 +431,27 @@ def multicut_fusion_moves(graph, costs, time_limit=None, n_threads=1,
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_ilp(graph, costs, time_limit=None, **kwargs):
-    """ Solve multicut problem with ilp solver.
+def multicut_ilp(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut problem with ilp solver.
 
     Introduced in "Globally Optimal Closed-surface Segmentation for Connectomics":
     https://link.springer.com/chapter/10.1007/978-3-642-33712-3_56
 
     Requires nifty build with CPLEX, GUROBI or GLPK.
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
+    Args:
+        graph: The graph of the multicut problem.
+        costs: The dge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        kwargs: Keyword arguments for the visitor.
+
+    Returns:
+        The node label solution to the multicut problem.
     """
     if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
         raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
@@ -369,21 +461,29 @@ def multicut_ilp(graph, costs, time_limit=None, **kwargs):
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
-def multicut_rama(graph, costs, time_limit=None, mode=None, **kwargs):
-    """ Solve multicut problem with RAMA solver.
+def multicut_rama(
+    graph: nifty.graph.UndirectedGraph,
+    costs: np.ndarray,
+    time_limit: Optional[float] = None,
+    mode: Optional[str] = None,
+    **kwargs
+) -> np.ndarray:
+    """Solve multicut problem with RAMA solver.
 
     Introduced in "RAMA: A Rapid Multicut Algorithm on GPU":
     https://arxiv.org/abs/2109.01838
 
     Requires the rama_py package, see https://github.com/pawelswoboda/RAMA.
 
-    Arguments:
-        graph [nifty.graph] - graph of multicut problem
-        costs [np.ndarray] - edge costs of multicut problem
-        time_limit [float] - time limit for inference in seconds (default: None)
-        mode [str] - RAMA mode (default: None)
-    """
+    Args:
+        graph: Graph of the multicut problem.
+        costs: The edge costs of the multicut problem.
+        time_limit: The time limit for inference in seconds.
+        mode: The RAMA mode.
 
+    Returns:
+        The node label solution to the multicut problem.
+    """
     if rama_py is None:
         raise RuntimeError("Need rama_py to use multicut_rama function")
     uv_ids = graph.uvIds()
@@ -393,9 +493,7 @@ def multicut_rama(graph, costs, time_limit=None, mode=None, **kwargs):
         assert mode in ("P", "PD", "PD+", "D")
         opts = rama_py.multicut_solver_options(mode)
     opts.verbose = False
-    node_labels = rama_py.rama_cuda(
-        uv_ids[:, 0], uv_ids[:, 1], costs, opts
-    )[0]
+    node_labels = rama_py.rama_cuda(uv_ids[:, 0], uv_ids[:, 1], costs, opts)[0]
     assert len(node_labels) == graph.numberOfNodes, f"{len(node_labels)}, {graph.numberOfNodes}"
     return node_labels
 
@@ -411,14 +509,24 @@ _solvers = {"kernighan-lin": multicut_kernighan_lin,
             "rama": multicut_rama}
 
 
-def get_available_solver_names():
-    """ Get available multicut solver names
+def get_available_solver_names() -> List[str]:
+    """Get available multicut solver names
+
+    Returns:
+        The solver names.
     """
-    return _solvers.keys()
+    return list(_solvers.keys())
 
 
-def get_multicut_solver(name, **kwargs):
-    """ Get multicut solver by name.
+def get_multicut_solver(name: str, **kwargs):
+    """Get multicut solver by name.
+
+    Args:
+        name: The solver name.
+        kwargs: Keyword arguments for the solver.
+
+    Returns:
+        The solver.
     """
     try:
         solver = partial(_solvers[name], **kwargs)
