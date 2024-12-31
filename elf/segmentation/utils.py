@@ -1,6 +1,7 @@
 import os
 import urllib.request
 from shutil import move
+from typing import Optional, Tuple
 from zipfile import ZipFile
 
 import h5py
@@ -18,6 +19,8 @@ from vigra.analysis import relabelConsecutive
 #
 
 def load_mutex_watershed_problem(split="test", prefix=None):
+    """@private
+    """
     assert split in ("test", "train")
     url = "https://oc.embl.de/index.php/s/sXJzYVK0xEgowOz/download"
     if prefix is None:
@@ -57,18 +60,23 @@ def load_mutex_watershed_problem(split="test", prefix=None):
     return affs, offsets
 
 
-# add large problems?
-def load_multicut_problem(sample, size, path=None):
-    """ Load example multicut problems.
+def load_multicut_problem(
+    sample: str, size: str, path: Optional[str] = None
+) -> Tuple[nifty.graph.UndirectedGraph, np.ndarray]:
+    """Load example multicut problems.
 
     These problems were introduced in
     "Solving large multicut problems for connectomics via domain decomposition":
     https://openaccess.thecvf.com/content_ICCV_2017_workshops/w1/html/Pape_Solving_Large_Multicut_ICCV_2017_paper.html
 
-    Arguments:
-        sample [str] - the sample for this problem, "A" "B" or "C"
-        size [str] - the size for this problem, "small" or "medium"
-        path [str] - where to save the problem file (default: None)
+    Args:
+        sample: The sample for this problem, one of "A" "B" or "C".
+        size: The size of this problem, one of "small" or "medium".
+        path: Where to save the problem file.
+
+    Returns:
+        The graph of the problem.
+        The costs of the problem.
     """
     problems = {
         "A": {
@@ -105,6 +113,8 @@ def load_multicut_problem(sample, size, path=None):
 
 
 def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=5):
+    """@private
+    """
     # problem size and cost summary
     n_nodes, n_edges = graph.numberOfNodes, graph.numberOfEdges
     min_cost, max_cost = costs.min(), costs.max()
@@ -123,8 +133,7 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=
     component_sizes = np.sort(component_sizes)[::-1]
     topk_rel_sizes = component_sizes[:topk].astype("float32") / n_nodes
 
-    # TODO add partial optimality analysis from
-    # http://proceedings.mlr.press/v80/lange18a.html
+    # Add partial optimality analysis from http://proceedings.mlr.press/v80/lange18a.html ?
     if verbose:
         print("Analysis of multicut problem:")
         print("The graph has", n_nodes, "nodes and", n_edges, "edges")
@@ -145,12 +154,15 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=
     return df
 
 
-# TODO
 def analyse_lifted_multicut_problem(graph, costs, lifted_uvs, lifted_costs):
+    """@private
+    """
     pass
 
 
 def parse_visitor_output(output):
+    """@private
+    """
     if os.path.isfile(output):
         with open(output) as f:
             output = f.read()
@@ -169,9 +181,18 @@ def parse_visitor_output(output):
 #
 
 
-def compute_maximum_label_overlap(seg_a, seg_b, ignore_zeros=False):
-    """ For each node in seg_a, compute the node in seg_b with
-    the biggest overalp.
+def compute_maximum_label_overlap(seg_a: np.ndarray, seg_b: np.ndarray, ignore_zeros: bool = False) -> np.ndarray:
+    """Compute the node overlaps between objects in two segmentation.
+
+    For each node in seg_a, compute the node in seg_b with the biggest overalp.
+
+    Args:
+        seg_a: The first segmentation.
+        seg_b: The second segmentation.
+        ignore_zeros: Whether to ignore overlap with zero (background id).
+
+    Returns:
+        The overlaps.
     """
     ids_a = np.unique(seg_a)
     overlaps = np.zeros(int(ids_a.max() + 1), dtype=seg_b.dtype)
@@ -187,12 +208,15 @@ def compute_maximum_label_overlap(seg_a, seg_b, ignore_zeros=False):
     return overlaps
 
 
-def normalize_input(input_, eps=1e-7):
-    """ Cast input to float and normalize to range [0, 1]
+def normalize_input(input_: np.ndarray, eps: float = 1e-7) -> np.ndarray:
+    """Cast input to float and normalize to range [0, 1]
 
-    Arguments:
-        input_ [np.ndarray] - input tensor to be normalized
-        eps [float] - epsilon for numerical stability (default: 1e-7)
+    Args:
+        input_: The input data to be normalized.
+        eps: Epsilon for numerical stability.
+
+    Returns:
+        The normalized input.
     """
     input_ = input_.astype("float32")
     input_ -= input_.min()
@@ -201,6 +225,8 @@ def normalize_input(input_, eps=1e-7):
 
 
 def map_background_to_zero(seg, background_label=None):
+    """@private
+    """
     if background_label is None:
         ids, sizes = np.unique(seg, return_counts=True)
         background_label = ids[np.argmax(sizes)]
@@ -216,8 +242,16 @@ def map_background_to_zero(seg, background_label=None):
 #
 
 
-def sharpen_edges(edges, percentile=95, clip=True):
-    """ Sharpen the edges by dividing with a high percentile.
+def sharpen_edges(edges: np.ndarray, percentile: int = 95, clip: bool = True) -> np.ndarray:
+    """Sharpen the edges by dividing with a high percentile.
+
+    Args:
+        edges: The edge map, edges should have the value 1.
+        percentile: The percentile for computing the normalization factor.
+        clip: Wheter to clip the result to the range [0, 1].
+
+    Returns:
+        The sharpened edge map.
     """
     edges /= np.percentile(edges, percentile)
     if clip:
@@ -225,37 +259,40 @@ def sharpen_edges(edges, percentile=95, clip=True):
     return edges
 
 
-def smooth_edges(edges, gain=1.0):
-    """ Smooth edges, e.g. from "seg_to_edges"
-    by applying negative exponential distance transform.
+def smooth_edges(edges: np.ndarray, gain: float = 1.0) -> np.ndarray:
+    """Smooth edges, e.g. from "seg_to_edges", by applying negative exponential distance transform.
 
-    Arguments:
-        edges [np.ndarray] - tensor with edges; expects edges to be 1
-        gain [float] - gain factor in the exponent (default: 1.)
+    Args:
+        edges: The edge map, edges should have the value 1.
+        gain: Gain factor in the smoothing exponent.
+
+    Returns:
+        The smoothed edge map.
     """
     distances = distance_transform_edt(1 - edges)
     return np.exp(-gain * distances)
 
 
-def seg_to_edges(segmentation, only_in_plane_edges=False):
-    """ Compute edges from segmentation.
+def seg_to_edges(segmentation: np.ndarray, only_in_plane_edges: bool = False) -> np.ndarray:
+    """Compute edges from segmentation.
 
-    Arguments:
-        segmentation [np.ndarray] - input segmentation
-        only_in_plane_edges [bool] - compute only in-plane edges
-            for 3d segmentation (default: False)
+    Args:
+        segmentation: The input segmentation.
+        only_in_plane_edges: Whether to compute only in-plane edges for 3d segmentation.
+
+    Returns:
+        The edges of the segmentation.
     """
     if segmentation.ndim == 2:
         return make_2d_edges(segmentation)
     elif segmentation.ndim == 3:
-        return make_3d2d_edges(segmentation) if only_in_plane_edges else\
-            make_3d_edges(segmentation)
+        return make_3d2d_edges(segmentation) if only_in_plane_edges else make_3d_edges(segmentation)
     else:
         raise ValueError("Invalid input dimension %i" % segmentation.ndim)
 
 
 def make_3d_edges(segmentation):
-    """ Make 3d edge volume from 3d segmentation
+    """@private
     """
     # NOTE we add one here to make sure that we don't have zero in the segmentation
     gz = convolve(segmentation + 1, np.array([-1., 0., 1.]).reshape(3, 1, 1))
@@ -265,16 +302,15 @@ def make_3d_edges(segmentation):
 
 
 def make_3d2d_edges(segmentation):
-    """ Make 3d edge volume from 3d segmentation
-        but only compute the edges in xy-plane.
-        This may be more appropriate for anisotropic volumes."""
+    """@private
+    """
     gy = convolve(segmentation + 1, np.array([-1., 0., 1.]).reshape(1, 3, 1))
     gx = convolve(segmentation + 1, np.array([-1., 0., 1.]).reshape(1, 1, 3))
     return ((gx ** 2 + gy ** 2) > 0)
 
 
 def make_2d_edges(segmentation):
-    """ Make 2d edges from 2d segmentation
+    """@private
     """
     gy = convolve(segmentation + 1, np.array([-1., 0., 1.]).reshape(1, 3))
     gx = convolve(segmentation + 1, np.array([-1., 0., 1.]).reshape(3, 1))

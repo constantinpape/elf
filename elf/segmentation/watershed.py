@@ -1,11 +1,13 @@
 import multiprocessing
 from concurrent import futures
+from typing import List, Optional, Tuple
 
 import nifty.tools as nt
 import numpy as np
 import vigra
 
 from nifty.filters import nonMaximumDistanceSuppression
+from numpy.typing import ArrayLike
 from tqdm import tqdm
 
 from ..util import divide_blocks_into_checkerboard
@@ -16,38 +18,43 @@ except ImportError:
     import vigra.filters as ff
 
 
-def watershed(input_, seeds, size_filter=0, exclude=None):
-    """ Compute seeded watershed.
+def watershed(
+    input_: np.ndarray, seeds: np.ndarray, size_filter: int = 0, exclude: Optional[List[int]] = None,
+) -> Tuple[np.ndarray, int]:
+    """Compute seeded watershed.
 
-    Arguments:
-        input_ [np.ndarray] - input height map.
-        seeds [np.ndarray] - seed map.
-        size_filter [int] - minimal segment size (default: 0).
-        exclude [list] - list of segment ids that will not be size filtered (default: None).
+    Args:
+        input_: The input height map.
+        seeds: The seed map.
+        size_filter: The minimal segment size.
+        exclude: List of seed ids that will not be size filtered.
 
     Returns:
-        np.ndarray - watershed segmentation
-        int - max id of watershed segmentation
+        The watershed segmentation.
+        The max id of the watershed segmentation.
     """
     ws, max_id = vigra.analysis.watershedsNew(input_, seeds=seeds)
     if size_filter > 0:
-        ws, max_id = apply_size_filter(ws, input_, size_filter,
-                                       exclude=exclude)
+        ws, max_id = apply_size_filter(ws, input_, size_filter, exclude=exclude)
     return ws, max_id
 
 
-def apply_size_filter(segmentation, input_, size_filter, exclude=None):
-    """ Apply size filter to segmentation.
+def apply_size_filter(
+    segmentation: np.ndarray, input_: np.ndarray, size_filter: int, exclude: Optional[List[int]] = None
+) -> Tuple[np.ndarray, int]:
+    """Apply size filter to a segmentation.
 
-    Arguments:
-        segmentation [np.ndarray] - input segmentation.
-        input_ [np.ndarray] - input height map.
-        size_filter [int] - minimal segment size.
-        exclude [list] - list of segment ids that will not be size filtered (default: None).
+    The segments removed by the size filtering will be filled via a seeded watershed.
+
+    Args:
+        segmentation: The input segmentation.
+        input_: The innput height map.
+        size_filter: The minimal segment size.
+        exclude: List of segment ids that will not be filtered.
 
     Returns:
-        np.ndarray - size filtered segmentation
-        int - max id of size filtered segmentation
+        The size filtered segmentation.
+        The max id of the filtered segmentation.
     """
     ids, sizes = np.unique(segmentation, return_counts=True)
     filter_ids = ids[sizes < size_filter]
@@ -60,8 +67,9 @@ def apply_size_filter(segmentation, input_, size_filter, exclude=None):
 
 
 def non_maximum_suppression(dt, seeds):
-    """ Apply non maximum distance suppression to seeds.
+    """@private
     """
+    # Apply non maximum distance suppression to seeds.
     seeds = np.array(np.where(seeds)).transpose()
     seeds = nonMaximumDistanceSuppression(dt, seeds)
     vol = np.zeros(dt.shape, dtype="bool")
@@ -70,33 +78,38 @@ def non_maximum_suppression(dt, seeds):
     return vol
 
 
-def distance_transform_watershed(input_, threshold, sigma_seeds,
-                                 sigma_weights=2., min_size=100,
-                                 alpha=.9, pixel_pitch=None,
-                                 apply_nonmax_suppression=False,
-                                 mask=None, seeds=None):
-    """ Compute watershed segmentation based on distance transform seeds.
+def distance_transform_watershed(
+    input_: np.ndarray,
+    threshold: float,
+    sigma_seeds: float,
+    sigma_weights: float = 2.0,
+    min_size: int = 100,
+    alpha: float = 0.9,
+    pixel_pitch: Optional[List[int]] = None,
+    apply_nonmax_suppression: bool = False,
+    mask: Optional[np.ndarray] = None,
+    seeds: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, int]:
+    """Compute watershed segmentation based on distance transform seeds.
 
     Following the procedure outlined in "Multicut brings automated neurite segmentation closer to human performance":
     https://hci.iwr.uni-heidelberg.de/sites/default/files/publications/files/217205318/beier_17_multicut.pdf
 
-    Arguments:
-        input_ [np.ndarray] - input height map.
-        threshold [float] - value for the threshold applied before distance tranform.
-        sigma_seeds [float] - smoothing factor for the watershed seed map.
-        sigma_weigths [float] - smoothing factor for the watershed weight map (default: 2).
-        min_size [int] - minimal size of watershed segments (default: 100)
-        alpha [float] - alpha used to blend input_ and distance_transform in order to obtain the
-            watershed weight map (default: .9)
-        pixel_pitch [listlike[int]] - anisotropy factor used to compute the distance transform (default: None)
-        apply_nonmax_suppression [bool] - whetther to apply non-maxmimum suppression to filter out seeds.
-            Needs nifty. (default: False)
-        mask [np.ndarray] - mask to exclude from segmentation (default: None)
-        seeds [np.ndarray] - initial seeds (default: None)
+    Args:
+        input_: The input height map.
+        threshold: The value for the threshold applied before the distance transform.
+        sigma_seeds: The smoothing factor for the watershed seed map.
+        sigma_weigths: The smoothing factor for the watershed weight map.
+        min_size: The minimal size of watershed segments.
+        alpha: Value used to blend input_ and distance_transform in order to obtain the watershed weight map.
+        pixel_pitch: Anisotropy factor used to compute the distance transform.
+        apply_nonmax_suppression: Whetther to apply non-maxmimum suppression to filter out seeds.
+        mask: Mask to exclude from segmentation.
+        seeds: The initial seeds.
 
     Returns:
-        np.ndarray - watershed segmentation
-        int - max id of watershed segmentation
+        The watershed segmentation.
+        The max id of watershed segmentation.
     """
     if apply_nonmax_suppression and nonMaximumDistanceSuppression is None:
         raise ValueError("Non-maximum suppression is only available with nifty.")
@@ -130,7 +143,7 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
     else:
         initial_seed_ids = np.unique(seeds)
         seed_max = initial_seed_ids[-1]
-        assert len(initial_seed_ids) == seed_max + 1,\
+        assert len(initial_seed_ids) == seed_max + 1, \
             "The seeds passed to distance_transform_watershed must have consecutive ids and start from 1"
         initial_seeds = seeds
 
@@ -157,37 +170,35 @@ def distance_transform_watershed(input_, threshold, sigma_seeds,
 
     # compute watershed
     ws, max_id = watershed(hmap, seeds, size_filter=min_size)
-
     if mask is not None:
         ws[inv_mask] = 0
 
-    ws = ws.astype("uint64")
-    return ws, max_id
+    return ws.astype("uint64"), max_id
 
 
 def stacked_watershed(
-    input_,
-    ws_function=distance_transform_watershed,
-    mask=None,
-    n_threads=None,
-    verbose=False,
-    output=None,
-    **ws_kwargs
-):
+    input_: np.ndarray,
+    ws_function: callable = distance_transform_watershed,
+    mask: Optional[np.ndarray] = None,
+    n_threads: Optional[int] = None,
+    verbose: bool = False,
+    output: Optional[ArrayLike] = None,
+    **ws_kwargs,
+) -> Tuple[ArrayLike, int]:
     """Run 2d watershed stacked along z-axis.
 
-    Arguments:
-        input_ [np.ndarray] - input height map.
-        ws_function [callable] - watershed function (default: distance_transform_watershed)
-        mask [np.ndarray] - mask to exclude from segmentation (default: None)
-        n_threads [int] - number of threads (default: None)
-        verbose [bool] - print progress (default: False)
-        output [arraylike] - output for the watershed, will be a numpy array by default (default: None)
-        ws_kwargs - keyword arguments for the watershed function
+    Args:
+        input_: The input height map.
+        ws_function: The watershed function.
+        mask: Mmask to exclude from segmentation.
+        n_threads: The number of threads to use for parallelization.
+        verbose: Whether to print progress.
+        output: The output for the watershed, will be a newly allocated numpy array by default.
+        ws_kwargs: Keyword arguments for the watershed function.
 
     Returns:
-        np.ndarray - watershed segmentation
-        int - max id of watershed segmentation
+        The watershed segmentation.
+        The max id of the watershed segmentation.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     if output is None:
@@ -232,29 +243,32 @@ def stacked_watershed(
 
 
 def blockwise_two_pass_watershed(
-    input_, block_shape, halo,
-    ws_function=distance_transform_watershed,
-    n_threads=None,
-    mask=None,
-    verbose=False,
-    output=None,
-    **kwargs
-):
-    """Run a 3d distance transform watershed blockwise and in two passes
-    to avoid block boundary artifacts.
+    input_: np.ndarray,
+    block_shape: Tuple[int, ...],
+    halo: Tuple[int, ...],
+    ws_function: callable = distance_transform_watershed,
+    n_threads: Optional[int] = None,
+    mask: Optional[np.ndarray] = None,
+    verbose: bool = False,
+    output: Optional[ArrayLike] = None,
+    **kwargs,
+) -> Tuple[ArrayLike, int]:
+    """Run a 3d distance transform watershed blockwise, in two passes, to avoid block boundary artifacts.
 
-    Arguments:
-        input_ [np.ndarray] - input height map.
-        ws_function [callable] - watershed function (default: distance_transform_watershed)
-        mask [np.ndarray] - mask to exclude from segmentation (default: None)
-        n_threads [int] - number of threads (default: None)
-        verbose [bool] - print progress (default: False)
-        output [arraylike] - output for the watershed, will be a numpy array by default (default: None)
-        kwargs - keyword arguments for the watershed function
+    Args:
+        input_: The input height map.
+        block_shape: The block shape for parallelization.
+        halo: The halo for extending blocks.
+        ws_function: The watershed function.
+        n_threads: The number of threads.
+        mask: A mask to exclude from segmentation.
+        verbose: Whether to print progress.
+        output: Output for the watershed, will be a numpy array by default.
+        kwargs: Keyword arguments for the watershed function.
 
     Returns:
-        np.ndarray - watershed segmentation
-        int - max id of watershed segmentation
+        The watershed segmentation.
+        The max id of the watershed segmentation.
     """
     assert input_.ndim == 3
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
@@ -339,22 +353,29 @@ def blockwise_two_pass_watershed(
     return output, max_id
 
 
-def from_affinities_to_boundary_prob_map(affinities, offsets, used_offsets=None, offset_weights=None):
-    """
-    Compute a boundary-probability map from merge affinities (1.0 indicates merge, 0.0 indicates split).
+def from_affinities_to_boundary_prob_map(
+    affinities: np.ndarray,
+    offsets: List[List[int]],
+    used_offsets: Optional[List[int]] = None,
+    offset_weights: Optional[List[float]] = None,
+) -> np.ndarray:
+    """Compute a boundary-probability map from merge affinities (1.0 indicates merge, 0.0 indicates split).
+
     For every pixel, the value of the probability map is given by the minimum affinity associated to that pixel.
+    Only the offsets specified in `used_offsets` will be considered while taking the minimum
+    (usually, best results are achieved when using only affinities associated to local or short-range offsets).
 
-    Only the offsets specified in `used_offsets` will be considered while taking the minimum (usually, best results are
-    achieved when using only affinities associated to local or short-range offsets).
+    It is also possible to weight different offsets differently when taking the minimum (`offset_weights`).
+    By default, all affinities are used and weighted with equal weight = 1.0.
 
-    It is also possible to weight different offsets differently when taking the minimum (`offset_weights`). By default,
-    all affinities are used and weighted with equal weight = 1.0.
+    Args:
+        affinities: The affinity map.
+        offsets: The offsets corresponding to the affinity channel.
+        used_offsets: The offsets to use for accumulating boundary probabilities.
+        offset_weights: The weights for probability accumulation.
 
-    :param affinities: Expected shape of the array: (channels,z,x,y) or (channels,x,y)
-    :param offsets: np.array indicating the offsets associated to the passed affinities
-    :param used_offsets: list of offset indices that will be actually used to compute the prob. map
-    :param offset_weights: list of weights for the used offsets (by default all weights are 1.0)
-    :return: Boundary-probability map
+    Returns:
+        The boundary probability map.
     """
     if isinstance(offsets, list):
         offsets = np.array(offsets)
@@ -387,31 +408,31 @@ def from_affinities_to_boundary_prob_map(affinities, offsets, used_offsets=None,
 
 
 class WatershedOnDistanceTransformFromAffinities:
-    def __init__(self, offsets,
-                 used_offsets=None,
-                 offset_weights=None,
-                 return_hmap=False,
-                 invert_affinities=False,
-                 stacked_2d=False,
-                 nb_threads=None,
-                 **watershed_kwargs):
-        """
-        A wrapper around the `distance_transform_watershed` function, so that it can be used as superpixel generator for
-        GASP or other segmentation workflows.
+    """A wrapper around the `distance_transform_watershed` function, so that it can be used as superpixel generator.
 
-        As input, it expects affinities with shape (nb_offsets, shape_x, shape_y, shape_z).
+    As input to the call function, it expects affinities with shape (nb_offsets, shape_x, shape_y, shape_z).
+    See also `from_affinities_to_boundary_prob_map` for details on how the arguments are used.
 
-
-        :param offsets:
-        :param used_offsets: See arguments of `from_affinities_to_boundary_prob_map` function
-        :param offset_weights: See arguments of `from_affinities_to_boundary_prob_map` function
-        :param return_hmap: Whether to return the computed boundary probability map
-            together with the resulting segmentation.
-        :param invert_affinities: Whether the passed affinities
-            should be inverted with (1. - given_affinities). False by default.
-        :param stacked_2d: Whether to compute the WS segmentation for 2D slices
-        :param watershed_kwargs: Arguments passed to the `distance_transform_watershed`
-        """
+    Args:
+        offsets: The offsets corresponding to the affinity channel.
+        used_offsets: The offsets to use for accumulating boundary probabilities.
+        offset_weights: The weights for probability accumulation.
+        return_hmap: Whether to return the computed boundary probability map together with the segmentation.
+        invert_affinities: Whether the passed affinities should be inverted with (1. - given_affinities).
+        stacked_2d: Whether to compute the WS segmentation for 2D slices
+        watershed_kwargs: Arguments passed to the `distance_transform_watershed`.
+    """
+    def __init__(
+        self,
+        offsets: List[List[int]],
+        used_offsets: Optional[List[int]] = None,
+        offset_weights: Optional[List[float]] = None,
+        return_hmap: bool = False,
+        invert_affinities: bool = False,
+        stacked_2d: bool = False,
+        n_threads: Optional[int] = None,
+        **watershed_kwargs
+    ):
         if isinstance(offsets, list):
             offsets = np.array(offsets)
         else:
@@ -424,7 +445,7 @@ class WatershedOnDistanceTransformFromAffinities:
         self.invert_affinities = invert_affinities
         self.stacked_2d = stacked_2d
         self.watershed_kwargs = watershed_kwargs
-        self.nb_threads = nb_threads
+        self.nb_threads = n_threads
 
     def __call__(self, affinities, foreground_mask=None):
         assert affinities.shape[0] == len(self.offsets)
@@ -432,10 +453,7 @@ class WatershedOnDistanceTransformFromAffinities:
 
         if self.invert_affinities:
             affinities = 1. - affinities
-
-        hmap = from_affinities_to_boundary_prob_map(
-            affinities, self.offsets, self.used_offsets, self.offset_weights
-        )
+        hmap = from_affinities_to_boundary_prob_map(affinities, self.offsets, self.used_offsets, self.offset_weights)
 
         background_mask = None if foreground_mask is None else np.logical_not(foreground_mask)
         if self.stacked_2d:
@@ -449,7 +467,7 @@ class WatershedOnDistanceTransformFromAffinities:
         # Map ignored pixels to -1:
         if foreground_mask is not None:
             assert foreground_mask.shape == segmentation.shape
-            segmentation = segmentation.astype('int64')
+            segmentation = segmentation.astype("int64")
             segmentation = np.where(foreground_mask, segmentation, np.ones_like(segmentation) * (-1))
 
         if self.return_hmap:

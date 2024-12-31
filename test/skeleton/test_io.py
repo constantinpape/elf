@@ -8,7 +8,7 @@ import numpy as np
 class TestSkeletonIo(unittest.TestCase):
     shape = 128
     n_nodes = 100
-    tmp_folder = './tmp'
+    tmp_folder = "./tmp"
 
     def setUp(self):
         os.makedirs(self.tmp_folder, exist_ok=True)
@@ -28,7 +28,7 @@ class TestSkeletonIo(unittest.TestCase):
         from elf.skeleton.io import read_swc, write_swc
         n_skels = 5
         for skel_id in range(n_skels):
-            path = os.path.join(self.tmp_folder, f'{skel_id}.swc')
+            path = os.path.join(self.tmp_folder, f"{skel_id}.swc")
             coords, edges = self._get_skel()
             write_swc(path, coords, edges)
             _, coords_read, parents_read,  = read_swc(path)
@@ -38,8 +38,8 @@ class TestSkeletonIo(unittest.TestCase):
             # self.assertTrue(np.array_equal(edges, edges_read))
 
     def test_nml(self):
-        from elf.skeleton.io import read_nml, write_nml
+        from elf.skeleton.io import read_nml  # noqa
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
