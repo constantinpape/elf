@@ -1,5 +1,6 @@
 [![Build Status](https://github.com/constantinpape/elf/workflows/build/badge.svg)](https://github.com/constantinpape/elf/actions)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/python-elf/badges/version.svg)](https://anaconda.org/conda-forge/python-elf)
+[![Documentation - Documentation](https://img.shields.io/badge/Documentation-Documentation-2ea44f)](https://constantinpape.github.io/elf/elf.html)
 
 # elf
 
@@ -13,7 +14,7 @@ This repository implements common functionality for biomedical image analysis:
 - **wrapper**: volume wrappers for on-the-fly transformations
 - **tracking**: graph based tracking algorithms
 
-and more. See [the documentation]() for how to use elf.
+and more. See [the documentation](https://constantinpape.github.io/elf/elf.html) for how to use elf.
 
 See `examples` for some usage examples. For processing large data on a cluster, check out [cluster_tools](https://github.com/constantinpape/cluster_tools), which uses a lot of `elf` functionality internally.
 
