@@ -3,11 +3,15 @@
 from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Union
 
-import motile
 import networkx as nx
 import numpy as np
 
-from motile import costs, constraints
+try:
+    import motile
+    from motile import costs, constraints
+except ImportError:
+    motile, costs, constraints = None, None, None
+
 from nifty.tools import takeDict
 from skimage.measure import regionprops
 
@@ -255,6 +259,9 @@ def track_with_motile(
         The track graph, a directed graph that connects segmentation ids across time points.
         Map of track ids to segmentation ids.
     """
+    if motile is None:
+        raise RuntimeError("You have to install motile to use track_with_motile")
+
     solver, graph, segmentation = _track_with_motile_impl(
         segmentation, relabel_segmentation, node_cost_function, edge_cost_function,
         node_selection_cost, **problem_kwargs,
