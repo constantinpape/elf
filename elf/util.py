@@ -7,7 +7,7 @@ from typing import List, Literal, Sequence, Tuple, Union, TYPE_CHECKING
 
 # Ellipsis as type annontation is only supported for python >= 3.11.
 # To support earlier version we use Literal[...] as type annotation, according to ChatGPT that should work.
-if sys.version_info.minor < 11:
+if sys.version_info.minor >= 11:
     EllipsisType = Ellipsis
 else:
     EllipsisType = Literal[...]
