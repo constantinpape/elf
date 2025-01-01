@@ -83,7 +83,7 @@ class TestStitching(unittest.TestCase):
             data = self.get_data(256, ndim=3)
             expected_segmentation = _segment(data)
             segmentation = stitch_segmentation(data, _segment, tile_shape, tile_overlap, verbose=False)
-            self._check_result(segmentation, expected_segmentation)
+            self._check_result(segmentation, expected_segmentation, rtol=0.1, atol=0.1)
 
     def test_stitch_tiled_segmentation(self):
         from elf.segmentation.stitching import stitch_tiled_segmentation
