@@ -3,8 +3,7 @@ name: Build and Deploy Docs
 on:
   push:
     paths:
-      - "doc/*.md"   # Trigger on changes to any markdown file
-      - "elf/**/*.py"   # Optionally include changes in Python files
+      - "elf/**/*.py"   # Trigger on any changes in python files.
     branches:
       - master        # Run the workflow only on pushes to the main branch
   workflow_dispatch:

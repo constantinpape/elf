@@ -1,3 +1,6 @@
+"""Parallel implementations of image analysis functionality.
+"""
+
 from .copy_dataset import copy_dataset
 from .distance_transform import distance_transform
 from .operations import (apply_operation, add, divide, multiply, subtract,
