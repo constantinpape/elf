@@ -1,7 +1,16 @@
 import numbers
+import sys
+
 from itertools import product
 from math import ceil
-from typing import List, Sequence, Tuple, Union, TYPE_CHECKING
+from typing import List, Literal, Sequence, Tuple, Union, TYPE_CHECKING
+
+# Ellipsis as type annontation is only supported for python >= 3.11.
+# To support earlier version we use Literal[...] as type annotation, according to ChatGPT that should work.
+if sys.version_info.minor >= 11:
+    EllipsisType = Ellipsis
+else:
+    EllipsisType = Literal[...]
 
 if TYPE_CHECKING:
     import numpy as np
@@ -68,7 +77,7 @@ def int_to_start_stop(i: int, size: int) -> slice:
 # But it's worth taking a look at @clbarnes more general implementation too
 # https://github.com/clbarnes/h5py_like
 def normalize_index(
-    index: Union[int, slice, Ellipsis, Tuple[Union[int, slice, Ellipsis], ...]],
+    index: Union[int, slice, EllipsisType, Tuple[Union[int, slice, EllipsisType], ...]],
     shape: Tuple[int, ...]
 ) -> Tuple[Tuple[slice, ...], Tuple[int, ...]]:
     """Normalize an index for a given shape, so that is expressed as tuple of slices with correct coordinates.

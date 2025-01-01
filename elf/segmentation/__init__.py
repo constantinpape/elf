@@ -1,3 +1,8 @@
+"""Graph-based instance segmentation based on clustering, (lifted) multicut, mutex watershed and more.
+
+Examples for graph-based segmentation with `elf.segmentation` can be found in [example/segmentation](https://github.com/constantinpape/elf/tree/master/example/segmentation) and for embedding-based segmentation in [example/embeddings](https://github.com/constantinpape/elf/tree/master/example/embeddings).
+"""
+
 from .clustering import (agglomerative_clustering,
                          cluster_segmentation, cluster_segmentation_mala,
                          mala_clustering)
