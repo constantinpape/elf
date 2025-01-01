@@ -3,7 +3,7 @@
 
 # elf
 
-This repository implements common functionality for (large-scale) bio-medical image analysis:
+This repository implements common functionality for biomedical image analysis:
 - **evaluation**: evaluation of partitions via rand index and variation of information
 - **io**: common interface for different libraries / formats 
 - **parallel**: parallel / larger than memory implementation of common numpy functions
@@ -13,7 +13,7 @@ This repository implements common functionality for (large-scale) bio-medical im
 - **wrapper**: volume wrappers for on-the-fly transformations
 - **tracking**: graph based tracking algorithms
 
-and more.
+and more. See [the documentation]() for how to use elf.
 
 See `examples` for some usage examples. For processing large data on a cluster, check out [cluster_tools](https://github.com/constantinpape/cluster_tools), which uses a lot of `elf` functionality internally.
 

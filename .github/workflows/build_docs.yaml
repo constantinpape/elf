@@ -6,6 +6,7 @@ on:
       - "elf/**/*.py"   # Trigger on any changes in python files.
     branches:
       - master        # Run the workflow only on pushes to the main branch
+      - bump-version
   workflow_dispatch:
 
 # security: restrict permissions for CI jobs.
@@ -33,6 +34,10 @@ jobs:
     - name: Install package
       shell: bash -l {0}
       run: pip install -e .
+
+    - name: Install napari
+      shell: bash -l {0}
+      run: pip install napari
 
     - name: Install pdoc
       shell: bash -l {0}
