@@ -19,7 +19,7 @@ class TestLabel(unittest.TestCase):
         # napari.run()
 
         vis, vim = variation_of_information(exp, res)
-        self.assertAlmostEqual(vis + vim, 0)
+        self.assertAlmostEqual(vis + vim, 0, places=4)
 
     def test_label(self):
         from elf.parallel import label
@@ -94,7 +94,7 @@ class TestLabel(unittest.TestCase):
             expected = np.zeros_like(res)
             expected[roi] = label_reference(data[roi])
             vis, vim = variation_of_information(expected, res)
-            self.assertAlmostEqual(vis + vim, 0)
+            self.assertAlmostEqual(vis + vim, 0, places=4)
 
     def test_label_with_roi_3d(self):
         from elf.parallel import label

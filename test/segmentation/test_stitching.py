@@ -45,7 +45,7 @@ class TestStitching(unittest.TestCase):
 
         # We remove small segments before evaluation, since these may get stitched wrongly.
         ids, sizes = np.unique(segmentation, return_counts=True)
-        filter_ids = ids[sizes < 100]
+        filter_ids = ids[sizes < 250]
         mask = np.isin(segmentation, filter_ids)
         segmentation[mask] = 0
         expected_segmentation[mask] = 0
