@@ -93,7 +93,7 @@ class TestStitching(unittest.TestCase):
             # Get the tiled segmentation with unmerged instances at tile interfaces.
             labels, original_labels = self.get_tiled_data(tile_shape=tile_shape, size=1000)
             stitched_labels = stitch_tiled_segmentation(segmentation=labels, tile_shape=tile_shape, verbose=False)
-            self._check_result(stitched_labels, labels)
+            self._check_result(stitched_labels, original_labels)
 
 
 if __name__ == "__main__":
