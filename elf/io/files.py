@@ -95,7 +95,7 @@ def is_h5py(node) -> bool:
 def is_zarr(node) -> bool:
     """Check if the argument is a zarr object.
     """
-    return zarr and isinstance(node, (zarr.core.Array, zarr.hierarchy.Group))
+    return zarr and isinstance(node, (zarr.Array, zarr.Group))
 
 
 def is_pyn5(node) -> bool:
