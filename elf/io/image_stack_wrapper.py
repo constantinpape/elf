@@ -96,7 +96,6 @@ class ImageStackDataset:
         """@private
         """
         im0 = imageio.imread(files[0])
-        assert im0.ndim == 2
         return im0.shape, im0.dtype
 
     def initialize_from_slices(self, files, sort_files=True):
