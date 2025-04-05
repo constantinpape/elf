@@ -12,7 +12,6 @@ from tqdm import tqdm
 from .common import get_blocking
 
 
-# TODO halo as optional argument?
 def find_local_maxima(
     data: ArrayLike,
     min_distance: int = 1,
@@ -23,20 +22,24 @@ def find_local_maxima(
     verbose: bool = False,
     roi: Optional[Tuple[slice, ...]] = None,
 ) -> np.ndarray:
-    """
+    """Find local maxima in paralle.
+
+    Based on `skimage.feature.peak_local_max`.
 
     Args:
-        data:
-        min_distance:
-        threshold_abs:
-        threshold_rel:
-        block_shape:
-        n_threads:
-        verbose:
-        roi:
+        data: The input data.
+        min_distance: The minimal allowed distance between local maxima.
+        threshold_abs: Minimum intensity of maxima.
+            By default, the absolute threshold is the minimum intensity of the input.
+        threshold_rel: Minimum intensity of maxima, calculated as `max(data) * threshold_rel.
+        block_shape: Shape of the blocks to use for parallelisation,
+            by default chunks of the input will be used, if available.
+        n_threads: Number of threads, by default all available threads are used.
+        verbose: Verbosity flag.
+        roi: Region of interest for this computation.
 
     Returns:
-        a
+        The coordinates of detected maxima.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
@@ -64,7 +67,7 @@ def find_local_maxima(
         local_maxima = local_maxima[filter_mask]
 
         # Apply offest coordinates of the inner block.
-        offset = np.array(block.innerBlock.begin)[None, :]
+        offset = np.array(block.outerBlock.begin)[None, :]
         local_maxima += offset
         return local_maxima
 

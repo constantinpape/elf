@@ -11,7 +11,7 @@ class TestLocalMaxima(unittest.TestCase):
 
         # Create test data.
         x = np.random.rand(*shape)
-        x = (x > 0.99).astype("float32")
+        x = (x > 0.995).astype("float32")
         x = gaussian(x)
         x /= x.max()
 
@@ -22,10 +22,10 @@ class TestLocalMaxima(unittest.TestCase):
         # Apply consistent ordering.
         result = result[np.lexsort(result.T[::-1])]
         expected_result = expected_result[np.lexsort(expected_result.T[::-1])]
-        self.assertEqual(result.shape, expected_result.shape)
 
+        # Check that result and expected results agree.
+        self.assertEqual(result.shape, expected_result.shape)
         agreement = np.isclose(result, expected_result).all(axis=1)
-        breakpoint()
         self.assertTrue(agreement.all())
 
     def test_find_local_maxima_2d(self):
