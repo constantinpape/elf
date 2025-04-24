@@ -67,7 +67,7 @@ class ResizedVolume(WrapperBase):
         # vigra can't deal with singletons, so we use skimage in that case, but stil use
         # vigra otherwise due to better performance
         singletons = tuple(sh == 1 for sh in data.shape)
-        if any(singletons):
+        if any(singletons) or any(sh <= 2 for sh in data.shape):
             data = self._interpolate_skimage(data, shape)
         else:
             data = self._interpolate_vigra(data, shape)
