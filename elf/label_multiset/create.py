@@ -19,7 +19,7 @@ def create_multiset_from_labels(labels: np.ndarray) -> LabelMultiset:
     argmax = labels.flatten()
 
     # ids and offsets
-    ids, offsets = np.unique(labels, return_inverse=True)
+    ids, offsets = np.unique(argmax, return_inverse=True)
 
     # counts (1 by definiition)
     counts = np.ones(len(ids), dtype="int32")
