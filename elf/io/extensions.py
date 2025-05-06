@@ -116,8 +116,7 @@ def noop(*args, **kwargs):
 try:
     # will not override z5py
     import zarr
-    from packaging.version import Version
-    if Version(zarr.__version__) >= Version("3.0.0"):
+    if int(zarr.__version__.split('.', maxsplit=1)[0]) > 2:
         raise ImportError(
             f"zarr {zarr.__version__} (>=3.0.0) is not supported. "
             "Please downgrade to zarr 2 if you require zarr support. "
@@ -143,7 +142,7 @@ try:
     register_filetype(
         zarr_open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array, True
     )
-except ImportError:
+except Exception:
     zarr = None
     zarr_open = None
 
