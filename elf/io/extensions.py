@@ -116,6 +116,14 @@ def noop(*args, **kwargs):
 try:
     # will not override z5py
     import zarr
+    from packaging.version import Version
+    if Version(zarr.__version__) >= Version("3.0.0"):
+        raise ImportError(
+            f"zarr {zarr.__version__} (>=3.0.0) is not supported. "
+            "Please downgrade to zarr 2 if you require zarr support. "
+            "See https://github.com/constantinpape/elf/issues/114 "
+            "for more details."
+        )
 
     # zarr stores cannot be used as context managers,
     # which breaks compatibility with similar libraries.
