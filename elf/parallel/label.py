@@ -254,6 +254,9 @@ def label(
     # 1.) Compute connected components for all blocks.
     out, offsets = cc_blocks(data, out, mask, blocking, with_background, n_threads=n_threads, verbose=verbose)
 
+    # cast offsets to a numpy array of the correct dtype for future manipulation
+    offsets = np.asarray(offsets, dtype='uint64')
+
     # Turn block max labels into offsets.
     last_block_val = offsets[-1]
     offsets = np.roll(offsets, 1)
