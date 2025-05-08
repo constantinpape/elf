@@ -140,7 +140,7 @@ try:
         return z
 
     register_filetype(
-        zarr_open, N5_EXTS + ZARR_EXTS, zarr.hierarchy.Group, zarr.core.Array, True
+        zarr_open, N5_EXTS + ZARR_EXTS, zarr.Group, zarr.Array, True
     )
 except Exception:
     zarr = None
