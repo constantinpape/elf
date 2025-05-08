@@ -296,7 +296,7 @@ def blockwise_two_pass_watershed(
 
         # use the lowest pixel id in this block as offset
         # in order to guarantee that superpixel ids are unique
-        offset = block_id * np.prod(blocking.blockShape)
+        offset = block_id * np.prod(blocking.blockShape, dtype=ws.dtype)
         if mask_block is None:
             ws += offset
         else:
