@@ -1,10 +1,14 @@
 from numbers import Number
+from packaging import version
 from typing import Optional, Union, Tuple
 
 import numpy as np
-import zarr
 from numpy.typing import ArrayLike
 
+import zarr
+
+
+ZARR_V3 = version.parse(zarr.__version__) >= version.parse("3.0.0")
 SUPPORTED_CODECS = ("blosc", "gzip", "zstd")
 """Supported compression codecs
 """
@@ -16,8 +20,8 @@ def _check_consistency(data, dtype, shape):
         if dtype is None:
             raise ValueError("You have to pass a dtype if data is not passed.")
 
-        if shape is None:
-            raise ValueError("You have to pass the shape if data is not passed.")
+        if shape is None and not ZARR_V3:
+            raise ValueError("In Zarr v2, 'shape' must be provided if 'data' is None. In Zarr v3, this is optional.")
 
     # Data was passed. dtype and shape are not required.
     # If given, we check that they are consistent, otherwise we derive them from the data.

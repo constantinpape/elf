@@ -46,12 +46,14 @@ class ZarrWrapperTest(unittest.TestCase):
         self.assertTrue(dtype, ds.dtype)
 
         # Test create dataset when only data is passed.
-        ds_name = f"{prefix}-2"
-        ds = method(ds_name, data=test_data, chunks=chunks)
-        self.assertEqual(chunks, ds.chunks)
-        self.assertTrue(np.allclose(test_data, ds[:]))
+        # NOTE: This works for zarr v3 only, as shape is an expected argument in v2.
+        if zarr_major_version == 3:
+            ds_name = f"{prefix}-2"
+            ds = method(ds_name, data=test_data, chunks=chunks)
+            self.assertEqual(chunks, ds.chunks)
+            self.assertTrue(np.allclose(test_data, ds[:]))
 
-        # Test create dataset when data, dtype and chunks are passed.
+        # Test create dataset when data, shape, dtype and chunks are passed.
         ds_name = f"{prefix}-3"
         ds = method(ds_name, data=test_data, shape=shape, dtype=dtype, chunks=chunks)
         self.assertEqual(chunks, ds.chunks)
@@ -60,7 +62,11 @@ class ZarrWrapperTest(unittest.TestCase):
         # Tests with compression arguments.
         for i, codec in enumerate(SUPPORTED_CODECS, 4):
             ds_name = f"{prefix}-{i}"
-            ds = method(ds_name, data=test_data, chunks=chunks, compression=codec)
+            if zarr_major_version == 2:
+                ds = method(ds_name, data=test_data, shape=test_data.shape, chunks=chunks, compression=codec)
+            else:
+                ds = method(ds_name, data=test_data, chunks=chunks, compression=codec)
+
             self.assertEqual(chunks, ds.chunks)
             self.assertTrue(np.allclose(test_data, ds[:]))
 
@@ -74,7 +80,11 @@ class ZarrWrapperTest(unittest.TestCase):
         ds_name, test_data, chunks = self._test_create_dataset_impl(f.create_dataset, "test-create-dataset")
 
         # Test require dataset with already existing data.
-        ds = f.require_dataset(ds_name)
+        if zarr_major_version == 2:
+            ds = f.require_dataset(ds_name, shape=test_data.shape)
+        else:
+            ds = f.require_dataset(ds_name)
+
         self.assertEqual(chunks, ds.chunks)
         self.assertTrue(np.allclose(test_data, ds[:]))
 
