@@ -114,34 +114,43 @@ def noop(*args, **kwargs):
 
 
 try:
-    # will not override z5py
     import zarr
-    if int(zarr.__version__.split('.', maxsplit=1)[0]) > 2:
-        raise ImportError(
-            f"zarr {zarr.__version__} (>=3.0.0) is not supported. "
-            "Please downgrade to zarr 2 if you require zarr support. "
-            "See https://github.com/constantinpape/elf/issues/114 "
-            "for more details."
-        )
 
-    # zarr stores cannot be used as context managers,
-    # which breaks compatibility with similar libraries.
-    # This wrapper patches in those methods.
-    @functools.wraps(zarr.open)
-    def zarr_open(*args, **kwargs):
-        """@private
-        """
-        z = zarr.open(*args, **kwargs)
-        ztype = type(z)
-        if not hasattr(ztype, "__enter__"):
-            ztype.__enter__ = identity
-        if not hasattr(ztype, "__exit__"):
-            ztype.__exit__ = noop
-        return z
+    # Check which zarr version is available.
+    zarr_major_version = int(zarr.__version__.split(".", maxsplit=1)[0])
 
-    register_filetype(
-        zarr_open, N5_EXTS + ZARR_EXTS, zarr.Group, zarr.Array, True
-    )
+    # If zarr v2 is installed, then we can use a simple wrapper function to support context managers.
+    if zarr_major_version == 2:
+
+        # zarr stores cannot be used as context managers, which breaks compatibility with similar libraries.
+        # This wrapper patches in those methods.
+        @functools.wraps(zarr.open)
+        def zarr_open(*args, **kwargs):
+            """@private
+            """
+            z = zarr.open(*args, **kwargs)
+            ztype = type(z)
+            if not hasattr(ztype, "__enter__"):
+                ztype.__enter__ = identity
+            if not hasattr(ztype, "__exit__"):
+                ztype.__exit__ = noop
+            return z
+
+        register_filetype(zarr_open, N5_EXTS + ZARR_EXTS, zarr.Group, zarr.Array, True)
+
+    # If zarr v3 is installed, then we have to use the more elaborate zarr wrapper.
+    # This is necessary, because zarr v3 removed 'create_dataset' etc.,
+    # which we require for compatibility with a lot of old code.
+    # This is patched by the wrapper.
+    elif zarr_major_version == 3:
+        from .zarr_wrapper import zarr_open
+
+        # Note: zarr v3 does not support
+        register_filetype(zarr_open, ZARR_EXTS, zarr.Group, zarr.Array, True)
+
+    else:
+        raise ImportError(f"zarr-python version {zarr_major_version} is not supported; only supports versions 2 and 3.")
+
 except Exception:
     zarr = None
     zarr_open = None

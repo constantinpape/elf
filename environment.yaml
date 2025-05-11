@@ -21,4 +21,4 @@ dependencies:
     - threadpoolctl
     - vigra
     - z5py
-    - zarr >=3,<4
+    - zarr >=2,<4
