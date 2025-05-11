@@ -98,7 +98,9 @@ class TestZarrFiles(FileTestBase, FileTestMixin):
 class TestBackendPreference(unittest.TestCase):
     @unittest.skipUnless(z5py and zarr, "Need z5py and zarr")
     def test_zarr_over_z5py(self):
-        self.assertTrue(FILE_CONSTRUCTORS[".n5"] == zarr_open)
+        zarr_major_version = int(zarr.__version__.split(".", maxsplit=1)[0])
+        if zarr_major_version <= 2:
+            self.assertTrue(FILE_CONSTRUCTORS[".n5"] == zarr_open)
 
     @unittest.skipUnless(z5py and pyn5, "Need z5py and pyn5")
     def test_z5py_over_pyn5(self):
