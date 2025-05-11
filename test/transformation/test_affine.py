@@ -88,7 +88,7 @@ class TestAffine(unittest.TestCase):
         exp = affine_transform(x, matrix, **kwargs)
 
         if out_file is not None:
-            with open_file(out_file) as f:
+            with open_file(out_file, mode="a") as f:
                 x = f.create_dataset("tmp", data=x, chunks=3 * (16,))
             f = z5py.File(out_file, "r")
             x = f["tmp"]
