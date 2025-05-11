@@ -22,7 +22,7 @@ def supported_extensions() -> List[str]:
 
 def open_file(
     path: Union[str, os.PathLike],
-    mode: str = "a",
+    mode: str = "r",
     ext: Optional[str] = None,
     **kwargs,
 ):
@@ -33,11 +33,14 @@ def open_file(
 
     Args:
         path: Path to the file to be opened.
-        mode: Mode in which to open the file.
+        mode: Mode in which to open the file. By default opens the file in mode 'r' (read).
+            Other options are 'a' (append) for creating or opening an existing file in write mode.
+            Or 'w' (write) for creating a new file and over-writing existing files.
+            Not all file types support opening in write mode. The read mode is supported by all file types.
         ext: File extension. This can be used to force an extension if it cannot be inferred from the filename.
 
     Returns:
-        The handle for the opened datsaet.
+        The handle for the opened file.
     """
 
     # Before checking the extension suffix, check for "protocol-style" cloud provider prefixes.

@@ -13,11 +13,11 @@ import z5py
 class TestAffine(unittest.TestCase):
     def tearDown(self):
         try:
-            rmtree('tmp.n5')
+            rmtree("tmp.n5")
         except OSError:
             pass
         try:
-            os.remove('tmp.h5')
+            os.remove("tmp.h5")
         except OSError:
             pass
 
@@ -28,10 +28,10 @@ class TestAffine(unittest.TestCase):
         exp = affine_transform(x, matrix, **kwargs)
 
         if out_file is not None:
-            with open_file(out_file) as f:
-                x = f.create_dataset('tmp', data=x, chunks=(64, 64))
-            f = z5py.File(out_file, 'r')
-            x = f['tmp']
+            with open_file(out_file, mode="a") as f:
+                x = f.create_dataset("tmp", data=x, chunks=(64, 64))
+            f = z5py.File(out_file, "r")
+            x = f["tmp"]
 
         bbs = [np.s_[:, :], np.s_[:256, :256], np.s_[37:115, 226:503],
                np.s_[:200, :], np.s_[:, 10:115]]
@@ -68,18 +68,18 @@ class TestAffine(unittest.TestCase):
         self._test_2d(mat, order=0, out_file=out_file)
 
     def test_affine_subvolume_2d_z5(self):
-        self._test_affine_subvolume_2d_chunked('tmp.n5')
+        self._test_affine_subvolume_2d_chunked("tmp.n5")
 
     @unittest.skipUnless(nifty.Configuration.WITH_HDF5, "Needs nifty built with hdf5")
     def test_affine_subvolume_2d_h5(self):
-        self._test_affine_subvolume_2d_chunked('tmp.h5')
+        self._test_affine_subvolume_2d_chunked("tmp.h5")
 
     # presmoothing is currently not implemented in c++
     @unittest.expectedFailure
     def test_presmoothing(self):
         from elf.transformation import compute_affine_matrix
         mat = compute_affine_matrix(scale=(2, 2), rotation=(45,))
-        self._test_2d(mat, order=1, out_file='tmp.n5', sigma=1.)
+        self._test_2d(mat, order=1, out_file="tmp.n5", sigma=1.)
 
     def _test_3d(self, matrix, out_file=None, **kwargs):
         from elf.transformation import transform_subvolume_affine
@@ -88,10 +88,10 @@ class TestAffine(unittest.TestCase):
         exp = affine_transform(x, matrix, **kwargs)
 
         if out_file is not None:
-            with open_file(out_file) as f:
-                x = f.create_dataset('tmp', data=x, chunks=3 * (16,))
-            f = z5py.File(out_file, 'r')
-            x = f['tmp']
+            with open_file(out_file, mode="a") as f:
+                x = f.create_dataset("tmp", data=x, chunks=3 * (16,))
+            f = z5py.File(out_file, "r")
+            x = f["tmp"]
 
         bbs = [np.s_[:, :, :], np.s_[:32, :32, :32], np.s_[1:31, 5:27, 3:13],
                np.s_[4:19, :, 22:], np.s_[1:29], np.s_[:, 15:27, :], np.s_[:, 1:3, 4:14]]
@@ -124,11 +124,11 @@ class TestAffine(unittest.TestCase):
         self._test_3d(mat, order=0, out_file=out_file)
 
     def test_affine_subvolume_3d_z5(self):
-        self._test_affine_subvolume_3d_chunked('tmp.n5')
+        self._test_affine_subvolume_3d_chunked("tmp.n5")
 
     @unittest.skipUnless(nifty.Configuration.WITH_HDF5, "Needs nifty built with hdf5")
     def test_affine_subvolume_3d_h5(self):
-        self._test_affine_subvolume_3d_chunked('tmp.h5')
+        self._test_affine_subvolume_3d_chunked("tmp.h5")
 
     def test_toy(self):
         from elf.transformation import compute_affine_matrix
@@ -143,5 +143,5 @@ class TestAffine(unittest.TestCase):
         self.assertTrue(np.allclose(res, exp))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
