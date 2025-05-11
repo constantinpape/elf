@@ -117,7 +117,10 @@ try:
     import zarr
 
     # Check which zarr version is available.
-    zarr_major_version = int(zarr.__version__.split(".", maxsplit=1)[0])
+    try:
+        zarr_major_version = int(zarr.__version__.split(".", maxsplit=1)[0])
+    exception Exception:
+        zarr_major_version = None
 
     # If zarr v2 is installed, then we can use a simple wrapper function to support context managers.
     if zarr_major_version == 2:
