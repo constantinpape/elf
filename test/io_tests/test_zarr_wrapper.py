@@ -63,7 +63,7 @@ class ZarrWrapperTest(unittest.TestCase):
         for i, codec in enumerate(SUPPORTED_CODECS, 4):
             ds_name = f"{prefix}-{i}"
             if zarr_major_version == 2:
-                ds = method(ds_name, data=test_data, shape=test_data.shape, chunks=chunks, compression=codec)
+                ds = method(ds_name, data=test_data, shape=shape, chunks=chunks, compression=codec)
             else:
                 ds = method(ds_name, data=test_data, chunks=chunks, compression=codec)
 
