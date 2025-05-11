@@ -70,6 +70,7 @@ class ZarrWrapperTest(unittest.TestCase):
         """Test that the zarr wrapper supports the legacy functions create_dataset and require_dataset.
         """
         f = open_file(self.test_file, mode="w")
+        self.assertTrue(isinstance(f, zarr.Group))
         ds_name, test_data, chunks = self._test_create_dataset_impl(f.create_dataset, "test-create-dataset")
 
         # Test require dataset with already existing data.
