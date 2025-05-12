@@ -45,13 +45,13 @@ class ZarrWrapperTest(unittest.TestCase):
         self.assertTrue(shape, ds.shape)
         self.assertTrue(dtype, ds.dtype)
 
-        # Test create dataset when only data is passed.
+        # Test create dataset when data and shape are passed.
         ds_name = f"{prefix}-2"
-        ds = method(ds_name, data=test_data, chunks=chunks)
+        ds = method(ds_name, data=test_data, shape=shape, chunks=chunks)
         self.assertEqual(chunks, ds.chunks)
         self.assertTrue(np.allclose(test_data, ds[:]))
 
-        # Test create dataset when data, dtype and chunks are passed.
+        # Test create dataset when data, dtype and shape are passed.
         ds_name = f"{prefix}-3"
         ds = method(ds_name, data=test_data, shape=shape, dtype=dtype, chunks=chunks)
         self.assertEqual(chunks, ds.chunks)
@@ -60,7 +60,7 @@ class ZarrWrapperTest(unittest.TestCase):
         # Tests with compression arguments.
         for i, codec in enumerate(SUPPORTED_CODECS, 4):
             ds_name = f"{prefix}-{i}"
-            ds = method(ds_name, data=test_data, chunks=chunks, compression=codec)
+            ds = method(ds_name, data=test_data, shape=shape, chunks=chunks, compression=codec)
             self.assertEqual(chunks, ds.chunks)
             self.assertTrue(np.allclose(test_data, ds[:]))
 
@@ -74,7 +74,7 @@ class ZarrWrapperTest(unittest.TestCase):
         ds_name, test_data, chunks = self._test_create_dataset_impl(f.create_dataset, "test-create-dataset")
 
         # Test require dataset with already existing data.
-        ds = f.require_dataset(ds_name)
+        ds = f.require_dataset(ds_name, shape=test_data.shape)
         self.assertEqual(chunks, ds.chunks)
         self.assertTrue(np.allclose(test_data, ds[:]))
 
