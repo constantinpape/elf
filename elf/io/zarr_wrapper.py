@@ -79,6 +79,21 @@ def _create_dataset_impl(
     return array
 
 
+def _check_dataset_consistency(array, data, dtype, shape, name):
+    if data is not None:
+        data, dtype, shape = _check_consistency(data, dtype, shape)
+    if dtype is not None and np.dtype(dtype) != np.dtype(array.dtype):
+        raise ValueError(
+            f"The zarr array @ {name} already exists and has inconsistent datatype with the one you have passed: "
+            f"{dtype} != {array.dtype}.")
+    if shape is not None and tuple(shape) != tuple(array.shape):
+        raise ValueError(
+            f"The zarr array @ {name} already exists and has inconsistent shape with the one you have passed: "
+            f"{shape} != {shape}.")
+    if data is not None:
+        array[:] = data
+
+
 def _require_dataset_impl(
     self,
     name: str,
@@ -90,7 +105,9 @@ def _require_dataset_impl(
     **kwargs,
 ) -> zarr.Array:
     if name in self:
-        return self[name]
+        array = self[name]
+        _check_dataset_consistency(array, data, dtype, shape, name)
+        return array
     # This is already monkey-patched.
     array = self.create_dataset(
         name=name, data=data, dtype=dtype, shape=shape, compression=compression, fillvalue=fillvalue, **kwargs
