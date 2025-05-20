@@ -5,8 +5,9 @@ import numpy as np
 class TestBaseWrapper(unittest.TestCase):
     shape = (32, 256, 256)
 
-    def test_with_channels(self):
+    def test_simple_transform_wrapper_with_channels(self):
         from elf.wrapper.base import SimpleTransformationWrapper
+
         shape_with_channels = (3,) + self.shape
         vol = np.random.rand(*shape_with_channels)
         wrapper = SimpleTransformationWrapper(
@@ -25,6 +26,27 @@ class TestBaseWrapper(unittest.TestCase):
         x = wrapper[bb]
         self.assertTrue(np.allclose(x, 2 * vol[(slice(None),) + bb]))
 
+    def test_multi_transform_wrapper(self):
+        from elf.wrapper.base import MultiTransformationWrapper
 
-if __name__ == '__main__':
+        # Test regions.
+        rois = (np.s_[5:24, 3:100, 4:123], np.s_[8:31, 2:200, :], np.s_[:], np.s_[4, 5, 6], np.s_[:, 0, 200])
+
+        # Test the use-case for 2 inputs.
+        vol1 = np.random.rand(*self.shape) > 0.5
+        vol2 = np.random.rand(*self.shape) > 0.5
+        wrapped = MultiTransformationWrapper(np.logical_and, vol1, vol2)
+        expected = np.logical_and(vol1, vol2)
+        for bb in rois:
+            self.assertTrue((wrapped[bb] == expected[bb]).all())
+
+        # Test the use-case for 3 inputs.
+        vol3 = np.random.rand(*self.shape) > 0.5
+        wrapped = MultiTransformationWrapper(np.logical_and.reduce, vol1, vol2, vol3, apply_to_list=True)
+        expected = np.logical_and.reduce([vol1, vol2, vol3])
+        for bb in rois:
+            self.assertTrue((wrapped[bb] == expected[bb]).all())
+
+
+if __name__ == "__main__":
     unittest.main()
