@@ -56,7 +56,7 @@ class SimpleTransformationWrapper(WrapperBase):
         with_channels: Whether the data has channels.
         kwargs: Additional keyword arguments for the base class.
     """
-    def __init__(self, volume: ArrayLike, transformation: callable, with_channels: bool = False, **kwargs):
+    def __init__(self, volume: ArrayLike, transformation: callable, with_channels: bool = False, **kwargs) -> None:
         if not callable(transformation):
             raise ValueError("Expect the transformation to be callable.")
         self.transformation = transformation
@@ -88,7 +88,7 @@ class TransformationWrapper(WrapperBase):
         with_channels: Whether the data has channels.
         kwargs: Additional keyword arguments for the base class.
     """
-    def __init__(self, volume: ArrayLike, transformation: callable, **kwargs):
+    def __init__(self, volume: ArrayLike, transformation: callable, **kwargs) -> None:
         if not callable(transformation):
             raise ValueError("Expect the transformation to be callable.")
         self.transformation = transformation
@@ -102,25 +102,37 @@ class TransformationWrapper(WrapperBase):
         return out
 
 
-# TODO once there is a use-case implement multi trafo wrapper
-# class TransformationMultiWrapper(WrapperBase):
-#     """ Volume wrapper to apply transformation to multiple data blocks on the fly.
-#
-#     The transformation cannot change the shape of the data,
-#     but it's assumed to depend on the coordinate. I.e. the function signature is
-#     `def transformation(volume, index)`
-#     """
-#
-#     def __init__(self, transformation, *volumes):
-#         if not callable(transformation):
-#             raise ValueError("Expect the transformation to be callable.")
-#         self._volumes = volumes
-#         assert all(vol.shape == self._volumes[0].shape for vol in self._volumes[1:])
-#         self.transformation = transformation
-#         super().__init__(self._volumes[0])
-#
-#     def __getitem__(self, key):
-#         index, to_squeeze = normalize_index(key, self.shape)
-#         inputs = [vol[index] for vol in self._volumes]
-#         out = self.transformation(*inputs)
-#         return squeeze_singletons(out, to_squeeze)
+class MultiTransformationWrapper(WrapperBase):
+    """Volume wrapper to apply a transformation to blocks from multiple data volumes on the fly.
+
+    The transformation must depend only on the data values, not on coordinates.
+    Hence, the expected function signature is `def transformation(*volumes)`.
+
+    Args:
+        transformation: The transformation to apply.
+        volumes: The data volumes to wrap.
+        apply_to_list: Whether the transformation is applied to a list of inputs instead of
+            passing each input as an individual argument via *.
+        kwargs: Additional keyword arguments for the base class.
+    """
+
+    def __init__(
+        self,
+        transformation: callable,
+        *volumes: ArrayLike,
+        apply_to_list: bool = False,
+        **kwargs
+    ) -> None:
+        if not callable(transformation):
+            raise ValueError("Expect the transformation to be callable.")
+        self._volumes = volumes
+        assert all(vol.shape == self._volumes[0].shape for vol in self._volumes[1:])
+        self.transformation = transformation
+        self.apply_to_list = apply_to_list
+        super().__init__(self._volumes[0], **kwargs)
+
+    def __getitem__(self, key):
+        index, to_squeeze = normalize_index(key, self.shape)
+        inputs = [vol[index] for vol in self._volumes]
+        out = self.transformation(inputs) if self.apply_to_list else self.transformation(*inputs)
+        return squeeze_singletons(out, to_squeeze)
