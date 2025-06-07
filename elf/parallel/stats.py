@@ -103,7 +103,7 @@ def mean_and_std(
         # check if we have a mask and if we do if we
         # have pixels in the mask
         if mask is not None:
-            m = mask[bb].astype('bool')
+            m = mask[bb].astype("bool")
             if m.sum() == 0:
                 return None
 
