@@ -2,8 +2,8 @@ from typing import Optional
 
 import numpy as np
 
+from elf.evaluation.matching import label_overlap, MATCHING_CRITERIA
 from skimage.segmentation import relabel_sequential
-from elf.evaluation.matching import label_overlap, intersection_over_union
 
 from qtpy.QtWidgets import QLabel
 
@@ -45,6 +45,8 @@ def run_metric_visualization(
     image: Optional[np.ndarray],
     prediction: np.ndarray,
     ground_truth: np.ndarray,
+    title: Optional[str] = None,
+    criterion: str = "iou",
 ):
     """Visualize the metric scores over a range of thresholds.
 
@@ -52,6 +54,7 @@ def run_metric_visualization(
         image: The input image.
         prediction: The predictions generated over the input image.
         ground_truth: The true labels for the input image.
+        title: The viewer title.
     """
     assert napari is not None and magic_factory is not None, "Requires napari"
 
@@ -59,7 +62,8 @@ def run_metric_visualization(
     prediction = relabel_sequential(prediction)[0]
 
     # Compute the overlaps for objects in the prediction and ground-truth.
-    overlap_matrix = intersection_over_union(label_overlap(prediction, ground_truth, ignore_label=None)[0])
+    intersection_function = MATCHING_CRITERIA[criterion]
+    overlap_matrix = intersection_function(label_overlap(prediction, ground_truth, ignore_label=None)[0])
 
     # Compute the initial TPs, FPs and FNs based on an IOU threshold of 0.5.
     iou_threshold = 0.5
@@ -104,4 +108,6 @@ def run_metric_visualization(
     iou_widget = update_iou_threshold()
     viewer.window.add_dock_widget(iou_widget, name="IoU Threshold Slider")
     viewer.window.add_dock_widget(label, name="Result Overview")
+    if title is not None:
+        viewer.title = title
     napari.run()
