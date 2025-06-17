@@ -30,7 +30,7 @@ class ResizedVolume(WrapperBase):
         super().__init__(volume)
         self._shape = shape
 
-        self._scale = [sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)]
+        self._scale = np.array([sh / float(fsh) for sh, fsh in zip(self.volume.shape, self.shape)])
         self.order = order
 
         if np.dtype(self.dtype) == np.dtype(bool):
@@ -76,29 +76,46 @@ class ResizedVolume(WrapperBase):
     def __getitem__(self, key):
         index, to_squeeze = normalize_index(key, self.shape)
 
-        # get the return shape and find singleton axes
+        # Get the return shape and find singleton axes.
         ret_shape = tuple(ind.stop - ind.start for ind in index)
         singletons = tuple(sh == 1 for sh in ret_shape)
 
-        # get the sampled index, respecting singletons
-        starts = tuple(int(round(ind.start * sc, 0)) for ind, sc in zip(index, self.scale))
-        stops = tuple(max(int(round(ind.stop * sc, 0)), sta + 1)
-                      for ind, sc, sta in zip(index, self.scale, starts))
-        index = tuple(slice(sta, sto) for sta, sto in zip(starts, stops))
+        # Scale the start and stop coordinate, extending it to the outer corners.
+        starts = [int(np.floor(ind.start * sc)) for ind, sc in zip(index, self.scale)]
+        stops = [int(np.ceil(ind.stop * sc)) for ind, sc in zip(index, self.scale)]
+        index_scaled = tuple(slice(sta, sto) for sta, sto in zip(starts, stops))
 
-        # check if we have a singleton in the return shape
+        # starts = tuple(int(round(ind.start * sc, 0)) for ind, sc in zip(index, self.scale))
+        # stops = tuple(max(int(round(ind.stop * sc, 0)), sta + 1)
+        #               for ind, sc, sta in zip(index, self.scale, starts))
+        # index = tuple(slice(sta, sto) for sta, sto in zip(starts, stops))
+
+        # # Compute the shape of the index to check if we have a singleton in the return shape.
         data_shape = tuple(idx.stop - idx.start for idx in index)
-        # remove singletons from data iff axis is not singleton in return data
-        index = tuple(slice(idx.start, idx.stop) if sh > 1 or is_single else
-                      slice(idx.start, idx.stop + 1)
-                      for idx, sh, is_single in zip(index, data_shape, singletons))
-        data = self.volume[index]
+        # # Remove singletons from the index iff axis is not singleton in the initial index.
+        index_scaled = tuple(
+            slice(idx.start, idx.stop) if sh > 1 or is_single else slice(idx.start, idx.stop + 1)
+            for idx, sh, is_single in zip(index_scaled, data_shape, singletons)
+        )
+        data = self.volume[index_scaled]
 
-        # Speed ups for empty blocks and masks.
-        if data.sum() == 0:
+        if data.sum() == 0:  # Speed up for empty block.
             out = np.zeros(ret_shape, dtype=self.dtype)
-        elif (data == 1).sum() == data.size:
+        elif self.order == 0 and ((data == 1).sum() == data.size):  # Speed up for mask that is all positive.
             out = np.ones(ret_shape, dtype=self.dtype)
         else:
-            out = self._interpolate(data, ret_shape)
+            # Resize the volume with the full shape.
+            full_shape = tuple(
+                max(int(np.ceil(sh / sc)), 1) for sh, sc in zip(data.shape, self.scale)
+            )
+            out = self._interpolate(data, full_shape)
+
+            coarse_start = [
+                int(np.floor(idx.start / sc)) for idx, sc in zip(index_scaled, self.scale)
+            ]
+            offsets = [ind.start - cs for ind, cs in zip(index, coarse_start)]
+            crop_slices = tuple(slice(off, off + rs) for off, rs in zip(offsets, ret_shape))
+            out = out[crop_slices]
+
+            assert out.shape == ret_shape
         return squeeze_singletons(out, to_squeeze)
