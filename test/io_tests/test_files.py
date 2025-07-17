@@ -36,7 +36,7 @@ class FileTestMixin:
         shape = (128,) * 2
         data = np.random.rand(*shape)
         fname = self.path_to("data" + self.ext)
-        with self.constructor(fname, "a") as f:
+        with self.constructor(fname, mode="a") as f:
             f.create_dataset("data", data=data)
 
         with patch("elf.io.extensions.FILE_CONSTRUCTORS", {self.ext: self.constructor}):
