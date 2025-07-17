@@ -1,4 +1,5 @@
 from abc import ABC
+from typing import Tuple
 
 from numpy.typing import ArrayLike
 from ..util import normalize_index, squeeze_singletons
@@ -72,7 +73,63 @@ class SimpleTransformationWrapper(WrapperBase):
         if self.with_channels and to_squeeze:
             to_squeeze = tuple(sq + 1 for sq in to_squeeze)
         out = squeeze_singletons(out, to_squeeze)
+        return out
 
+
+class SimpleTransformationWrapperWithHalo(WrapperBase):
+    """Wrapper to apply simple transformation to data on the fly with a halo.
+
+    The transformation must depend only on the data values, not on coordinates.
+    Hence, the expected function signature is `def transformation(volume)`.
+
+    Args:
+        volume: The data to wrap.
+        transformation: The transformation to apply.
+        halo: The halo for the transformation.
+        with_channels: Whether the data has channels.
+        kwargs: Additional keyword arguments for the base class.
+    """
+    def __init__(
+        self,
+        volume: ArrayLike,
+        transformation: callable,
+        halo: Tuple[int, ...],
+        with_channels: bool = False,
+        **kwargs
+    ) -> None:
+        super().__init__(volume, **kwargs)
+        if not callable(transformation):
+            raise ValueError("Expect the transformation to be callable.")
+        if self.ndim != len(halo):
+            raise ValueError(f"Invalid halo: {halo}")
+        self.transformation = transformation
+        self.halo = halo
+        self.with_channels = with_channels
+
+    def _extend_halo(self, index):
+        assert len(index) == len(self.halo)
+        extended_index, local_crop = [], []
+        for idx, ha, sh in zip(index, self.halo, self.shape):
+            start = max(idx.start - ha, 0)
+            stop = min(idx.stop + ha, sh)
+            extended_index.append(slice(start, stop))
+            crop_len = stop - start
+            left_halo = idx.start - start
+            right_halo = stop - idx.stop
+            local_crop.append(slice(left_halo, crop_len - right_halo))
+        return tuple(extended_index), tuple(local_crop)
+
+    def __getitem__(self, key):
+        index, to_squeeze = normalize_index(key, self.shape)
+        index, local_crop = self._extend_halo(index)
+        if self.with_channels:
+            index = (slice(None),) + index
+        out = self._volume[index]
+        out = self.transformation(out)
+        if self.with_channels and to_squeeze:
+            to_squeeze = tuple(sq + 1 for sq in to_squeeze)
+        out = out[local_crop]
+        out = squeeze_singletons(out, to_squeeze)
         return out
 
 
