@@ -1,9 +1,25 @@
 import unittest
+from functools import partial
+
 import numpy as np
 
 
 class TestBaseWrapper(unittest.TestCase):
     shape = (32, 256, 256)
+
+    def test_simple_transform_wrapper_with_halo(self):
+        from elf.wrapper.base import SimpleTransformationWrapperWithHalo
+        from skimage.filters import gaussian
+
+        data = np.random.rand(*self.shape)
+        transformed = gaussian(data, sigma=1)
+        wrapper = SimpleTransformationWrapperWithHalo(data, transformation=partial(gaussian, sigma=1), halo=(8, 8, 8))
+
+        rois = (np.s_[5:24, 3:100, 4:123], np.s_[8:31, 2:200, :], np.s_[:], np.s_[4, 5, 6], np.s_[:, 0, 200])
+        for roi in rois:
+            x1, x2 = transformed[roi], wrapper[roi]
+            self.assertEqual(x1.shape, x2.shape)
+            self.assertTrue(np.allclose(x1, x2))
 
     def test_simple_transform_wrapper_with_channels(self):
         from elf.wrapper.base import SimpleTransformationWrapper
