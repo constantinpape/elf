@@ -49,7 +49,7 @@ def compute_boundary_features(
 
     Args:
         rag: The region adjacency graph.
-        boundary_map:The boundary map.
+        boundary_map: The boundary map.
         min_value: The minimum value used in accumulation.
         max_value: The maximum value used in accumulation.
         n_threads: The number of threads used, set to cpu count by default.
