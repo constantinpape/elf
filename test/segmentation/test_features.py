@@ -244,6 +244,22 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(len(weights), len(edges))
         self.assertGreater(n_edges_prev, len(edges))
 
+    def test_affinity_features(self):
+        from elf.segmentation.features import compute_rag, compute_affinity_features
+
+        offsets = [[-1, 0], [0, -1], [-3, 0], [0, -3]]
+
+        shape = (256, 256)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+
+        aff_shape = (len(offsets),) + shape
+        inp = np.random.rand(*aff_shape).astype("float32")
+
+        feats = compute_affinity_features(rag, inp, offsets)
+        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertFalse(np.allclose(feats, 0))
+
 
 if __name__ == '__main__':
     unittest.main()
