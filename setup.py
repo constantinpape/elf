@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 __version__ = runpy.run_path("elf/__version__.py")["__version__"]
 
 requires = [
-    "numpy",
+    "numpy>=2.0",
     "imageio",
     "scikit-image",
     "scikit-learn",
