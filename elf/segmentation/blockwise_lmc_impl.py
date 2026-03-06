@@ -10,11 +10,11 @@ def find_inner_lifted_edges(lifted_uv_ids, node_list):
     """
     lifted_indices = np.arange(len(lifted_uv_ids), dtype="uint64")
     # find overlap of node_list with u-edges
-    inner_us = np.in1d(lifted_uv_ids[:, 0], node_list)
+    inner_us = np.isin(lifted_uv_ids[:, 0], node_list)
     inner_indices = lifted_indices[inner_us]
     inner_uvs = lifted_uv_ids[inner_us]
     # find overlap of node_list with v-edges
-    inner_vs = np.in1d(inner_uvs[:, 1], node_list)
+    inner_vs = np.isin(inner_uvs[:, 1], node_list)
     return inner_indices[inner_vs]
 
 

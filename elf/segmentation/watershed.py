@@ -59,8 +59,8 @@ def apply_size_filter(
     ids, sizes = np.unique(segmentation, return_counts=True)
     filter_ids = ids[sizes < size_filter]
     if exclude is not None:
-        filter_ids = filter_ids[np.logical_not(np.in1d(filter_ids, exclude))]
-    filter_mask = np.in1d(segmentation, filter_ids).reshape(segmentation.shape)
+        filter_ids = filter_ids[np.logical_not(np.isin(filter_ids, exclude))]
+    filter_mask = np.isin(segmentation, filter_ids).reshape(segmentation.shape)
     segmentation[filter_mask] = 0
     _, max_id = vigra.analysis.watershedsNew(input_, seeds=segmentation, out=segmentation)
     return segmentation, max_id

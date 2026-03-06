@@ -27,6 +27,7 @@ requirements:
     - pip
   run:
     - python >=3.6
+    - numpy >=2.0
     - imageio
     - h5py
     - mrcfile
