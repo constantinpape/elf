@@ -6,9 +6,10 @@ __version__ = runpy.run_path("elf/__version__.py")["__version__"]
 requires = [
     "numpy>=2.0",
     "imageio",
+    "requests",
     "scikit-image",
     "scikit-learn",
-    "skan"
+    "skan",
 ]
 
 
