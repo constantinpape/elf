@@ -38,8 +38,16 @@ def affine_matrix_2d(scale=None, rotation=None, shear=None, translation=None, an
     scale, rotation, shear, translation = update_parameters(
         scale, rotation, shear, translation, dim=2
     )
-    # make life easier
-    cos, sin = np.cos, np.sin
+
+    # Wrapper for new numpy behavour that returns array with single val instead of scalar.
+    def np_wrap(x, func):
+        ret = func(x)
+        if hasattr(ret, "item"):
+            ret = ret.item()
+        return ret
+
+    # Make life easier.
+    cos, sin = partial(np_wrap, func=np.cos), partial(np_wrap, func=np.sin)
     sx, sy = scale
 
     if angles_in_degree:
