@@ -12,9 +12,7 @@ except ImportError:
     OBFFile = None
 
 
-_MSR_READER_INSTALL_ERROR = (
-    "msr_reader is required for MSR images, but is not installed. Install it with `pip install msr-reader`."
-)
+_MSR_READER_INSTALL_ERROR = "msr_reader is required for MSR images, but is not installed. Install it with `pip install msr-reader`."
 
 StackIndexSelection = Union[int, Sequence[int]]
 StackNameSelection = Union[str, Sequence[str]]
@@ -37,11 +35,15 @@ def _read_msr_stack(msr_path: PathLike, stack_index: int = 0) -> np.ndarray:
             )
         image = msr.read_stack(stack_index)
     if image.ndim != 2:
-        raise ValueError(f"Expected a 2D MSR stack from {msr_path}, got shape {image.shape}")
+        raise ValueError(
+            f"Expected a 2D MSR stack from {msr_path}, got shape {image.shape}"
+        )
     return image
 
 
-def _normalize_stack_selection(stack_selection: StackSelection) -> tuple[Union[int, str], ...]:
+def _normalize_stack_selection(
+    stack_selection: StackSelection,
+) -> tuple[Union[int, str], ...]:
     if isinstance(stack_selection, (str, int)):
         return (stack_selection,)
     stack_selection = tuple(stack_selection)
@@ -78,18 +80,27 @@ def _resolve_stack_indices(msr, stack_selection: StackSelection) -> tuple[int, .
         if isinstance(stack, int):
             resolved.append(stack)
         else:
+            # msr.stack_names should be list[str]
+            if stack not in msr.stack_names:
+                raise KeyError(
+                    f"Stack name '{stack}' not found in MSR file; available stacks: {msr.stack_names}"
+                )
             resolved.append(msr.stack_names.index(stack))
     return tuple(resolved)
 
 
-def _get_msr_stack_shape(msr_path: PathLike, stack_selection: StackSelection = 0) -> tuple[int, int]:
+def _get_msr_stack_shape(
+    msr_path: PathLike, stack_selection: StackSelection = 0
+) -> tuple[int, int]:
     _require_msr_reader()
     with OBFFile(os.fspath(msr_path)) as msr:
         stack_index = _resolve_stack_indices(msr, stack_selection)[0]
     return tuple(_read_msr_stack(msr_path, stack_index=stack_index).shape)
 
 
-def _resolve_stack_indices_for_path(msr_path: PathLike, stack_selection: StackSelection) -> tuple[int, ...]:
+def _resolve_stack_indices_for_path(
+    msr_path: PathLike, stack_selection: StackSelection
+) -> tuple[int, ...]:
     _require_msr_reader()
     with OBFFile(os.fspath(msr_path)) as msr:
         return _resolve_stack_indices(msr, stack_selection)
@@ -111,10 +122,16 @@ class MSRSampleCollection:
             self.stack_selection = _normalize_stack_names(stack_names)
         else:
             self.stack_selection = _normalize_stack_indices(stack_index)
-        self.stack_indices = _resolve_stack_indices_for_path(self.image_paths[0], self.stack_selection)
+        self.stack_indices = _resolve_stack_indices_for_path(
+            self.image_paths[0], self.stack_selection
+        )
         sample = _read_msr_stack(self.image_paths[0], self.stack_indices[0])
         self._dtype = sample.dtype
-        self._shape = sample.shape if len(self.stack_indices) == 1 else (len(self.stack_indices),) + tuple(sample.shape)
+        self._shape = (
+            sample.shape
+            if len(self.stack_indices) == 1
+            else (len(self.stack_indices),) + tuple(sample.shape)
+        )
 
     @property
     def dtype(self):
@@ -141,10 +158,91 @@ class MSRSampleCollection:
         return {}
 
     def read_sample(self, index: int) -> np.ndarray:
-        stack_indices = _resolve_stack_indices_for_path(self.image_paths[index], self.stack_selection)
+        stack_indices = _resolve_stack_indices_for_path(
+            self.image_paths[index], self.stack_selection
+        )
         if len(stack_indices) == 1:
             return _read_msr_stack(self.image_paths[index], stack_indices[0])
-        data = [_read_msr_stack(self.image_paths[index], stack_index) for stack_index in stack_indices]
+        data = [
+            _read_msr_stack(self.image_paths[index], stack_index)
+            for stack_index in stack_indices
+        ]
+        return np.stack(data, axis=0)
+
+
+class MSRSampleCollectionPerSampleSelection:
+    """
+    Changed SampleCollection that allows to specify stack selection per sample, which is required for
+    dynamic stack selection.
+
+    For some datasets it does not make sense to define stack_index, stack_names globally for all datasets.
+    Because of human error stack order is not the same across samples, so stack index 0 in one sample may correspond to
+    a different stack than stack index 0 in another sample.
+    Stack names in most systems are not defined automatically and people need to type them manually, which
+    can lead to human error. Same for the stack names, sometimes basic spelling can cause the mismatch between
+    global stack_names, e.g. 'Mic60_STED' or 'MIc60_STeD'.
+    Sometimes stack_name also include fluorophore name like 'dsDNA_StarRed_STED {0}', sometimes not.
+
+    Additional bug is when a measurement is started in Abberior software, the measurement file will save all open
+    windows, among others also plots that will have dimensions [N, 1, 1] and usually have "Pop" in the stack name.
+    These stacks also must be excluded.
+    """
+
+    def __init__(
+        self,
+        image_paths: Sequence[PathLike],
+        default_stack_selection: StackIndexSelection = 0,
+    ):
+        self.image_paths = [os.fspath(path) for path in image_paths]
+        # next lines are only done to get dtype of the first sample,
+        # alternately, dtype can be given as an argument to the constructor and these 4 lines deleted.
+        stack_selection = _normalize_stack_indices(default_stack_selection)
+        stack_indices = _resolve_stack_indices_for_path(
+            self.image_paths[0], stack_selection
+        )
+        sample = _read_msr_stack(self.image_paths[0], stack_indices[0])
+        self._dtype = sample.dtype
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def ndim(self):
+        # ndim depend from shape, which is sample-dependent due to dynamic stack selection.
+        return None
+
+    @property
+    def shape(self):
+        # Shape is sample-dependent due to dynamic stack selection.
+        return None
+
+    @property
+    def chunks(self):
+        return None
+
+    @property
+    def size(self):
+        # size depend from shape, which is sample-dependent due to dynamic stack selection.
+        return None
+
+    @property
+    def attrs(self):
+        return {}
+
+    def read_sample(self, index: int, stack_selection: StackSelection) -> np.ndarray:
+        """
+        This function must be called from getitem of MSRDataset, with specified stack_selection.
+        Options:
+            for stack_index selection: tuple of ints of indexes of msr stacks to load.
+            for stack_name selection: tuple of strings of names of msr stacks to load.
+        """
+        img_path = self.image_paths[index]
+        # next function will anyway check if the stack names or indexes are in correct format, dont need to do it here.
+        stack_indices = _resolve_stack_indices_for_path(img_path, stack_selection)
+        data = [_read_msr_stack(img_path, stack_index) for stack_index in stack_indices]
+        if len(data) == 1:
+            return data[0]
         return np.stack(data, axis=0)
 
 
@@ -218,10 +316,16 @@ class MSRDataset:
             sample = msr.read_stack(self.stack_indices[0])
 
         if sample.ndim != 2:
-            raise ValueError(f"Expected a 2D MSR stack from {self.path}, got shape {sample.shape}")
+            raise ValueError(
+                f"Expected a 2D MSR stack from {self.path}, got shape {sample.shape}"
+            )
 
         self._dtype = sample.dtype
-        self._shape = sample.shape if len(self.stack_indices) == 1 else (len(self.stack_indices),) + sample.shape
+        self._shape = (
+            sample.shape
+            if len(self.stack_indices) == 1
+            else (len(self.stack_indices),) + sample.shape
+        )
         self._size = int(np.prod(self._shape))
 
     @property
@@ -263,6 +367,8 @@ class MSRDataset:
         channel_step = 1 if channel_index.step is None else channel_index.step
         data = [
             self._read_stack(stack_index, spatial_index)
-            for stack_index in self.stack_indices[channel_index.start:channel_index.stop:channel_step]
+            for stack_index in self.stack_indices[
+                channel_index.start : channel_index.stop : channel_step
+            ]
         ]
         return squeeze_singletons(np.stack(data, axis=0), to_squeeze).copy()
