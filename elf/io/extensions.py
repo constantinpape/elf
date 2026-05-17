@@ -5,6 +5,7 @@ import numpy as np
 from .image_stack_wrapper import ImageStackFile, ImageStackDataset
 from .knossos_wrapper import KnossosFile, KnossosDataset
 from .mrc_wrapper import MRCFile, MRCDataset
+from .msr_wrapper import MSRFile, MSRDataset
 from .nifti_wrapper import NiftiFile, NiftiDataset
 from .intern_wrapper import InternFile, InternDataset
 
@@ -92,6 +93,14 @@ try:
     register_filetype(InternFile, ["bossdb://"], InternFile, InternDataset)
 except ImportError:
     intern = None
+
+
+# add msr extensions if we have msr-reader
+try:
+    import msr_reader
+    register_filetype(MSRFile, [".msr"], MSRFile, MSRDataset)
+except ImportError:
+    msr_reader = None
 
 # add nifti extensions if we have nibabel
 try:
