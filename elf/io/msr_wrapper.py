@@ -1,6 +1,6 @@
 import os
 from collections.abc import Mapping, Sequence
-from typing import Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 
@@ -41,7 +41,7 @@ def _read_msr_stack(msr_path: PathLike, stack_index: int = 0) -> np.ndarray:
     return image
 
 
-def _normalize_stack_selection(stack_selection: StackSelection) -> tuple[Union[int, str], ...]:
+def _normalize_stack_selection(stack_selection: StackSelection) -> Tuple[Union[int, str], ...]:
     if isinstance(stack_selection, (str, int)):
         return (stack_selection,)
     stack_selection = tuple(stack_selection)
@@ -50,7 +50,7 @@ def _normalize_stack_selection(stack_selection: StackSelection) -> tuple[Union[i
     return stack_selection
 
 
-def _normalize_stack_indices(stack_index: StackIndexSelection = 0) -> tuple[int, ...]:
+def _normalize_stack_indices(stack_index: StackIndexSelection = 0) -> Tuple[int, ...]:
     if isinstance(stack_index, int):
         return (stack_index,)
     stack_index = tuple(stack_index)
@@ -61,7 +61,7 @@ def _normalize_stack_indices(stack_index: StackIndexSelection = 0) -> tuple[int,
     return stack_index
 
 
-def _normalize_stack_names(stack_names: StackNameSelection) -> tuple[str, ...]:
+def _normalize_stack_names(stack_names: StackNameSelection) -> Tuple[str, ...]:
     if isinstance(stack_names, str):
         return (stack_names,)
     stack_names = tuple(stack_names)
@@ -72,7 +72,7 @@ def _normalize_stack_names(stack_names: StackNameSelection) -> tuple[str, ...]:
     return stack_names
 
 
-def _resolve_stack_indices(msr, stack_selection: StackSelection) -> tuple[int, ...]:
+def _resolve_stack_indices(msr, stack_selection: StackSelection) -> Tuple[int, ...]:
     resolved = []
     for stack in _normalize_stack_selection(stack_selection):
         if isinstance(stack, int):
@@ -82,14 +82,14 @@ def _resolve_stack_indices(msr, stack_selection: StackSelection) -> tuple[int, .
     return tuple(resolved)
 
 
-def _get_msr_stack_shape(msr_path: PathLike, stack_selection: StackSelection = 0) -> tuple[int, int]:
+def _get_msr_stack_shape(msr_path: PathLike, stack_selection: StackSelection = 0) -> Tuple[int, int]:
     _require_msr_reader()
     with OBFFile(os.fspath(msr_path)) as msr:
         stack_index = _resolve_stack_indices(msr, stack_selection)[0]
     return tuple(_read_msr_stack(msr_path, stack_index=stack_index).shape)
 
 
-def _resolve_stack_indices_for_path(msr_path: PathLike, stack_selection: StackSelection) -> tuple[int, ...]:
+def _resolve_stack_indices_for_path(msr_path: PathLike, stack_selection: StackSelection) -> Tuple[int, ...]:
     _require_msr_reader()
     with OBFFile(os.fspath(msr_path)) as msr:
         return _resolve_stack_indices(msr, stack_selection)
@@ -99,16 +99,16 @@ class MSRSampleCollection:
     """Collection-like helper for loading one sample per MSR file.
 
     Each MSR file in image_paths is treated as one sample. Stacks to load are specified globally
-    via stack_index (integer | tuple[int]) or stack_names (str | tuple[str]);
+    via stack_index (integer | Sequence[int]) or stack_names (str | Sequence[str]);
     these are mutually exclusive. The resolved selection is stored as self.stack_selection and used
     by default in read_sample.
 
-    dtype and shape are inferred by loading the first file unless provided explicitly.
+    dtype and shape are inferred by loading the first file unless both are provided explicitly.
 
     For datasets where stack order or naming is inconsistent across files, read_sample accepts a
     per-call stack_selection that overrides self.stack_selection for that single read. This covers
     the case where e.g. channel 0 in one file is a different marker than channel 0 in another, or
-    where stack names contain typos or extra suffix that differ per file.
+    where stack names contain typos or extra suffixes that differ per file.
 
     Args:
         image_paths: Paths to the .msr files.
@@ -120,7 +120,10 @@ class MSRSampleCollection:
             For a single stack this is (H, W); for multiple stacks it is (C, H, W).
 
     Note:
-        'ndim' and 'shape' properties may cause errors in case of inconsistent 'stack_selection' across files.
+        When read_sample is called with a stack_selection that selects a different number of
+        channels than the constructor, the returned array shape will not match self.shape.
+        Similarly, if dtype or shape are provided explicitly but do not match the actual file
+        contents, self.dtype and self.shape will silently diverge from what read_sample returns.
     """
 
     def __init__(
@@ -128,8 +131,8 @@ class MSRSampleCollection:
         image_paths: Sequence[PathLike],
         stack_index: StackIndexSelection = 0,
         stack_names: StackNameSelection | None = None,
-        dtype=None,
-        shape=None,
+        dtype: Optional[np.dtype] = None,
+        shape: Optional[Tuple[int, ...]] = None,
     ):
         self.image_paths = [os.fspath(path) for path in image_paths]
         if stack_names is not None and stack_index != 0:
@@ -174,18 +177,18 @@ class MSRSampleCollection:
     def attrs(self):
         return {}
 
-    def read_sample(self, index: int, stack_selection: StackSelection = None) -> np.ndarray:
+    def read_sample(self, index: int, stack_selection: Optional[StackSelection] = None) -> np.ndarray:
         """Load one sample from image_paths[index].
 
         Args:
             index: Position in image_paths to read.
             stack_selection: Optional override for which stacks to load from this specific file.
-                Accepts the same forms as the constructor (tuple[int] or tuple[str]).
-                When provided, self.stack_selection is ignored entirely for this call. Useful when stack order or
-                names differ per file.
+                Accepts the same forms as the constructor (int, str, or sequences thereof).
+                When provided, self.stack_selection is ignored for this call. Useful when stack
+                order or names differ per file.
 
         Returns:
-            numpy array of shape [H, W] single stack, or [C, H, W] for multiple stacks.
+            numpy array of shape (H, W) for a single stack, or (C, H, W) for multiple stacks.
         """
         selection = self.stack_selection if stack_selection is None else stack_selection
         stack_indices = _resolve_stack_indices_for_path(self.image_paths[index], selection)
@@ -310,6 +313,6 @@ class MSRDataset:
         channel_step = 1 if channel_index.step is None else channel_index.step
         data = [
             self._read_stack(stack_index, spatial_index)
-            for stack_index in self.stack_indices[channel_index.start : channel_index.stop : channel_step]
+            for stack_index in self.stack_indices[channel_index.start:channel_index.stop:channel_step]
         ]
         return squeeze_singletons(np.stack(data, axis=0), to_squeeze).copy()
