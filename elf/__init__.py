@@ -47,4 +47,13 @@ Example scripts for many of `elf`'s features can be found in [example](https://g
 - `view_container`: Visualize the content of any file supported by `elf.io` with napari.
 """
 
+import warnings
 from .__version__ import __version__
+
+warnings.warn(
+    "elf will switch to from affogato, vigra, and nifty to"
+    "https://github.com/computational-cell-analytics/bioimage-cpp as new backed for custom functionality"
+    "implemented in C++, e.g. mutex watershed or multicut etc. This may lead to some changes in behavior and"
+    "interface. If you rely on elf you may want to consider pinning it to a version < 0.9",
+    FutureWarning, stacklevel=2
+)
