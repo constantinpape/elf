@@ -66,37 +66,27 @@ def deserialize_multiset(serialization: np.ndarray, shape: Tuple[int, ...]) -> L
     data = serialization[next_pos:]
     assert byte_offsets[-1] < len(data)
 
-    def deserialize_entry(entry):
-        n_elements, entry = entry[:4], entry[4:]
-        n_elements = struct.unpack('<i', n_elements)[0]
-        byte_len = len(entry)
-        assert byte_len % 12 == 0, str(byte_len)
-        assert n_elements == byte_len // 12
+    data_offsets = np.concatenate(
+        [byte_offsets, np.array([len(data)], dtype=byte_offsets.dtype)]
+    ).astype(np.int64)
 
-        # extract the ids and counts
-        entry = entry.reshape((n_elements, 12))
-        ids = entry[:, :8].flatten()
-        ids = np.frombuffer(ids.tobytes(), dtype="<q")
-        counts = entry[:, 8:].flatten()
-        counts = np.frombuffer(counts.tobytes(), dtype="<i")
-        return ids, counts
+    # each entry is laid out as: 4-byte <i n_elements header, then n_elements * 12 bytes
+    # of (8-byte <q id, 4-byte <i count). Derive n_elements per entry from byte lengths.
+    entry_byte_lens = np.diff(data_offsets)
+    n_per_entry = (entry_byte_lens - 4) // 12
+    total_elements = int(n_per_entry.sum())
 
-    data_offsets = np.concatenate([byte_offsets, np.array([len(data)], dtype=byte_offsets.dtype)])
-    # TODO vectorize
-    ids, counts = [], []
-    entry_offsets = []
-    for beg, end in zip(data_offsets[:-1], data_offsets[1:]):
-        mids, mcounts = deserialize_entry(data[beg:end])
-        ids.extend(mids)
-        counts.extend(mcounts)
-        entry_offsets.append(len(mids))
+    # build a boolean mask over `data` that hides the 4-byte header of each entry,
+    # leaving a contiguous sequence of element records to reinterpret.
+    header_idx = (data_offsets[:-1, None] + np.arange(4)[None, :]).ravel()
+    keep_mask = np.ones(len(data), dtype=bool)
+    keep_mask[header_idx] = False
+    records = data[keep_mask].reshape(total_elements, 12)
+    ids = np.frombuffer(records[:, :8].tobytes(), dtype="<q").astype("uint64")
+    counts = np.frombuffer(records[:, 8:].tobytes(), dtype="<i").astype("int32")
 
-    ids = np.array(ids, dtype="uint64")
-    counts = np.array(counts, dtype="int32")
-
-    # compute the set offsets from bye offsets and entry offsets
-    entry_offsets = np.concatenate([np.array([0]), entry_offsets[:-1]])
-    entry_offsets = np.cumsum(entry_offsets)
+    # compute the set offsets from byte offsets and per-entry element counts
+    entry_offsets = np.concatenate([np.array([0], dtype=np.int64), np.cumsum(n_per_entry)[:-1]])
     assert len(entry_offsets) == len(data_offsets) - 1
     offsets = entry_offsets[inverse_offsets]
 
