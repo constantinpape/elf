@@ -124,8 +124,8 @@ def add_plate_layout(
         xmax, ymax = get_world_position(
             well_x + 1, well_y + 1, 0, well_shape, well_spacing, site_spacing, shape
         )[-2:]
-        xmin -= well_spacing // 2
-        ymin -= well_spacing // 2
+        xmax += well_spacing // 2
+        ymax += well_spacing // 2
 
         well_boxes.append(np.array([[xmin, ymin], [xmax, ymax]]))
     _add_layout(viewer, "wells", well_names, well_boxes, well_spacing // 2,
@@ -178,7 +178,7 @@ def view_plate(
         well_shape: the 2D shape of a well in terms of images, if not given will be derived.
             Well shape can only be derived for square wells and must be passed otherwise.
         zero_based: Whether the well indexing is zero-based.
-        well_sources: Spacing between wells, in pixels.
+        well_spacing: Spacing between wells, in pixels.
         site_spacing: Spacing between sites, in pixels.
         show: Whether to show the viewer.
 
