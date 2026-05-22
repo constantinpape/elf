@@ -3,7 +3,7 @@ from functools import partial
 import numba
 import numpy as np
 
-from ..evaluation.dice import _best_dice_nifty
+from ..evaluation.dice import _best_dice_bic
 from ..evaluation.matching import _compute_scores
 from ..evaluation.variation_of_information import object_vi
 
@@ -107,7 +107,7 @@ def dice_scoring(segmentation, groundtruth):
     """@private
     """
     object_ids = np.unique(segmentation)
-    scores = _best_dice_nifty(segmentation, groundtruth, average_scores=False)
+    scores = _best_dice_bic(segmentation, groundtruth, average_scores=False)
     scores = np.concatenate([np.array([0.0]), scores], axis=0)
     assert len(scores) == len(object_ids), f"{len(scores)}, {len(object_ids)}"
     scores = {k: v for k, v in zip(object_ids, scores)}

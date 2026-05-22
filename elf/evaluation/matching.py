@@ -153,7 +153,7 @@ def matching(
     groundtruth: np.ndarray,
     threshold: float = 0.5,
     criterion: str = "iou",
-    ignore_label: int = 0,
+    ignore_label: Optional[int] = 0,
 ) -> Dict[str, float]:
     """Compute scores from matching objects in segmentation and groundtruth.
 
@@ -190,7 +190,7 @@ def mean_segmentation_accuracy(
     groundtruth: np.ndarray,
     thresholds: Optional[List[float]] = None,
     return_accuracies: bool = False,
-    ignore_label: int = 0,
+    ignore_label: Optional[int] = 0,
 ) -> Union[float, Tuple[float, List[float]]]:
     """Compute the mean segmentation accuracy metrics for comparing two segmentation results.
 

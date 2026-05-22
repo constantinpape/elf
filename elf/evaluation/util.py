@@ -1,7 +1,7 @@
 from typing import Dict, Tuple
 
 import numpy as np
-import nifty.ground_truth as ngt
+import bioimage_cpp as bic
 
 
 def contigency_table(
@@ -23,25 +23,16 @@ def contigency_table(
         The pairs in the contigency table, giving first the id in seg_a and then the one in seg_b.
         The overlap count in the contigency table.
     """
-    # compute the unique ids and couunts for seg a and seg b
-    # and wrap them in a dict
-    a_ids, a_counts = np.unique(seg_a, return_counts=True)
-    b_ids, b_counts = np.unique(seg_b, return_counts=True)
-    a_dict = dict(zip(a_ids, a_counts.astype("float64")))
-    b_dict = dict(zip(b_ids, b_counts.astype("float64")))
+    overlap = bic.utils.segmentation_overlap(seg_a, seg_b)
 
-    # compute the overlaps and overlap counts
-    # use nifty gt functionality
-    ovlp_comp = ngt.overlap(seg_a, seg_b)
-    ovlps = [ovlp_comp.overlapArrays(ida, sorted=False) for ida in a_ids]
-    p_ids = np.array([[ida, idb] for ida, ovlp in zip(a_ids, ovlps) for idb in ovlp[0]])
-    p_counts = np.concatenate([ovlp[1] for ovlp in ovlps]).astype("float64")
-    assert len(p_ids) == len(p_counts)
+    counts_a = overlap.counts_a_table()
+    counts_b = overlap.counts_b_table()
+    a_dict = {int(lab): float(cnt) for lab, cnt in zip(counts_a["label"], counts_a["count"])}
+    b_dict = {int(lab): float(cnt) for lab, cnt in zip(counts_b["label"], counts_b["count"])}
 
-    # this is the alternative (naive) numpy impl, unfortunately this is very slow and
-    # needs a lot of memory
-    # pairs = np.concatenate((seg_a[:, None], seg_b[:, None]), axis=1)
-    # p_ids_, p_counts_ = np.unique(pairs, return_counts=True, axis=0)
+    table = overlap.overlap_table()
+    p_ids = np.stack([table["label_a"], table["label_b"]], axis=1)
+    p_counts = table["count"].astype("float64")
 
     return a_dict, b_dict, p_ids, p_counts
 
