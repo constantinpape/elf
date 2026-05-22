@@ -102,7 +102,6 @@ def write_swc(
     # radius (hard-coded to 0.0 here)
     # parent id
 
-    # Implement in numba (can it handle nifty? otherwise use different graph impl)?
     with open(output_path, "w") as f:
         for node_id in range(n_nodes):
 
