@@ -1,4 +1,4 @@
-import nifty.tools as nt
+import bioimage_cpp as bic
 from ..util import normalize_index
 
 
@@ -55,5 +55,5 @@ def get_blocking(data, block_shape, roi, n_threads):
                     "Please choose a chunk-aligned roi or run single threaded."
                 )
 
-    blocking = nt.blocking(roi_begin, roi_end, block_shape)
+    blocking = bic.utils.Blocking(list(roi_begin), list(roi_end), list(block_shape))
     return blocking

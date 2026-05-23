@@ -6,9 +6,9 @@ import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
 
+import bioimage_cpp as bic
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy.ndimage import distance_transform_edt
 from tqdm import tqdm
 
 from .common import get_blocking
@@ -49,9 +49,9 @@ def map_points_to_objects(
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def map_block(block_id):
         if halo is None:
-            block = blocking.getBlockWithHalo(block_id, list(halo))
+            block = blocking.get_block(block_id)
         else:
-            block = blocking.getBlockWithHalo(block_id, list(halo)).outerBlock
+            block = blocking.get_block_with_halo(block_id, list(halo)).outer_block
 
         # Get the bounding box and map the points to it.
         bb_min, bb_max = block.begin, block.end
@@ -78,7 +78,9 @@ def map_points_to_objects(
             object_distances = np.full(len(point_ids), np.inf, "float32")
             return point_ids, object_ids, object_distances
 
-        distances, indices = distance_transform_edt(block_seg == 0, sampling=sampling, return_indices=True)
+        distances, indices = bic.distance.distance_transform(
+            block_seg == 0, sampling=sampling, return_distances=True, return_indices=True, number_of_threads=1,
+        )
 
         # Index with the points and return their mapped objects and distances.
         point_coords = tuple(block_points[:, i] for i in range(block_points.shape[1]))
@@ -91,7 +93,7 @@ def map_points_to_objects(
         assert len(point_ids) == len(object_ids)
         return point_ids, object_ids, object_distances
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
         results = list(tqdm(
             tp.map(map_block, range(n_blocks)), total=n_blocks,
@@ -144,12 +146,12 @@ def distance_transform(
     """Compute distance transform in parallel over blocks.
 
     The results are only correct up to the distance to the block boundary plus halo.
-    The function `scipy.ndimage.distance_transform_edt` is used to compute the distances.
+    The function `bioimage_cpp.distance.distance_transform` is used to compute the distances.
 
     Args:
         data: The input data.
         halo: The halo, which is the padding added at each side of the block.
-        sampling: The sampling value passed to distance_transfor_edt.
+        sampling: The sampling value passed to distance_transform.
         return_distances: Whether to return the computed distances.
         return_indices: Whether to return the computed indices.
         distances: Pre-allocated array-like object for the distances.
@@ -182,18 +184,19 @@ def distance_transform(
 
     if return_indices:
         if indices is None:
-            indices = np.zeros((data.ndim,) + data.shape, dtype="int64")
+            indices = np.zeros((data.ndim,) + data.shape, dtype="int32")
         else:
             assert indices.shape == (data.ndim,) + data.shape
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def dist_block(block_id):
-        block = blocking.getBlockWithHalo(block_id, list(halo))
-        outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin, block.outerBlock.end))
+        block = blocking.get_block_with_halo(block_id, list(halo))
+        outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outer_block.begin, block.outer_block.end))
         block_data = data[outer_bb]
 
-        ret_edt = distance_transform_edt(
-            block_data, sampling=sampling, return_distances=return_distances, return_indices=return_indices
+        ret_edt = bic.distance.distance_transform(
+            block_data, sampling=sampling, return_distances=return_distances,
+            return_indices=return_indices, number_of_threads=1,
         )
         if return_distances and return_indices:
             dist, ind = ret_edt
@@ -202,14 +205,16 @@ def distance_transform(
         else:
             ind = ret_edt
 
-        inner_bb = tuple(slice(beg, end) for beg, end in zip(block.innerBlock.begin, block.innerBlock.end))
-        local_bb = tuple(slice(beg, end) for beg, end in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end))
+        inner_bb = tuple(slice(beg, end) for beg, end in zip(block.inner_block.begin, block.inner_block.end))
+        local_bb = tuple(
+            slice(beg, end) for beg, end in zip(block.inner_block_local.begin, block.inner_block_local.end)
+        )
 
         if return_distances:
             distances[inner_bb] = dist[local_bb]
 
         if return_indices:
-            offset = np.array([begin for begin in block.outerBlock.begin])
+            offset = np.array([begin for begin in block.outer_block.begin])
             slice_nd = np.s_[:, None, None] if data.ndim == 2 else np.s_[:, None, None, None]
             offset = offset[slice_nd]
 
@@ -217,7 +222,7 @@ def distance_transform(
             ind = ind[local_bb] + offset
             indices[inner_bb] = ind
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(
             tp.map(dist_block, range(n_blocks)), total=n_blocks,

@@ -3,8 +3,9 @@ import multiprocessing
 from concurrent import futures
 from typing import Optional, Tuple
 
+import bioimage_cpp as bic
+import numpy as np
 from numpy.typing import ArrayLike
-from skimage.segmentation import watershed
 from tqdm import tqdm
 
 from elf.parallel.common import get_blocking
@@ -42,15 +43,15 @@ def seeded_watershed(
     blocking = get_blocking(hmap, block_shape, roi, n_threads)
 
     def process_block(block_id):
-        block = blocking.getBlockWithHalo(block_id, list(halo))
+        block = blocking.get_block_with_halo(block_id, list(halo))
 
         outer_bb = tuple(slice(
             beg, end
-        ) for beg, end in zip(block.outerBlock.begin, block.outerBlock.end))
+        ) for beg, end in zip(block.outer_block.begin, block.outer_block.end))
 
         local_bb = tuple(slice(
             beg, end
-        ) for beg, end in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end))
+        ) for beg, end in zip(block.inner_block_local.begin, block.inner_block_local.end))
 
         if mask is not None:
             block_mask = mask[outer_bb]
@@ -61,15 +62,20 @@ def seeded_watershed(
             block_mask = None
 
         block_hmap, block_seeds = hmap[outer_bb], seeds[outer_bb]
-        ws = watershed(block_hmap, block_seeds, mask=block_mask)
+        # bic.segmentation.watershed requires float32/float64 hmap and integer markers
+        if block_hmap.dtype not in (np.float32, np.float64):
+            block_hmap = block_hmap.astype("float32")
+        if block_seeds.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
+            block_seeds = block_seeds.astype("uint32")
+        ws = bic.segmentation.watershed(block_hmap, block_seeds, mask=block_mask)
 
         inner_bb = tuple(slice(
             beg, end
-        ) for beg, end in zip(block.innerBlock.begin, block.innerBlock.end))
+        ) for beg, end in zip(block.inner_block.begin, block.inner_block.end))
 
         out[inner_bb] = ws[local_bb]
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(
             tp.map(process_block, range(n_blocks)), total=n_blocks, desc="Seeded watershed", disable=not verbose

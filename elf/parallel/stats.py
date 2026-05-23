@@ -39,11 +39,11 @@ def mean(
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _mean(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # check if we have a mask and if we do if we
@@ -58,13 +58,15 @@ def mean(
         if mask is not None:
             d = d[m]
 
-        return np.mean(d)
+        return np.mean(d), d.size
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
-        means = list(tqdm(tp.map(_mean, range(n_blocks)), total=n_blocks, disable=not verbose))
-    means = [m for m in means if m is not None]
+        results = list(tqdm(tp.map(_mean, range(n_blocks)), total=n_blocks, disable=not verbose))
+    results = [res for res in results if res is not None]
 
-    return np.mean(means)
+    means = np.array([res[0] for res in results])
+    sizes = np.array([res[1] for res in results])
+    return (sizes * means).sum() / sizes.sum()
 
 
 def mean_and_std(
@@ -93,11 +95,11 @@ def mean_and_std(
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _mean_and_std(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # check if we have a mask and if we do if we
@@ -125,7 +127,7 @@ def mean_and_std(
     variances = np.array([res[1] for res in results])
     sizes = np.array([res[2] for res in results])
 
-    mean_val = np.mean(means)
+    mean_val = (sizes * means).sum() / sizes.sum()
     # compute the new variance value and the new standard deviation
     var_val = (sizes * (variances + (means - mean_val) ** 2)).sum() / sizes.sum()
     std_val = np.sqrt(var_val)
@@ -183,11 +185,11 @@ def min_and_max(
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _min_and_max(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # check if we have a mask and if we do if we

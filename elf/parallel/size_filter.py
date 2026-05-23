@@ -6,7 +6,7 @@ import multiprocessing
 from concurrent import futures
 from typing import Optional, Tuple
 
-import nifty.tools as nt
+from bioimage_cpp.utils import take_dict
 from tqdm import tqdm
 
 from .common import get_blocking
@@ -46,10 +46,10 @@ def segmentation_filter(
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     def apply_filter(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         if mask is None:
@@ -130,13 +130,13 @@ def size_filter(
             if block_mask is None or block_mask.sum() == block_mask.size:
                 ids_in_block = np.unique(seg)
                 mapping_block = {idx: mapping[idx] for idx in ids_in_block}
-                relabeled = nt.takeDict(mapping_block, seg)
+                relabeled = take_dict(mapping_block, seg)
             else:
                 seg_in_mask = seg[block_mask]
                 ids_in_block = np.unique(seg_in_mask)
                 mapping_block = {idx: mapping[idx] for idx in ids_in_block}
                 relabeled = seg.copy()
-                relabeled[block_mask] = nt.takeDict(mapping_block, seg_in_mask)
+                relabeled[block_mask] = take_dict(mapping_block, seg_in_mask)
             return relabeled
 
     else:

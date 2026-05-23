@@ -42,11 +42,11 @@ def unique(
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _unique(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # check if we have a mask and if we do if we

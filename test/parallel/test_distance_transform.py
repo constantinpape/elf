@@ -56,6 +56,39 @@ class TestDistanceTransform(unittest.TestCase):
         )
         self._check_result_with_indices(data, distances, indices, tolerance)
 
+    def test_map_points_to_objects(self):
+        from elf.parallel.distance_transform import map_points_to_objects
+        from skimage.measure import label as label_reference
+
+        rng = np.random.default_rng(seed=7)
+        size = 128
+        blobs = binary_blobs(length=size, n_dim=2, volume_fraction=0.3, rng=11)
+        segmentation = label_reference(blobs).astype("uint32")
+
+        # Sample random points within the image bounds.
+        n_points = 20
+        points = rng.integers(0, size, size=(n_points, 2))
+
+        halo = (24, 24)
+        object_ids, object_distances = map_points_to_objects(
+            segmentation, points, block_shape=(64, 64), halo=halo, n_threads=2,
+        )
+
+        # Ground truth: compute the global distance transform once and look up per point.
+        bg_distances, bg_indices = distance_transform_edt(segmentation == 0, return_indices=True)
+        expected_ids = np.zeros(n_points, dtype=segmentation.dtype)
+        expected_dists = np.zeros(n_points, dtype="float32")
+        for i, p in enumerate(points):
+            expected_dists[i] = bg_distances[tuple(p)]
+            expected_ids[i] = segmentation[tuple(bg_indices[:, p[0], p[1]])]
+
+        # Points outside the halo distance to the nearest object may not be reached;
+        # restrict comparison to points within the halo distance.
+        max_halo_distance = min(halo)
+        within_halo = expected_dists <= max_halo_distance
+        self.assertTrue(np.all(object_ids[within_halo] == expected_ids[within_halo]))
+        self.assertTrue(np.allclose(object_distances[within_halo], expected_dists[within_halo]))
+
 
 if __name__ == "__main__":
     unittest.main()

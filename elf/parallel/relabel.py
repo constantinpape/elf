@@ -7,7 +7,7 @@ import multiprocessing
 from concurrent import futures
 from typing import Dict, Optional, Tuple
 
-import nifty.tools as nt
+from bioimage_cpp.utils import take_dict
 from tqdm import tqdm
 
 from .unique import unique
@@ -50,7 +50,7 @@ def relabel_consecutive(
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(data, block_shape, roi, n_threads)
-    block_shape = blocking.blockShape
+    block_shape = blocking.block_shape
 
     unique_values = unique(data, block_shape=block_shape,
                            mask=mask, n_threads=n_threads)
@@ -59,7 +59,7 @@ def relabel_consecutive(
         mapping[0] = 0
     max_id = len(mapping) - 1
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     if out is None:
         out = data
     elif data.shape != out.shape:
@@ -68,7 +68,7 @@ def relabel_consecutive(
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _relabel(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # check if we have a mask and if we do if we
@@ -82,13 +82,13 @@ def relabel_consecutive(
         if mask is None or m.sum() == m.size:
             un_block = np.unique(d)
             mapping_block = {un: mapping[un] for un in un_block}
-            o = nt.takeDict(mapping_block, d)
+            o = take_dict(mapping_block, d)
         else:
             v = d[m]
             un_block = np.unique(v)
             mapping_block = {un: mapping[un] for un in un_block}
             o = d.copy()
-            o[m] = nt.takedDict(mapping_block, v)
+            o[m] = take_dict(mapping_block, v)
         out[bb] = o
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
