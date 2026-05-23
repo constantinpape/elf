@@ -48,7 +48,6 @@ class TestMutexWatershed(unittest.TestCase):
         shape = (10, 256, 256)
         aff_shape = (9,) + shape
         affs = np.random.rand(*aff_shape).astype("float32")
-        # TODO non-trivial seeds
         seeds = np.zeros(shape, dtype="uint64")
 
         offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1],
@@ -59,7 +58,29 @@ class TestMutexWatershed(unittest.TestCase):
         self.assertEqual(seg.shape, shape)
         # make sure the segmentation is not trivial
         self.assertGreater(len(np.unique(seg)), 10)
-        # TODO check that seeds were actually taken into account
+
+    def test_mutex_watershed_with_seeds_non_trivial(self):
+        from elf.segmentation.mutex_watershed import mutex_watershed_with_seeds
+        rng = np.random.default_rng(42)
+        shape = (4, 64, 64)
+        aff_shape = (6,) + shape
+        affs = rng.random(aff_shape).astype("float32")
+        seeds = np.zeros(shape, dtype="uint64")
+        # tag two spatially separated regions with the same seed id; the seeded mws
+        # must merge them despite low affinity.
+        seeds[0, 0, 0] = 1
+        seeds[0, 20, 20] = 1
+        seeds[0, 50, 50] = 2
+
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1],
+                   [-2, 0, 0], [0, -2, 0], [0, 0, -2]]
+        strides = [2, 2, 2]
+        seg = mutex_watershed_with_seeds(affs, offsets, seeds, strides, False)
+        self.assertEqual(seg.shape, shape)
+        # the two seed-1 pixels must end up in the same segment
+        self.assertEqual(int(seg[0, 0, 0]), int(seg[0, 20, 20]))
+        # and the seed-2 pixel must be in a different one
+        self.assertNotEqual(int(seg[0, 0, 0]), int(seg[0, 50, 50]))
 
     def test_semantic_mutex_watershed(self):
         from elf.segmentation.mutex_watershed import semantic_mutex_watershed
@@ -107,8 +128,16 @@ class TestMutexWatershed(unittest.TestCase):
         self.assertTrue(np.allclose(np.unique(semantic), np.arange(n_classes)))
 
     def test_blockwise_mutex_watershed(self):
-        # from elf.segmentation.mutex_watershed import blockwise_mutex_watershed
-        pass
+        from elf.segmentation.mutex_watershed import blockwise_mutex_watershed
+        shape = (8, 64, 64)
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1],
+                   [-3, 0, 0], [0, -3, 0], [0, 0, -3]]
+        affs = np.random.rand(len(offsets), *shape).astype("float32")
+        strides = [2, 2, 2]
+        block_shape = (4, 32, 32)
+        seg = blockwise_mutex_watershed(affs, offsets, strides, block_shape)
+        self.assertEqual(seg.shape, shape)
+        self.assertGreater(len(np.unique(seg)), 1)
 
 
 if __name__ == "__main__":

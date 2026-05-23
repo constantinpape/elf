@@ -1,7 +1,7 @@
 import unittest
 
+import bioimage_cpp as bic
 import numpy as np
-import nifty.tools as nt
 from skimage.data import binary_blobs
 from skimage.measure import label
 
@@ -20,13 +20,13 @@ class TestStitching(unittest.TestCase):
         # Create tiles out of the data for testing label stitching.
         # Ensure offset for objects per tile to get individual ids per object per tile.
         # And finally stitch back the tiles.
-        blocking = nt.blocking([0] * ndim, data.shape, tile_shape)
-        n_blocks = blocking.numberOfBlocks
+        blocking = bic.utils.Blocking([0] * ndim, list(data.shape), list(tile_shape))
+        n_blocks = blocking.number_of_blocks
 
         labels = np.zeros(data.shape)
         offset = 0
         for tile_id in range(n_blocks):
-            block = blocking.getBlock(tile_id)
+            block = blocking.get_block(tile_id)
             bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
             tile = data[bb]
@@ -84,6 +84,36 @@ class TestStitching(unittest.TestCase):
             expected_segmentation = _segment(data)
             segmentation = stitch_segmentation(data, _segment, tile_shape, tile_overlap, verbose=False)
             self._check_result(segmentation, expected_segmentation, rtol=0.1, atol=0.1)
+
+    def test_stitch_segmentation_with_return_before(self):
+        from elf.segmentation.stitching import stitch_segmentation
+
+        def _segment(input_, block_id=None):
+            return label(input_).astype("uint32")
+
+        data = self.get_data(size=256)
+        stitched, pre = stitch_segmentation(
+            data, _segment, tile_shape=(128, 128), tile_overlap=(16, 16),
+            verbose=False, return_before_stitching=True,
+        )
+        self.assertEqual(stitched.shape, data.shape)
+        self.assertEqual(pre.shape, data.shape)
+
+    def test_stitch_segmentation_no_background(self):
+        from elf.segmentation.stitching import stitch_segmentation
+
+        def _segment(input_, block_id=None):
+            # ensure no background: shift labels so even empty regions get a class
+            return (label(input_).astype("uint32") + 1)
+
+        data = self.get_data(size=256)
+        stitched = stitch_segmentation(
+            data, _segment, tile_shape=(128, 128), tile_overlap=(16, 16),
+            verbose=False, with_background=False,
+        )
+        self.assertEqual(stitched.shape, data.shape)
+        # without background, no zeros expected in the stitched output
+        self.assertNotIn(0, stitched)
 
     def test_stitch_tiled_segmentation(self):
         from elf.segmentation.stitching import stitch_tiled_segmentation

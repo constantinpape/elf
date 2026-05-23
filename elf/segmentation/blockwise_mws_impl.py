@@ -1,11 +1,8 @@
 import multiprocessing
 from concurrent import futures
 
+import bioimage_cpp as bic
 import numpy as np
-import nifty.tools as nt
-
-from affogato.segmentation import compute_mws_segmentation
-from vigra.analysis import relabelConsecutive
 
 from . import features
 from . import multicut
@@ -16,8 +13,8 @@ def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
     """
 
     def edges_from_face(lower_block_id, upper_block_id, axis):
-        lower_block = blocking.getBlock(lower_block_id)
-        upper_block = blocking.getBlock(upper_block_id)
+        lower_block = blocking.get_block(lower_block_id)
+        upper_block = blocking.get_block(upper_block_id)
 
         lower_face = tuple(slice(beg, end) if d != axis else slice(end - 1, end)
                            for d, (beg, end) in enumerate(zip(lower_block.begin,
@@ -44,11 +41,11 @@ def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
         return edge_ids
 
     stitch_edges = []
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     # parallelize ?
     for block_id in range(n_blocks):
         for axis in range(3):
-            ngb_id = blocking.getNeighborId(block_id, axis, lower=True)
+            ngb_id = blocking.get_neighbor_id(block_id, axis, lower=True)
             if ngb_id == -1:
                 continue
 
@@ -83,11 +80,11 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
 
     # TODO with halo ?
     # 1.) run mutex watersheds on the blocks in parallel
-    blocking = nt.blocking([0, 0, 0], shape, block_shape)
-    n_blocks = blocking.numberOfBlocks
+    blocking = bic.utils.Blocking([0, 0, 0], list(shape), list(block_shape))
+    n_blocks = blocking.number_of_blocks
 
     def mws_block(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         bb_affs = (slice(None),) + bb
@@ -98,12 +95,13 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
             affs_ += noise_level * np.random.rand(*affs_.shape)
         affs_[:ndim] *= -1
         affs_[:ndim] += 1
-        seg = compute_mws_segmentation(affs_, offsets,
-                                       number_of_attractive_channels=ndim,
-                                       strides=strides, mask=mask_,
-                                       randomize_strides=randomize_strides)
-        max_id = relabelConsecutive(seg, out=seg, start_label=1, keep_zeros=mask is not None)[1]
-        segmentation[bb] = seg
+        seg = bic.segmentation.mutex_watershed(
+            np.ascontiguousarray(affs_, dtype="float32"), list(offsets),
+            number_of_attractive_channels=ndim,
+            strides=list(strides), mask=mask_, randomized_strides=randomize_strides,
+        )
+        max_id = int(seg.max())
+        segmentation[bb] = seg.astype("uint64", copy=False)
         return max_id
 
     with futures.ThreadPoolExecutor(n_threads) as tp:
@@ -118,7 +116,7 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
     id_offsets = np.cumsum(id_offsets)
 
     def apply_offset(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
         if mask is None:
             segmentation[bb] += id_offsets[block_id]
@@ -133,7 +131,7 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
 
     # 3.) compute rag, features and block edges (if specified)
     rag = features.compute_rag(segmentation, n_threads=n_threads)
-    edge_feats = features.compute_affinity_features(rag, affs, offsets,
+    edge_feats = features.compute_affinity_features(rag, segmentation, affs, offsets,
                                                     n_threads=n_threads)
     costs, sizes = edge_feats[:, 0], edge_feats[:, -1]
     # normalize the sizes by the number of affinities
@@ -160,5 +158,5 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
     node_labels = solver(rag, costs)
 
     # 5.) project multicut results back to segmentation
-    segmentation = features.project_node_labels_to_pixels(rag, node_labels, n_threads)
+    segmentation = features.project_node_labels_to_pixels(rag, segmentation, node_labels, n_threads)
     return segmentation

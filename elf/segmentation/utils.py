@@ -4,14 +4,12 @@ from shutil import move
 from typing import Optional, Tuple
 from zipfile import ZipFile
 
+import bioimage_cpp as bic
 import h5py
+import nifty  # noqa: F401 — kept for load_multicut_problem (out-of-scope multicut code expects nifty graphs)
 import numpy as np
-import nifty
-import nifty.ground_truth as ngt
-import nifty.ufd as nufd
 import pandas as pd
 from scipy.ndimage import convolve, distance_transform_edt
-from vigra.analysis import relabelConsecutive
 
 
 #
@@ -105,6 +103,8 @@ def load_multicut_problem(
     problem = np.genfromtxt(path)
     uv_ids = problem[:, :2].astype("uint64")
     n_nodes = int(uv_ids.max()) + 1
+    # The returned graph is consumed by the (still-nifty) multicut solver hierarchy,
+    # so we keep the nifty graph type here intentionally.
     graph = nifty.graph.undirectedGraph(n_nodes)
     graph.insertEdges(uv_ids)
     costs = problem[:, -1].astype("float32")
@@ -122,13 +122,14 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=
 
     # component analysis
     merge_edges = costs > cost_threshold
-    ufd = nufd.ufd(n_nodes)
+    ufd = bic.utils.UnionFind(int(n_nodes))
     uv_ids = graph.uvIds()
-    ufd.merge(uv_ids[merge_edges])
-    cc_labels = ufd.elementLabeling()
-    cc_labels, max_id, _ = relabelConsecutive(cc_labels, start_label=0,
-                                              keep_zeros=False)
-    n_components = max_id + 1
+    if merge_edges.any():
+        ufd.merge(uv_ids[merge_edges].astype("uint64"))
+    cc_labels = ufd.element_labeling()
+    cc_labels, _, _ = bic.segmentation.relabel_sequential(cc_labels + 1, offset=1)
+    cc_labels -= 1
+    n_components = int(cc_labels.max()) + 1
     _, component_sizes = np.unique(cc_labels, return_counts=True)
     component_sizes = np.sort(component_sizes)[::-1]
     topk_rel_sizes = component_sizes[:topk].astype("float32") / n_nodes
@@ -197,14 +198,11 @@ def compute_maximum_label_overlap(seg_a: np.ndarray, seg_b: np.ndarray, ignore_z
     ids_a = np.unique(seg_a)
     overlaps = np.zeros(int(ids_a.max() + 1), dtype=seg_b.dtype)
 
-    ovlp = ngt.overlap(seg_a, seg_b)
-    ovlp = [ovlp.overlapArrays(id_a, True)[0] for id_a in ids_a]
-    if ignore_zeros:
-        ovlp = np.array([ovl[1] if (ovl[0] == 0 and len(ovl) > 1) else ovl[0] for ovl in ovlp])
-    else:
-        ovlp = np.array([ovl[0] for ovl in ovlp])
+    ovlp = bic.utils.segmentation_overlap(seg_a, seg_b)
+    best = np.array([ovlp.best_overlap_for_label_a(int(id_a), ignore_zero=ignore_zeros).label
+                     for id_a in ids_a], dtype=seg_b.dtype)
 
-    overlaps[ids_a] = ovlp
+    overlaps[ids_a] = best
     return overlaps
 
 

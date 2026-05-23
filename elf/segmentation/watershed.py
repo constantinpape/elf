@@ -2,20 +2,15 @@ import multiprocessing
 from concurrent import futures
 from typing import List, Optional, Tuple
 
-import nifty.tools as nt
+import bioimage_cpp as bic
 import numpy as np
-import vigra
+import vigra  # TODO(bic-gap): watershedsNew, localMaxima, localMaxima3D have no bic equivalent yet
 
-from nifty.filters import nonMaximumDistanceSuppression
+from nifty.filters import nonMaximumDistanceSuppression  # TODO(bic-gap): no bic equivalent
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
 from ..util import divide_blocks_into_checkerboard
-
-try:
-    import fastfilters as ff
-except ImportError:
-    import vigra.filters as ff
 
 
 def watershed(
@@ -33,6 +28,11 @@ def watershed(
         The watershed segmentation.
         The max id of the watershed segmentation.
     """
+    # vigra.analysis.watershedsNew is picky: input must be float32 (or uint8) and seeds uint32.
+    if input_.dtype != np.float32:
+        input_ = input_.astype("float32")
+    if seeds.dtype != np.uint32:
+        seeds = seeds.astype("uint32")
     ws, max_id = vigra.analysis.watershedsNew(input_, seeds=seeds)
     if size_filter > 0:
         ws, max_id = apply_size_filter(ws, input_, size_filter, exclude=exclude)
@@ -62,6 +62,10 @@ def apply_size_filter(
         filter_ids = filter_ids[np.logical_not(np.isin(filter_ids, exclude))]
     filter_mask = np.isin(segmentation, filter_ids).reshape(segmentation.shape)
     segmentation[filter_mask] = 0
+    if input_.dtype != np.float32:
+        input_ = input_.astype("float32")
+    if segmentation.dtype != np.uint32:
+        segmentation = segmentation.astype("uint32")
     _, max_id = vigra.analysis.watershedsNew(input_, seeds=segmentation, out=segmentation)
     return segmentation, max_id
 
@@ -123,10 +127,12 @@ def distance_transform_watershed(
         if mask.sum() == 0:
             return np.zeros_like(mask, dtype="uint64"), 0
 
-    # threshold the input and compute distance transform
-    thresholded = (input_ > threshold).astype("uint32")
-
-    dt = vigra.filters.distanceTransform(thresholded, pixel_pitch=pixel_pitch)
+    # threshold the input and compute distance transform.
+    # vigra's distanceTransform returned distance to nearest non-zero pixel; bic/scipy
+    # return distance from non-zero to nearest zero. Invert the mask so the result
+    # has the same semantics (large in object interiors, 0 at boundaries).
+    thresholded = (input_ > threshold)
+    dt = bic.distance.distance_transform((~thresholded).astype("uint8"), sampling=pixel_pitch)
 
     # shield of the masked area if given
     if mask is not None:
@@ -135,7 +141,7 @@ def distance_transform_watershed(
 
     # compute seeds from maxima of the (smoothed) distance transform
     if sigma_seeds:
-        dt = ff.gaussianSmoothing(dt, sigma_seeds)
+        dt = bic.filters.gaussian_smoothing(dt.astype("float32"), sigma_seeds)
 
     # preprpocess initial seeds (if given)
     if seeds is None:
@@ -147,12 +153,13 @@ def distance_transform_watershed(
             "The seeds passed to distance_transform_watershed must have consecutive ids and start from 1"
         initial_seeds = seeds
 
+    # TODO(bic-gap): bic has no replacement for vigra.analysis.localMaxima(3D) yet
     compute_maxima = vigra.analysis.localMaxima if dt.ndim == 2 else vigra.analysis.localMaxima3D
     seeds = compute_maxima(dt, marker=np.nan, allowAtBorder=True, allowPlateaus=True)
     seeds = np.isnan(seeds)
     if apply_nonmax_suppression:
         seeds = non_maximum_suppression(dt, seeds)
-    seeds = vigra.analysis.labelMultiArrayWithBackground(seeds.view("uint8"))
+    seeds = bic.segmentation.label(seeds.view("uint8"), background=0, connectivity=seeds.ndim)
 
     if initial_seeds is not None:
         seeds[seeds != 0] += seed_max
@@ -164,7 +171,7 @@ def distance_transform_watershed(
 
     # compute weights from input and distance transform
     if sigma_weights:
-        hmap = alpha * ff.gaussianSmoothing(input_, sigma_weights) + (1. - alpha) * dt
+        hmap = alpha * bic.filters.gaussian_smoothing(input_.astype("float32"), sigma_weights) + (1. - alpha) * dt
     else:
         hmap = alpha * input_ + (1. - alpha) * dt
 
@@ -276,27 +283,27 @@ def blockwise_two_pass_watershed(
         output = np.zeros(input_.shape, dtype="uint64")
     assert output.shape == input_.shape
 
-    blocking = nt.blocking([0, 0, 0], list(input_.shape), list(block_shape))
+    blocking = bic.utils.Blocking([0, 0, 0], list(input_.shape), list(block_shape))
     block_ids_pass_one, block_ids_pass_two = divide_blocks_into_checkerboard(blocking)
 
     # pass 1: run on the "white" fields of the checkerboard
     # run the watershed independently per block
     def run_block_one(block_id):
-        block = blocking.getBlockWithHalo(block_id, list(halo))
-        outer_bb = tuple(slice(start, stop) for start, stop in zip(block.outerBlock.begin, block.outerBlock.end))
+        block = blocking.get_block_with_halo(block_id, list(halo))
+        outer_bb = tuple(slice(start, stop) for start, stop in zip(block.outer_block.begin, block.outer_block.end))
         input_block = input_[outer_bb]
         mask_block = None if mask is None else mask[outer_bb]
         ws, _ = ws_function(input_block, mask=mask_block, **kwargs)
 
-        inner_bb = tuple(slice(start, stop) for start, stop in zip(block.innerBlock.begin, block.innerBlock.end))
+        inner_bb = tuple(slice(start, stop) for start, stop in zip(block.inner_block.begin, block.inner_block.end))
         local_bb = tuple(
-            slice(start, stop) for start, stop in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end)
+            slice(start, stop) for start, stop in zip(block.inner_block_local.begin, block.inner_block_local.end)
         )
-        ws = vigra.analysis.labelMultiArrayWithBackground(ws[local_bb].astype("uint32")).astype("uint64")
+        ws = bic.segmentation.label(ws[local_bb].astype("uint32"), background=0, connectivity=1)
 
         # use the lowest pixel id in this block as offset
         # in order to guarantee that superpixel ids are unique
-        offset = block_id * np.prod(blocking.blockShape, dtype=ws.dtype)
+        offset = np.uint64(block_id) * np.prod(blocking.block_shape, dtype="uint64")
         if mask_block is None:
             ws += offset
         else:
@@ -312,34 +319,35 @@ def blockwise_two_pass_watershed(
     # pass 2: run on the "black" fields of the checkerboard
     # seed the watshed from the segments from "white"
     def run_block_two(block_id):
-        block = blocking.getBlockWithHalo(block_id, list(halo))
-        outer_bb = tuple(slice(start, stop) for start, stop in zip(block.outerBlock.begin, block.outerBlock.end))
+        block = blocking.get_block_with_halo(block_id, list(halo))
+        outer_bb = tuple(slice(start, stop) for start, stop in zip(block.outer_block.begin, block.outer_block.end))
         input_block = input_[outer_bb]
         mask_block = None if mask is None else mask[outer_bb]
         seeds_block = output[outer_bb]
 
-        # relabel the seeds to be consecutive and start from 1
-        seeds_block, seed_max, seed_id_mapping = vigra.analysis.relabelConsecutive(
-            seeds_block, start_label=1, keep_zeros=True
+        # relabel the seeds to be consecutive and start from 1, keeping zeros
+        seeds_block, _, inverse_map = bic.segmentation.relabel_sequential(
+            seeds_block.astype("uint64"), offset=1
         )
+        seed_max = int(seeds_block.max())
 
         ws, ws_max_id = ws_function(input_block, mask=mask_block, seeds=seeds_block, **kwargs)
 
-        inner_bb = tuple(slice(start, stop) for start, stop in zip(block.innerBlock.begin, block.innerBlock.end))
+        inner_bb = tuple(slice(start, stop) for start, stop in zip(block.inner_block.begin, block.inner_block.end))
         local_bb = tuple(
-            slice(start, stop) for start, stop in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end)
+            slice(start, stop) for start, stop in zip(block.inner_block_local.begin, block.inner_block_local.end)
         )
         ws = ws[local_bb]
 
-        offset = block_id * np.prod(blocking.blockShape)
-        # map ids corresponding to seeds back to the seed ids
-        id_mapping = {v: k for k, v in seed_id_mapping.items()}
+        offset = int(np.uint64(block_id) * np.prod(blocking.block_shape, dtype="uint64"))
+        # map ids corresponding to seeds back to the seed ids: id_mapping[new] -> old
+        id_mapping = {int(new): int(inverse_map[new]) for new in range(len(inverse_map))}
         assert 0 in id_mapping
 
         # map the other seeds to their value + the block offset
         id_mapping.update({seed_id: seed_id + offset for seed_id in range(seed_max + 1, ws_max_id + 1)})
         # apply the mapping
-        ws = nt.takeDict(id_mapping, ws)
+        ws = bic.utils.take_dict(id_mapping, ws)
 
         output[inner_bb] = ws
 
@@ -349,7 +357,9 @@ def blockwise_two_pass_watershed(
             desc="Run pass two of two-pass watershed"
         )) if verbose else list(tp.map(run_block_two, block_ids_pass_two))
 
-    _, max_id, _ = vigra.analysis.relabelConsecutive(output, out=output)
+    output_new, _, _ = bic.segmentation.relabel_sequential(output, offset=1)
+    output[...] = output_new
+    max_id = int(output.max())
     return output, max_id
 
 

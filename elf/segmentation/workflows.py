@@ -38,8 +38,8 @@ def _compute_watershed(boundaries, use_2dws, mask, ws_kwargs, n_threads):
 def _compute_xyz_boundary_features(rag, boundaries, watershed, use_2dws, n_threads):
     bd_xy, bd_z = boundaries
     z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
-    feats = elf_feats.compute_boundary_features_with_filters(rag, bd_xy, use_2dws, n_threads=n_threads)
-    feats_z = elf_feats.compute_boundary_features_with_filters(rag, bd_z, use_2dws, n_threads=n_threads)
+    feats = elf_feats.compute_boundary_features_with_filters(rag, watershed, bd_xy, use_2dws, n_threads=n_threads)
+    feats_z = elf_feats.compute_boundary_features_with_filters(rag, watershed, bd_z, use_2dws, n_threads=n_threads)
     feats[z_edges] = feats_z[z_edges]
     return feats
 
@@ -57,12 +57,12 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
 
     features = []
     if "raw-edge-features" in feature_names:
-        feats = elf_feats.compute_boundary_features_with_filters(rag, raw, use_2dws,
+        feats = elf_feats.compute_boundary_features_with_filters(rag, watershed, raw, use_2dws,
                                                                  n_threads=n_threads)
         features.append(feats)
     if "boundary-edge-features" in feature_names:
         if isinstance(boundaries, np.ndarray):
-            feats = elf_feats.compute_boundary_features_with_filters(rag, boundaries, use_2dws,
+            feats = elf_feats.compute_boundary_features_with_filters(rag, watershed, boundaries, use_2dws,
                                                                      n_threads=n_threads)
         else:
             if not use_2dws:
@@ -81,7 +81,7 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
     # eventually, it would be nice to add topolgy features, cf.
     # https://github.com/ilastik/nature_methods_multicut_pipeline/blob/master/software/multicut_src/DataSet.py#L954
     # https://github.com/DerThorsten/nifty/blob/master/src/python/lib/graph/rag/accumulate.cxx#L361
-    edge_len = elf_feats.compute_boundary_mean_and_length(rag, raw, n_threads=n_threads)[:, 1]
+    edge_len = elf_feats.compute_boundary_mean_and_length(rag, watershed, raw, n_threads=n_threads)[:, 1]
     features.append(edge_len[:, None])
 
     features = np.concatenate(features, axis=1)
@@ -96,9 +96,9 @@ def _compute_features_and_labels(
     edge_mask = np.ones(len(features), dtype="bool")
 
     if ignore_label is None:
-        edge_labels = elf_learn.compute_edge_labels(rag, labels, n_threads=n_threads)
+        edge_labels = elf_learn.compute_edge_labels(rag, watershed, labels, n_threads=n_threads)
     else:
-        edge_labels, edge_mask1 = elf_learn.compute_edge_labels(rag, labels, ignore_label, n_threads)
+        edge_labels, edge_mask1 = elf_learn.compute_edge_labels(rag, watershed, labels, ignore_label, n_threads)
         edge_mask = np.logical_and(edge_mask, edge_mask1)
 
     if mask is not None:
@@ -359,7 +359,7 @@ def multicut_segmentation(
     node_labels = solver(rag, edge_costs, n_threads=n_threads,
                          segmentation=watershed, **solver_kwargs)
     print("Project to volume ...")
-    seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
+    seg = elf_feats.project_node_labels_to_pixels(rag, watershed, node_labels, n_threads)
 
     if return_intermediates:
         return {"watershed": watershed,
@@ -466,9 +466,13 @@ def _simple_mc_problem(input_, use_2dws, watershed, mask, weighting_scheme, ws_k
     # compute rag and edge costs
     rag = elf_feats.compute_rag(watershed, n_threads=n_threads)
     if have_affs:
-        edge_probs = elf_feats.compute_affinity_features(rag, input_, offsets, n_threads=n_threads)
+        edge_probs = elf_feats.compute_affinity_features(
+            rag, watershed, input_, offsets, n_threads=n_threads,
+        )
     else:
-        edge_probs = elf_feats.compute_boundary_mean_and_length(rag, input_, n_threads=n_threads)
+        edge_probs = elf_feats.compute_boundary_mean_and_length(
+            rag, watershed, input_, n_threads=n_threads,
+        )
 
     if use_2dws:
         z_edges = elf_feats.compute_z_edge_mask(rag, watershed)
@@ -539,7 +543,7 @@ def simple_multicut_workflow(
     # the blockwise-multicut solver
     node_labels = solver(rag, edge_costs, n_threads=n_threads,
                          segmentation=watershed, **solver_kwargs)
-    seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
+    seg = elf_feats.project_node_labels_to_pixels(rag, watershed, node_labels, n_threads)
 
     if return_intermediates:
         return {"watershed": watershed,
@@ -642,7 +646,7 @@ def lifted_multicut_from_segmentation_workflow(
     # the blockwise-multicut solver
     node_labels = solver(rag, edge_costs, lifted_uvs, lifted_costs,
                          n_threads=n_threads, segmentation=watershed, **solver_kwargs)
-    seg = elf_feats.project_node_labels_to_pixels(rag, node_labels, n_threads)
+    seg = elf_feats.project_node_labels_to_pixels(rag, watershed, node_labels, n_threads)
 
     if return_intermediates:
         return {"watershed": watershed,

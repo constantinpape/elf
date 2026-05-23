@@ -3,7 +3,7 @@ from threadpoolctl import threadpool_limits
 from typing import List, Optional
 
 import numpy as np
-import vigra
+import vigra  # TODO(bic-gap): extractRegionFeatures has no bic equivalent yet
 try:
     import hdbscan
 except ImportError:
@@ -14,7 +14,6 @@ from sklearn.cluster import MeanShift
 from sklearn.decomposition import PCA
 
 from .features import (compute_grid_graph,
-                       compute_grid_graph_affinity_features,
                        compute_grid_graph_image_features)
 from .multicut import compute_edge_costs
 from .mutex_watershed import mutex_watershed_clustering
@@ -310,14 +309,17 @@ def _get_lr_offsets(offsets):
 
 def _apply_mask(mask, g, weights, lr_edges, lr_weights):
     assert np.dtype(mask.dtype) == np.dtype("bool")
-    node_ids = g.projectNodeIdsToPixels()
-    assert node_ids.shape == mask.shape == tuple(g.shape), f"{node_ids.shape}, {mask.shape}, {g.shape}"
+    # bic.graph.GridGraph2D/3D uses row-major node ids (np.arange(prod(shape)).reshape(shape)),
+    # so we rebuild that without a per-graph projection method.
+    shape = tuple(g.shape)
+    node_ids = np.arange(np.prod(shape), dtype="uint64").reshape(shape)
+    assert node_ids.shape == mask.shape == shape, f"{node_ids.shape}, {mask.shape}, {shape}"
     masked_ids = node_ids[~mask]
 
     # local edges:
     # - set edges that connect masked nodes to max attractive
     # - set edges that connect masked and non-masked nodes to max repulsive
-    local_edge_state = np.isin(g.uvIds(), masked_ids).sum(axis=1)
+    local_edge_state = np.isin(g.uv_ids(), masked_ids).sum(axis=1)
     local_masked_edges = local_edge_state == 2
     local_transition_edges = local_edge_state == 1
     weights[local_masked_edges] = 0.0
@@ -344,41 +346,16 @@ def _apply_mask(mask, g, weights, lr_edges, lr_weights):
 def _process_weights(g, edges, weights, weight_function, beta,
                      offsets=None, strides=None, randomize_strides=None):
 
-    def apply_weight_function():
-        nonlocal weights
-        edge_ids = g.projectEdgeIdsToPixels()
-        invalid_edges = edge_ids == -1
-        edge_ids[invalid_edges] = 0
-        weights = weights[edge_ids]
-        weights[invalid_edges] = 0
-        for chan_id, weightc in enumerate(weights):
-            weights[chan_id] = weight_function(weightc)
-        edges, weights = compute_grid_graph_affinity_features(
-            g, weights
+    if weight_function is not None:
+        # TODO(bic-gap): bioimage-cpp does not yet expose
+        # GridGraph.projectEdgeIdsToPixels / projectEdgeIdsToPixelsWithOffsets,
+        # which are needed to map per-edge weights back to per-pixel arrays for
+        # the weight_function transform. Until those land in bic, callers must
+        # leave weight_function=None.
+        raise NotImplementedError(
+            "weight_function is not yet supported on bioimage-cpp grid graphs "
+            "(bic does not expose projectEdgeIdsToPixels(WithOffsets) yet)."
         )
-        assert len(weights) == g.numberOfEdges
-        return edges, weights
-
-    def apply_weight_function_lr():
-        nonlocal weights
-        edge_ids = g.projectEdgeIdsToPixelsWithOffsets(offsets)
-        invalid_edges = edge_ids == -1
-        edge_ids[invalid_edges] = 0
-        weights = weights[edge_ids]
-        weights[invalid_edges] = 0
-        for chan_id, weightc in enumerate(weights):
-            weights[chan_id] = weight_function(weightc)
-        edges, weights = compute_grid_graph_affinity_features(
-            g, weights, offsets=offsets,
-            strides=strides, randomize_strides=randomize_strides
-        )
-        return edges, weights
-
-    apply_weight = weight_function is not None
-    if apply_weight and offsets is None:
-        edges, weights = apply_weight_function()
-    elif apply_weight and offsets is not None:
-        edges, weights = apply_weight_function_lr()
 
     if beta is not None:
         weights = compute_edge_costs(weights, beta=beta)

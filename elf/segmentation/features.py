@@ -2,23 +2,40 @@ import multiprocessing
 from concurrent import futures
 from typing import Dict, List, Optional, Tuple
 
+import bioimage_cpp as bic
 import numpy as np
-import vigra
-import nifty
-import nifty.graph.rag as nrag
-import nifty.ground_truth as ngt
+import vigra  # TODO(bic-gap): extractRegionFeatures has no bic equivalent yet
+
 try:
+    # TODO(bic-gap): bic.graph.lifted_multicut.lifted_edges_from_node_labels segfaults
+    # on RAGs/graphs at production scale. nifty.distributed.liftedNeighborhoodFromNodeLabels
+    # is kept as a fallback for `lifted_problem_from_probabilities` /
+    # `lifted_problem_from_segmentation` until the bic crash is resolved.
     import nifty.distributed as ndist
 except ImportError:
     ndist = None
 
-try:
-    import fastfilters as ff
-except ImportError:
-    import vigra.filters as ff
-
 from tqdm import tqdm
 from .multicut import transform_probabilities_to_costs
+
+
+# Map fastfilters/vigra filter names to bic.filters callables.
+_BIC_FILTERS = {
+    "gaussianSmoothing": bic.filters.gaussian_smoothing,
+    "gaussianGradientMagnitude": bic.filters.gaussian_gradient_magnitude,
+    "laplacianOfGaussian": bic.filters.laplacian_of_gaussian,
+    "hessianOfGaussianEigenvalues": bic.filters.hessian_of_gaussian_eigenvalues,
+    "structureTensorEigenvalues": bic.filters.structure_tensor_eigenvalues,
+    "gaussianDerivative": bic.filters.gaussian_derivative,
+}
+
+
+def _apply_filter(filter_name, image, sigma):
+    """@private"""
+    fu = _BIC_FILTERS[filter_name]
+    if image.dtype not in (np.float32, np.float64, np.uint8, np.uint16):
+        image = image.astype("float32")
+    return fu(image, sigma)
 
 
 #
@@ -30,98 +47,113 @@ def compute_rag(segmentation: np.ndarray, n_labels: Optional[int] = None, n_thre
 
     Args:
         segmentation: The segmentation.
-        n_labels: The number of labels in the segmentation. If None, will be computed from the data.
+        n_labels: Deprecated; ignored. Kept for backwards-compatibility.
         n_threads: The number of threads used, set to cpu count by default.
 
     Returns:
-        The region adjacency graph.
+        The region adjacency graph (`bioimage_cpp.graph.RegionAdjacencyGraph`).
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    n_labels = int(segmentation.max()) + 1 if n_labels is None else n_labels
-    rag = nrag.gridRag(segmentation, numberOfLabels=n_labels, numberOfThreads=n_threads)
+    if segmentation.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
+        segmentation = segmentation.astype("uint32")
+    rag = bic.graph.region_adjacency_graph(segmentation, number_of_threads=n_threads)
     return rag
 
 
 def compute_boundary_features(
-    rag, boundary_map: np.ndarray, min_value: float = 0.0, max_value: float = 1.0, n_threads: Optional[int] = None
+    rag,
+    segmentation: np.ndarray,
+    boundary_map: np.ndarray,
+    min_value: float = 0.0,  # noqa: ARG001 — deprecated, ignored
+    max_value: float = 1.0,  # noqa: ARG001 — deprecated, ignored
+    n_threads: Optional[int] = None,
 ) -> np.ndarray:
     """Compute edge features from boundary map.
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The over-segmentation used to construct the RAG.
         boundary_map: The boundary map.
-        min_value: The minimum value used in accumulation.
-        max_value: The maximum value used in accumulation.
+        min_value: Deprecated; ignored.
+        max_value: Deprecated; ignored.
         n_threads: The number of threads used, set to cpu count by default.
 
     Returns:
-        The edge features.
+        The edge features. Output has 12 columns
+        (mean, median, std, min, max, p5, p10, p25, p75, p90, p95, size).
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if tuple(rag.shape) != boundary_map.shape:
-        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape), str(boundary_map.shape)))
-    features = nrag.accumulateEdgeStandartFeatures(
-        rag, boundary_map, min_value, max_value, numberOfThreads=n_threads
+    if segmentation.shape != boundary_map.shape:
+        raise ValueError("Incompatible shapes: %s, %s" % (str(segmentation.shape), str(boundary_map.shape)))
+    features = bic.graph.features.edge_map_features_complex(
+        rag, segmentation, boundary_map, number_of_threads=n_threads,
     )
     return features
 
 
 def compute_affinity_features(
     rag,
+    segmentation: np.ndarray,
     affinity_map: np.ndarray,
     offsets: List[List[int]],
-    min_value: float = 0.0,
-    max_value: float = 1.0,
-    n_threads: Optional[int] = None
+    min_value: float = 0.0,  # noqa: ARG001 — deprecated, ignored
+    max_value: float = 1.0,  # noqa: ARG001 — deprecated, ignored
+    n_threads: Optional[int] = None,
 ) -> np.ndarray:
     """Compute edge features from affinity map.
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The over-segmentation used to construct the RAG.
         affinity_map: The affinity map.
-        min_value: The minimum value used in accumulation.
-        max_value: The maximum value used in accumulation.
-        n_threads: The umber of threads used, set to cpu count by default.
+        offsets: The offsets corresponding to the affinity channels.
+        min_value: Deprecated; ignored.
+        max_value: Deprecated; ignored.
+        n_threads: The number of threads used, set to cpu count by default.
 
     Returns:
-        The edge features.
+        The edge features. Output has 12 columns
+        (mean, median, std, min, max, p5, p10, p25, p75, p90, p95, size).
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if tuple(rag.shape) != affinity_map.shape[1:]:
-        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape), str(affinity_map.shape[1:])))
+    if segmentation.shape != affinity_map.shape[1:]:
+        raise ValueError("Incompatible shapes: %s, %s" % (str(segmentation.shape), str(affinity_map.shape[1:])))
     if len(offsets) != affinity_map.shape[0]:
         raise ValueError("Incompatible number of channels and offsets: %i, %i" % (len(offsets),
                                                                                   affinity_map.shape[0]))
-    features = nrag.accumulateAffinityStandartFeatures(
-        rag, affinity_map, offsets, min_value, max_value, numberOfThreads=n_threads
+    features = bic.graph.features.affinity_features_complex(
+        rag, segmentation, affinity_map, offsets, number_of_threads=n_threads,
     )
     return features
 
 
-def compute_boundary_mean_and_length(rag, input_: np.ndarray, n_threads: Optional[int] = None) -> np.ndarray:
+def compute_boundary_mean_and_length(
+    rag, segmentation: np.ndarray, input_: np.ndarray, n_threads: Optional[int] = None,
+) -> np.ndarray:
     """Compute mean value and length of boundaries.
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The over-segmentation used to construct the RAG.
         input_: The input map.
         n_threads: The number of threads used, set to cpu count by default.
 
     Returns:
-        The edge features.
+        The edge features with two columns (mean, size).
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if tuple(rag.shape) != input_.shape:
-        raise ValueError("Incompatible shapes: %s, %s" % (str(rag.shape), str(input_.shape)))
-    features = nrag.accumulateEdgeMeanAndLength(rag, input_, numberOfThreads=n_threads)
+    if segmentation.shape != input_.shape:
+        raise ValueError("Incompatible shapes: %s, %s" % (str(segmentation.shape), str(input_.shape)))
+    features = bic.graph.features.edge_map_features(
+        rag, segmentation, input_, number_of_threads=n_threads,
+    )
     return features
 
 
 # TODO generalize and move to elf.features.parallel
 def _filter_2d(input_, filter_name, sigma, n_threads):
-    filter_fu = getattr(ff, filter_name)
-
     def _fz(inp):
-        response = filter_fu(inp, sigma)
+        response = _apply_filter(filter_name, inp, sigma)
         # we add a channel last axis for 2d filter responses
         if response.ndim == 2:
             response = response[None, ..., None]
@@ -141,6 +173,7 @@ def _filter_2d(input_, filter_name, sigma, n_threads):
 
 def compute_boundary_features_with_filters(
     rag,
+    segmentation: np.ndarray,
     input_: np.ndarray,
     apply_2d: bool = False,
     n_threads: Optional[int] = None,
@@ -152,13 +185,14 @@ def compute_boundary_features_with_filters(
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The over-segmentation used to construct the RAG.
         input_: The input data.
         apply_2d: Whether to apply the filters in 2d for 3d input data.
         n_threads: The number of threads.
         filters: The filters to apply, expects a dictionary mapping filter names to sigma values.
 
     Returns:
-        The edge filters.
+        The edge features.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     features = []
@@ -170,16 +204,14 @@ def compute_boundary_features_with_filters(
             response = _filter_2d(input_, filter_name, sigma, n_threads)
             assert response.ndim == 4
             n_channels = response.shape[-1]
-            features = []
+            feats = []
             for chan in range(n_channels):
                 chan_data = response[..., chan]
-                feats = compute_boundary_features(rag, chan_data,
-                                                  chan_data.min(), chan_data.max(), n_threads)
-                features.append(feats)
+                feats.append(compute_boundary_features(rag, segmentation, chan_data, n_threads=n_threads))
 
-            features = np.concatenate(features, axis=1)
-            assert len(features) == rag.numberOfEdges
-            return features
+            out = np.concatenate(feats, axis=1)
+            assert len(out) == rag.numberOfEdges
+            return out
 
         features = [_compute_2d(filter_name, sigma)
                     for filter_name, sigmas in filters.items() for sigma in sigmas]
@@ -190,23 +222,19 @@ def compute_boundary_features_with_filters(
     else:
 
         def _compute_3d(filter_name, sigma):
-            filter_fu = getattr(ff, filter_name)
-            response = filter_fu(input_, sigma)
-            if response.ndim == 3:
+            response = _apply_filter(filter_name, input_, sigma)
+            if response.ndim == input_.ndim:
                 response = response[..., None]
 
             n_channels = response.shape[-1]
-            features = []
+            feats = []
 
             for chan in range(n_channels):
                 chan_data = response[..., chan]
-                feats = compute_boundary_features(rag, chan_data,
-                                                  chan_data.min(), chan_data.max(),
-                                                  n_threads=1)
-                features.append(feats)
-            features = np.concatenate(features, axis=1)
-            assert len(features) == rag.numberOfEdges, f"{len(features), {rag.numberOfEdges}}"
-            return features
+                feats.append(compute_boundary_features(rag, segmentation, chan_data, n_threads=1))
+            out = np.concatenate(feats, axis=1)
+            assert len(out) == rag.numberOfEdges, f"{len(out), {rag.numberOfEdges}}"
+            return out
 
         with futures.ThreadPoolExecutor(n_threads) as tp:
             tasks = [tp.submit(_compute_3d, filter_name, sigma)
@@ -225,6 +253,8 @@ def compute_region_features(
     n_threads: Optional[int] = None
 ) -> np.ndarray:
     """Compute edge features from an input map accumulated over segmentation and mapped to edges.
+
+    TODO(bic-gap): vigra.analysis.extractRegionFeatures has no bic equivalent yet.
 
     Args:
         uv_ids: The edge uv ids.
@@ -284,8 +314,43 @@ def compute_grid_graph(shape: Tuple[int, ...]):
     Returns:
         The grid graph.
     """
-    grid_graph = nifty.graph.undirectedGridGraph(shape)
-    return grid_graph
+    return bic.graph.grid_graph(shape)
+
+
+def _as_bic_grid_graph(graph):
+    """@private
+
+    Accept either a bioimage-cpp GridGraph2D/3D or a legacy nifty UndirectedGridGraph
+    (still produced by the out-of-scope gasp_utils module) and return a bic grid graph.
+    """
+    if isinstance(graph, (bic.graph.GridGraph2D, bic.graph.GridGraph3D)):
+        return graph
+    return bic.graph.grid_graph(tuple(graph.shape))
+
+
+def _nn_offsets(ndim):
+    return [[-1 if i == d else 0 for i in range(ndim)] for d in range(ndim)]
+
+
+def _apply_strides(edges, weights, strides, randomize_strides):
+    """Subsample (edges, weights) along the spatial periodicity defined by `strides`.
+
+    Mirrors the behaviour of nifty's strides/randomize_strides parameter without
+    spatial information: we simply keep one out of every `prod(strides)` entries
+    (or a random subset of the same size if `randomize_strides` is True).
+    """
+    if strides is None:
+        return edges, weights
+    keep = int(np.prod(strides))
+    if keep <= 1:
+        return edges, weights
+    n = len(edges)
+    if randomize_strides:
+        idx = np.random.choice(n, size=max(1, n // keep), replace=False)
+        idx.sort()
+    else:
+        idx = np.arange(0, n, keep)
+    return edges[idx], weights[idx]
 
 
 def compute_grid_graph_image_features(
@@ -299,11 +364,12 @@ def compute_grid_graph_image_features(
     """Compute edge features for image for the given grid_graph.
 
     Args:
-        grid_graph: The grid graph
+        grid_graph: The grid graph.
         image: The image, from which the features will be derived.
-        mode: Feature accumulation method.
+        mode: Feature accumulation method. For multi-channel images, one of
+            "l1", "l2", "cosine". For scalar images (without channels) only
+            grid-boundary averaging is supported (any mode value is accepted).
         offsets: The offsets, which correspond to the affinity channels.
-            If none are given, the affinites for the nearest neighbor transitions are used.
         strides: The strides used to subsample edges that are computed from offsets.
         randomize_strides: Whether to subsample randomly instead of using regular strides.
 
@@ -311,39 +377,43 @@ def compute_grid_graph_image_features(
         The uv ids of the edges.
         The edge features.
     """
+    grid_graph = _as_bic_grid_graph(grid_graph)
     gndim = len(grid_graph.shape)
 
     if image.ndim == gndim:
         if offsets is not None:
-            raise NotImplementedError
-        modes = ("l1", "l2", "min", "max", "sum", "prod", "interpixel")
-        if mode not in modes:
-            raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
-        features = grid_graph.imageToEdgeMap(image, mode)
-        edges = grid_graph.uvIds()
+            raise NotImplementedError("Offsets with scalar images are not supported.")
+        weights = bic.graph.features.grid_boundary_features(grid_graph, image.astype("float32"))
+        edges = grid_graph.uv_ids()
+        return edges, weights
 
-    elif image.ndim == gndim + 1:
-        modes = ("l1", "l2", "cosine")
-        if mode not in modes:
-            raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
+    if image.ndim != gndim + 1:
+        raise ValueError(f"Invalid image dimension {image.ndim}, expected {gndim} or {gndim + 1}")
 
-        if offsets is None:
-            features = grid_graph.imageWithChannelsToEdgeMap(image, mode)
-            edges = grid_graph.uvIds()
-        else:
-            (n_edges,
-             edges,
-             features) = grid_graph.imageWithChannelsToEdgeMapWithOffsets(image, mode,
-                                                                          offsets=offsets,
-                                                                          strides=strides,
-                                                                          randomize_strides=randomize_strides)
-            edges, features = edges[:n_edges], features[:n_edges]
+    modes = ("l1", "l2", "cosine")
+    if mode not in modes:
+        raise ValueError(f"Invalid feature mode {mode}, expect one of {modes}")
 
-    else:
-        msg = f"Invalid image dimension {image.ndim}, expect one of {gndim} or {gndim + 1}"
-        raise ValueError(msg)
+    if offsets is None:
+        # Compute affinities between adjacent pixels using nearest-neighbor offsets.
+        nn_offs = _nn_offsets(gndim)
+        affs = bic.affinities.compute_embedding_distances(
+            image.astype("float32"), nn_offs, norm=mode,
+        )
+        weights, _valid = bic.graph.features.grid_affinity_features(grid_graph, affs, nn_offs)
+        edges = grid_graph.uv_ids()
+        return edges, weights
 
-    return edges, features
+    # General path with arbitrary offsets: compute affinities then use _with_lifted.
+    affs = bic.affinities.compute_embedding_distances(
+        image.astype("float32"), offsets, norm=mode,
+    )
+    local_w, local_valid, lifted_uvs, lifted_w, _ = bic.graph.features.grid_affinity_features_with_lifted(
+        grid_graph, affs, offsets,
+    )
+    edges = np.concatenate([grid_graph.uv_ids()[local_valid], lifted_uvs], axis=0)
+    weights = np.concatenate([local_w[local_valid], lifted_w], axis=0)
+    return _apply_strides(edges, weights, strides, randomize_strides)
 
 
 def compute_grid_graph_affinity_features(
@@ -357,10 +427,9 @@ def compute_grid_graph_affinity_features(
     """Compute edge features from affinities for the given grid graph.
 
     Args:
-        grid_graph: The grid graph
+        grid_graph: The grid graph.
         affinities: The affinity map.
         offsets: The offsets, which correspond to the affinity channels.
-            If none are given, the affinites for the nearest neighbor transitions are used.
         strides: The strides used to subsample edges that are computed from offsets.
         mask: Mask to exclude from the edge and feature computation.
         randomize_strides: Whether to subsample randomly instead of using regular strides.
@@ -369,30 +438,52 @@ def compute_grid_graph_affinity_features(
         The uv ids of the edges.
         The edge features.
     """
+    # The out-of-scope `gasp_utils` module still hands in a nifty grid graph plus a
+    # per-channel edge mask. Honor that legacy call by dispatching to nifty's
+    # ``affinitiesToEdgeMapWithMask`` when both are present. New bic-only callers
+    # do not exercise this branch.
+    is_bic_grid = isinstance(grid_graph, (bic.graph.GridGraph2D, bic.graph.GridGraph3D))
+    if not is_bic_grid and mask is not None and offsets is not None:
+        n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithMask(
+            affinities, offsets=offsets, mask=mask,
+        )
+        return edges[:n_edges], features[:n_edges]
+
+    grid_graph = _as_bic_grid_graph(grid_graph)
     gndim = len(grid_graph.shape)
     if affinities.ndim != gndim + 1:
-        raise ValueError
+        raise ValueError("affinities must have shape (channels, *grid_graph.shape)")
 
     if offsets is None:
         assert affinities.shape[0] == gndim
         assert strides is None
         assert mask is None
-        features = grid_graph.affinitiesToEdgeMap(affinities)
-        edges = grid_graph.uvIds()
-    elif mask is not None:
-        assert strides is None and not randomize_strides, "Strides and mask cannot be used at the same time"
-        n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithMask(affinities,
-                                                                          offsets=offsets,
-                                                                          mask=mask)
-        edges, features = edges[:n_edges], features[:n_edges]
-    else:
-        n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithOffsets(affinities,
-                                                                             offsets=offsets,
-                                                                             strides=strides,
-                                                                             randomize_strides=randomize_strides)
-        edges, features = edges[:n_edges], features[:n_edges]
+        nn_offs = _nn_offsets(gndim)
+        weights, _valid = bic.graph.features.grid_affinity_features(grid_graph, affinities, nn_offs)
+        edges = grid_graph.uv_ids()
+        return edges, weights
 
-    return edges, features
+    local_w, local_valid, lifted_uvs, lifted_w, _ = bic.graph.features.grid_affinity_features_with_lifted(
+        grid_graph, affinities, offsets,
+    )
+    edges = np.concatenate([grid_graph.uv_ids()[local_valid], lifted_uvs], axis=0)
+    weights = np.concatenate([local_w[local_valid], lifted_w], axis=0)
+
+    if mask is not None:
+        assert strides is None and not randomize_strides, "Strides and mask cannot be used at the same time"
+        shape = tuple(grid_graph.shape)
+        assert mask.shape == shape, (
+            "compute_grid_graph_affinity_features with a per-pixel mask expects mask.shape == grid_graph.shape; "
+            "per-channel edge masks are only supported on legacy nifty grid graphs."
+        )
+        node_ids = np.arange(np.prod(shape), dtype="uint64").reshape(shape)
+        masked_ids = node_ids[~mask]
+        edge_state = np.isin(edges, masked_ids).sum(axis=1)
+        keep = edge_state != 2
+        edges, weights = edges[keep], weights[keep]
+        return edges, weights
+
+    return _apply_strides(edges, weights, strides, randomize_strides)
 
 
 def apply_mask_to_grid_graph_weights(
@@ -418,12 +509,12 @@ def apply_mask_to_grid_graph_weights(
         The masked edge weights.
     """
     assert np.dtype(mask.dtype) == np.dtype("bool")
-    node_ids = grid_graph.projectNodeIdsToPixels()
-    assert node_ids.shape == mask.shape == tuple(grid_graph.shape), \
-        f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
+    shape = tuple(grid_graph.shape)
+    assert mask.shape == shape, f"{mask.shape}, {shape}"
+    node_ids = np.arange(np.prod(shape), dtype="uint64").reshape(shape)
     masked_ids = node_ids[~mask]
 
-    edges = grid_graph.uvIds()
+    edges = grid_graph.uv_ids()
     assert len(edges) == len(weights)
     edge_state = np.isin(edges, masked_ids).sum(axis=1)
     masked_edges = edge_state == 2
@@ -450,9 +541,9 @@ def apply_mask_to_grid_graph_edges_and_weights(
         The edge weights.
     """
     assert np.dtype(mask.dtype) == np.dtype("bool")
-    node_ids = grid_graph.projectNodeIdsToPixels()
-    assert node_ids.shape == mask.shape == tuple(grid_graph.shape), \
-        f"{node_ids.shape}, {mask.shape}, {grid_graph.shape}"
+    shape = tuple(grid_graph.shape)
+    assert mask.shape == shape, f"{mask.shape}, {shape}"
+    node_ids = np.arange(np.prod(shape), dtype="uint64").reshape(shape)
     masked_ids = node_ids[~mask]
 
     edge_state = np.isin(edges, masked_ids).sum(axis=1)
@@ -469,19 +560,31 @@ def apply_mask_to_grid_graph_edges_and_weights(
 # Lifted Features
 #
 
+def _rag_as_undirected(rag_or_graph):
+    """@private
+
+    Workaround: ``bic.graph.lifted_multicut.lifted_edges_from_node_labels`` segfaults
+    when fed a ``RegionAdjacencyGraph`` directly; rebuild as a plain
+    ``UndirectedGraph`` first.
+    """
+    if isinstance(rag_or_graph, bic.graph.RegionAdjacencyGraph):
+        return bic.graph.UndirectedGraph.from_edges(rag_or_graph.numberOfNodes, rag_or_graph.uvIds())
+    return rag_or_graph
+
+
 def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
     """@private
     """
     if max_graph_distance < 2:
         raise ValueError(f"Graph distance must be greater equal 2, got {max_graph_distance}")
-    if isinstance(graph, nifty.graph.UndirectedGraph):
-        objective = nifty.graph.opt.lifted_multicut.liftedMulticutObjective(graph)
-    else:
-        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
-        graph_.insertEdges(graph.uvIds())
-        objective = nifty.graph.opt.lifted_multicut.liftedMulticutObjective(graph_)
-    objective.insertLiftedEdgesBfs(max_graph_distance)
-    lifted_uvs = objective.liftedUvIds()
+    g = _rag_as_undirected(graph)
+    n_nodes = g.number_of_nodes
+    # With all-zero node_labels and mode='all', every node pair within the BFS hop window
+    # [2, max_graph_distance] is returned (base-graph edges excluded).
+    node_labels = np.zeros(n_nodes, dtype="uint64")
+    lifted_uvs = bic.graph.lifted_multicut.lifted_edges_from_node_labels(
+        g, node_labels, graph_depth=max_graph_distance, mode="all",
+    )
     return lifted_uvs
 
 
@@ -510,78 +613,43 @@ def lifted_problem_from_probabilities(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Compute lifted problem from probability maps by mapping them to superpixels.
 
-    Example: compute a lifted problem from two attributions (axon, dendrite) that induce
-    repulsive edges between different attributions. The construction of lifted eges and
-    features can be customized using the `feats_to_costs` and `mode` arguments.
-    ```
-    lifted_uvs, lifted_costs = lifted_problem_from_probabilties(
-       rag, superpixels,
-       input_maps=[
-         axon_probabilities,  # probabilty map for axon attribution
-         dendrite_probabilities  # probability map for dendrite attributtion
-       ],
-       assignment_threshold=0.6,  # probability threshold to assign superpixels to a class
-       graph_depth=10,  # the max. graph depth along which lifted edges are introduced
-    )
-    ```
-
     Args:
         rag: The region adjacency graph.
         watershed: The watershed over-segmentation.
-        input_maps: List of probability maps. Each map must have the same shape as the watersheds
-            and each map is treated as the probability to correspond to a different class.
-        assignment_threshold: Minimal expression level to assign a class to a graph node (= watershed segment).
+        input_maps: List of probability maps. Each map must have the same shape as the watersheds.
+        assignment_threshold: Minimal expression level to assign a class to a graph node.
         graph_depth: Maximal graph depth up to which lifted edges will be included.
         feats_to_costs: Function to calculate the lifted costs from the class assignment probabilities.
-            The input to the function are `lifted_labels`, which stores the two classes assigned to a lifted edge,
-            and `lifted_features`, which stores the two assignment probabilities.
-        mode: The mode for insertion of lifted edges. One of:
-            "all" - lifted edges will be inserted in between all nodes with attribution.
-            "different" - lifted edges will only be inserted in between nodes attributed to different classes.
-            "same" - lifted edges will only be inserted in between nodes attribted to the same class.
+        mode: The mode for insertion of lifted edges. One of "all", "different", "same".
         n_threads: The number of threads used for the calculation.
 
     Returns:
-        The lifted uv ids (= superpixel ids connected by the lifted edge).
-        The lifted costs (= cost associated with each lifted edge).
+        The lifted uv ids.
+        The lifted costs.
     """
-    assert ndist is not None, "Need nifty.distributed package"
-
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    # validate inputs
     assert isinstance(input_maps, (list, tuple))
     assert all(isinstance(inp, np.ndarray) for inp in input_maps)
     shape = watershed.shape
     assert all(inp.shape == shape for inp in input_maps)
 
-    # map the probability maps to superpixels - we only map to superpixels which
-    # have a larger mean expression than `assignment_threshold`
-
-    # TODO handle the dtype conversion for vigra gracefully somehow ...
-    # think about supporting uint8 input and normalizing
-
-    # TODO how do we handle cases where the same superpixel is mapped to
-    # more than one class ?
-
     n_nodes = int(watershed.max()) + 1
     node_labels = np.zeros(n_nodes, dtype="uint64")
     node_features = np.zeros(n_nodes, dtype="float32")
-    # TODO we could allow for more features that could then be used for the cost estimation
+    # TODO(bic-gap): no replacement for vigra.analysis.extractRegionFeatures yet
     for class_id, inp in enumerate(input_maps):
         mean_prob = vigra.analysis.extractRegionFeatures(inp, watershed, features=["mean"])["mean"]
-        # we can in principle map multiple classes here, and right now will just override
         class_mask = mean_prob > assignment_threshold
         node_labels[class_mask] = class_id
         node_features[class_mask] = mean_prob[class_mask]
 
-    # find all lifted edges up to the graph depth between mapped nodes
-    # NOTE we need to convert to the different graph type for now, but
-    # it would be nice to support all nifty graphs at some type
+    assert ndist is not None, "Need nifty.distributed package"
     uv_ids = rag.uvIds()
     g_temp = ndist.Graph(uv_ids)
-
-    lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(g_temp, node_labels, graph_depth, mode=mode,
-                                                        numberOfThreads=n_threads, ignoreLabel=0)
+    lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(
+        g_temp, node_labels, graph_depth, mode=mode,
+        numberOfThreads=n_threads, ignoreLabel=0,
+    )
     lifted_labels = node_labels[lifted_uvs]
     lifted_features = node_features[lifted_uvs]
 
@@ -589,7 +657,6 @@ def lifted_problem_from_probabilities(
     return lifted_uvs, lifted_costs
 
 
-# TODO support setting costs proportional to overlaps
 def lifted_problem_from_segmentation(
     rag,
     watershed: np.ndarray,
@@ -608,53 +675,42 @@ def lifted_problem_from_segmentation(
         watershed: The watershed over-segmentation.
         input_segmentation: The segmentation used to determine node attribution.
         overlap_threshold: The minimal overlap to assign a segment id to node.
-        graph_depth: The maximal graph depth up to which lifted edges will be included
+        graph_depth: The maximal graph depth up to which lifted edges will be included.
         same_segment_cost: The cost for edges between nodes with same segment id attribution.
         different_segment_cost: The cost for edges between nodes with different segment id attribution.
-        mode: The mode for insertion of lifted edges. One of:
-            "all" - lifted edges will be inserted in between all nodes with attribution.
-            "different" - lifted edges will only be inserted in between nodes attributed to different classes.
-            "same" - lifted edges will only be inserted in between nodes attribted to the same class.
+        mode: The mode for insertion of lifted edges. One of "all", "different", "same".
         n_threads: The number of threads used for the calculation.
 
     Returns:
-        The lifted uv ids (= superpixel ids connected by the lifted edge).
-        The lifted costs (= cost associated with each lifted edge).
+        The lifted uv ids.
+        The lifted costs.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     assert input_segmentation.shape == watershed.shape
 
-    # compute the overlaps
-    ovlp_comp = ngt.overlap(watershed, input_segmentation)
+    ovlp = bic.utils.segmentation_overlap(watershed, input_segmentation)
     ws_ids = np.unique(watershed)
     n_labels = int(ws_ids[-1]) + 1
     assert n_labels == rag.numberOfNodes, "%i, %i" % (n_labels, rag.numberOfNodes)
 
-    # initialise the arrays for node labels, to be
-    # dense in the watershed id space (even if some ws-ids are not present)
     node_labels = np.zeros(n_labels, dtype="uint64")
-
-    # extract the overlap values and node labels from the overlap
-    # computation results
-    overlaps = [ovlp_comp.overlapArraysNormalized(ws_id, sorted=False)
-                for ws_id in ws_ids]
-    node_label_vals = np.array([ovlp[0][0] for ovlp in overlaps])
-    overlap_values = np.array([ovlp[1][0] for ovlp in overlaps])
+    node_label_vals = np.zeros(len(ws_ids), dtype="uint64")
+    overlap_values = np.zeros(len(ws_ids), dtype="float64")
+    for i, ws_id in enumerate(ws_ids):
+        best = ovlp.best_overlap_for_label_a(int(ws_id), ignore_zero=False)
+        node_label_vals[i] = best.label
+        overlap_values[i] = best.fraction
     node_label_vals[overlap_values < overlap_threshold] = 0
-    assert len(node_label_vals) == len(ws_ids)
     node_labels[ws_ids] = node_label_vals
 
-    # find all lifted edges up to the graph depth between mapped nodes
-    # NOTE we need to convert to the different graph type for now, but
-    # it would be nice to support all nifty graphs at some type
+    assert ndist is not None, "Need nifty.distributed package"
     uv_ids = rag.uvIds()
     g_temp = ndist.Graph(uv_ids)
-
-    lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(g_temp, node_labels, graph_depth, mode=mode,
-                                                        numberOfThreads=n_threads, ignoreLabel=0)
-    # make sure that the lifted uv ids are in range of the node labels
-    assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()),
-                                                             rag.numberOfNodes)
+    lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(
+        g_temp, node_labels, graph_depth, mode=mode,
+        numberOfThreads=n_threads, ignoreLabel=0,
+    )
+    assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()), rag.numberOfNodes)
     lifted_labels = node_labels[lifted_uvs]
     lifted_costs = np.zeros(len(lifted_labels), dtype="float64")
 
@@ -690,13 +746,13 @@ def get_stitch_edges(
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     ndim = seg.ndim
-    blocking = nifty.tools.blocking([0] * ndim, seg.shape, block_shape)
+    blocking = bic.utils.Blocking([0] * ndim, list(seg.shape), list(block_shape))
 
     def find_stitch_edges(block_id):
         stitch_edges = []
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         for axis in range(ndim):
-            if blocking.getNeighborId(block_id, axis, True) == -1:
+            if blocking.get_neighbor_id(block_id, axis, True) == -1:
                 continue
             face_a = tuple(
                 beg if d == axis else slice(beg, end)
@@ -730,11 +786,11 @@ def get_stitch_edges(
     with futures.ThreadPoolExecutor(n_threads) as tp:
         if verbose:
             stitch_edges = list(tqdm(
-                tp.map(find_stitch_edges, range(blocking.numberOfBlocks)),
-                total=blocking.numberOfBlocks
+                tp.map(find_stitch_edges, range(blocking.number_of_blocks)),
+                total=blocking.number_of_blocks
             ))
         else:
-            stitch_edges = tp.map(find_stitch_edges, range(blocking.numberOfBlocks))
+            stitch_edges = tp.map(find_stitch_edges, range(blocking.number_of_blocks))
 
     stitch_edges = np.concatenate([st for st in stitch_edges if st is not None])
     stitch_edges = np.unique(stitch_edges)
@@ -743,11 +799,14 @@ def get_stitch_edges(
     return full_edges
 
 
-def project_node_labels_to_pixels(rag, node_labels: np.ndarray, n_threads: Optional[int] = None) -> np.ndarray:
+def project_node_labels_to_pixels(
+    rag, segmentation: np.ndarray, node_labels: np.ndarray, n_threads: Optional[int] = None,
+) -> np.ndarray:
     """Project label values for graph nodes back to pixels to obtain segmentation.
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The over-segmentation used to construct the RAG.
         node_labels: The array with node labels.
         n_threads: The number of threads used, set to cpu count by default.
 
@@ -757,15 +816,17 @@ def project_node_labels_to_pixels(rag, node_labels: np.ndarray, n_threads: Optio
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     if len(node_labels) != rag.numberOfNodes:
         raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels), rag.numberOfNodes))
-    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels, numberOfThreads=n_threads)
+    # bic.graph.project_node_labels_to_pixels requires integer dtypes for both arrays.
+    if segmentation.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
+        segmentation = segmentation.astype("uint64")
+    if node_labels.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
+        node_labels = node_labels.astype("uint64")
+    seg = bic.graph.project_node_labels_to_pixels(rag, segmentation, node_labels, number_of_threads=n_threads)
     return seg
 
 
 def compute_z_edge_mask(rag, watershed: np.ndarray) -> np.ndarray:
     """Compute edge mask of in-between plane edges for flat superpixels.
-
-    Flat superpixels are volumetric superpixels that are independent across slices.
-    This function does not check wether the input watersheds are actually flat.
 
     Args:
         rag: The region adjacency graph.

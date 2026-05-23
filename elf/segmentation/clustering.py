@@ -1,13 +1,30 @@
 from typing import List, Optional, Union
 
-import numpy as np
+import nifty.graph
 import nifty.graph.agglo as nagglo
+import numpy as np
 from nifty.graph import UndirectedGraph
 from vigra.analysis import relabelConsecutive
 
 from .features import (compute_rag, compute_affinity_features,
                        compute_boundary_mean_and_length, project_node_labels_to_pixels)
 from .watershed import apply_size_filter
+
+
+def _to_nifty_graph(rag_or_graph):
+    """@private
+
+    nifty.graph.agglo only accepts nifty graph types, so RAGs and grid graphs
+    coming from bioimage-cpp must be re-emitted as nifty undirected graphs.
+    """
+    if isinstance(rag_or_graph, UndirectedGraph):
+        return rag_or_graph
+    n_nodes = (rag_or_graph.numberOfNodes if hasattr(rag_or_graph, "numberOfNodes")
+               else rag_or_graph.number_of_nodes)
+    uv_ids = rag_or_graph.uvIds() if hasattr(rag_or_graph, "uvIds") else rag_or_graph.uv_ids()
+    nifty_graph = nifty.graph.undirectedGraph(n_nodes)
+    nifty_graph.insertEdges(uv_ids)
+    return nifty_graph
 
 
 def mala_clustering(
@@ -86,35 +103,38 @@ def agglomerative_clustering(
 def compute_graph_and_features(segmentation, input_map, offsets=None, n_threads=None):
     """@private
     """
-    # compute the graph and edge weihts / edge lens
-    graph = compute_rag(segmentation, n_threads=n_threads)
+    # compute the graph (bioimage-cpp RAG) and edge weights / edge lens
+    rag = compute_rag(segmentation, n_threads=n_threads)
     if offsets is None:
         if segmentation.shape != input_map.shape:
             raise ValueError("The shape of the boundary map and the segmentation needs to be the same")
-        edge_weights = compute_boundary_mean_and_length(graph, input_map, n_threads=n_threads)
+        edge_weights = compute_boundary_mean_and_length(rag, segmentation, input_map, n_threads=n_threads)
         edge_weights, edge_sizes = edge_weights[:, 0], edge_weights[:, 1]
     else:
-        n_offsets, spatial_shape = input_map[0], input_map[1:]
+        n_offsets, spatial_shape = input_map.shape[0], input_map.shape[1:]
         if segmentation.shape != spatial_shape:
             raise ValueError("The shape of the boundary map and the segmentation needs to be the same")
         if len(offsets) != n_offsets:
             raise ValueError("The number of channels in the affinity map and the number of offsets need to be the same")
-        edge_weights = compute_affinity_features(graph, input_map, offsets, n_threads=n_threads)[:, 0]
-        edge_sizes = compute_boundary_mean_and_length(graph, input_map[0], n_threads=n_threads)[:, 1]
-    return graph, edge_weights, edge_sizes
+        edge_weights = compute_affinity_features(rag, segmentation, input_map, offsets, n_threads=n_threads)[:, 0]
+        edge_sizes = compute_boundary_mean_and_length(rag, segmentation, input_map[0], n_threads=n_threads)[:, 1]
+    # nifty.graph.agglo policies require a nifty graph type, so we hand back a nifty graph
+    # while keeping the bioimage-cpp RAG around for downstream projection.
+    return _to_nifty_graph(rag), edge_weights, edge_sizes, rag
 
 
 def _cluster_segmentation_impl(segmentation, input_map, cluster_function,
                                offsets=None, n_threads=None, min_segment_size=0,
                                **cluster_kwargs):
-    graph, edge_weights, edge_sizes = compute_graph_and_features(segmentation, input_map,
-                                                                 offsets=offsets, n_threads=n_threads)
+    graph, edge_weights, edge_sizes, rag = compute_graph_and_features(
+        segmentation, input_map, offsets=offsets, n_threads=n_threads,
+    )
     clusters = cluster_function(graph=graph,
                                 edge_features=edge_weights,
                                 edge_sizes=edge_sizes,
                                 **cluster_kwargs)
     clusters = relabelConsecutive(clusters, start_label=1, keep_zeros=False)[0].astype('uint32')
-    seg = project_node_labels_to_pixels(graph, clusters)
+    seg = project_node_labels_to_pixels(rag, segmentation, clusters)
     if min_segment_size > 0:
         inp = input_map if offsets is None else input_map[0]
         seg = apply_size_filter(seg, inp, min_segment_size)[0]

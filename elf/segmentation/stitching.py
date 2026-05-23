@@ -2,11 +2,8 @@ import multiprocessing
 from concurrent import futures
 from typing import Callable, Tuple, Optional, Union
 
-import vigra
+import bioimage_cpp as bic
 import numpy as np
-
-import nifty.tools as nt
-from nifty.ground_truth import overlap as compute_overlap
 
 try:
     from napari.utils import progress as tqdm
@@ -60,18 +57,18 @@ def stitch_segmentation(
 
     shape = input_.shape if shape is None else shape
     ndim = len(shape)
-    blocking = nt.blocking([0] * ndim, shape, tile_shape)
+    blocking = bic.utils.Blocking([0] * ndim, list(shape), list(tile_shape))
 
     id_offset = 0
     block_segs = []
     seg = np.zeros(shape, dtype="uint64")
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     # Run tiled segmentation.
     for block_id in tqdm(range(n_blocks), total=n_blocks, desc="Run tiled segmentation", disable=not verbose):
-        block = blocking.getBlockWithHalo(block_id, list(tile_overlap))
-        outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin, block.outerBlock.end))
+        block = blocking.get_block_with_halo(block_id, list(tile_overlap))
+        outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outer_block.begin, block.outer_block.end))
 
         block_input = input_[outer_bb]
         block_seg = segmentation_function(block_input, block_id)
@@ -86,8 +83,10 @@ def stitch_segmentation(
             block_seg += id_offset
             id_offset = block_seg.max()
 
-        inner_bb = tuple(slice(beg, end) for beg, end in zip(block.innerBlock.begin, block.innerBlock.end))
-        local_bb = tuple(slice(beg, end) for beg, end in zip(block.innerBlockLocal.begin, block.innerBlockLocal.end))
+        inner_bb = tuple(slice(beg, end) for beg, end in zip(block.inner_block.begin, block.inner_block.end))
+        local_bb = tuple(
+            slice(beg, end) for beg, end in zip(block.inner_block_local.begin, block.inner_block_local.end)
+        )
 
         seg[inner_bb] = block_seg[local_bb]
         block_segs.append(block_seg)
@@ -106,12 +105,12 @@ def stitch_segmentation(
 
         # For each axis, load the face with the lower block neighbor and compute the object overlaps.
         for axis in range(ndim):
-            ngb_id = blocking.getNeighborId(block_id, axis, lower=True)
+            ngb_id = blocking.get_neighbor_id(block_id, axis, lower=True)
             if ngb_id == -1:
                 continue
 
-            this_block = blocking.getBlockWithHalo(block_id, list(tile_overlap))
-            ngb_block = blocking.getBlockWithHalo(ngb_id, list(tile_overlap))
+            this_block = blocking.get_block_with_halo(block_id, list(tile_overlap))
+            ngb_block = blocking.get_block_with_halo(ngb_id, list(tile_overlap))
 
             # Load the full block segmentations.
             this_seg, ngb_seg = block_segs[block_id], block_segs[ngb_id]
@@ -120,16 +119,16 @@ def stitch_segmentation(
             face = tuple(
                 slice(beg_out, end_out) if d != axis else slice(beg_out, beg_in + tile_overlap[d])
                 for d, (beg_out, end_out, beg_in) in enumerate(
-                    zip(this_block.outerBlock.begin, this_block.outerBlock.end, this_block.innerBlock.begin)
+                    zip(this_block.outer_block.begin, this_block.outer_block.end, this_block.inner_block.begin)
                 )
             )
 
             # Map to the two local face coordinates.
             this_face_bb = tuple(
-                slice(fa.start - offset, fa.stop - offset) for fa, offset in zip(face, this_block.outerBlock.begin)
+                slice(fa.start - offset, fa.stop - offset) for fa, offset in zip(face, this_block.outer_block.begin)
             )
             ngb_face_bb = tuple(
-                slice(fa.start - offset, fa.stop - offset) for fa, offset in zip(face, ngb_block.outerBlock.begin)
+                slice(fa.start - offset, fa.stop - offset) for fa, offset in zip(face, ngb_block.outer_block.begin)
             )
 
             # Load the two segmentations for the face.
@@ -137,16 +136,20 @@ def stitch_segmentation(
             ngb_face = ngb_seg[ngb_face_bb]
             assert this_face.shape == ngb_face.shape, (this_face.shape, ngb_face.shape)
 
-            # Compute the object overlaps.
-            overlap_comp = compute_overlap(this_face, ngb_face)
+            # Compute the object overlaps via bioimage-cpp's segmentation_overlap.
+            overlap_comp = bic.utils.segmentation_overlap(this_face.astype("uint64"), ngb_face.astype("uint64"))
             this_ids = np.unique(this_face)
-            overlaps = {this_id: overlap_comp.overlapArraysNormalized(this_id, sorted=False) for this_id in this_ids}
-            overlap_ids = {this_id: ovlps[0] for this_id, ovlps in overlaps.items()}
-            overlap_values = {this_id: ovlps[1] for this_id, ovlps in overlaps.items()}
-            overlap_uv_ids = np.array([
-                [this_id, ovlp_id] for this_id, ovlp_ids in overlap_ids.items() for ovlp_id in ovlp_ids
-            ])
-            overlap_values = np.array([ovlp for ovlps in overlap_values.values() for ovlp in ovlps], dtype="float32")
+            overlap_uv_ids = []
+            overlap_values = []
+            for this_id in this_ids:
+                table = overlap_comp.overlaps_for_label_a(int(this_id), normalize=True)
+                for row in table:
+                    overlap_uv_ids.append([int(this_id), int(row["label"])])
+                    overlap_values.append(float(row["fraction"]))
+            if not overlap_uv_ids:
+                continue
+            overlap_uv_ids = np.array(overlap_uv_ids, dtype="uint64")
+            overlap_values = np.array(overlap_values, dtype="float32")
             assert len(overlap_uv_ids) == len(overlap_values)
 
             # Get the edge ids, then exclude invalid edges and set the edge disaffinities to 1 - overlap.
@@ -182,12 +185,13 @@ def stitch_segmentation(
 
     # Run multicut to get the segmentation result.
     node_labels = multicut_decomposition(rag, costs)
-    seg_stitched = project_node_labels_to_pixels(rag, node_labels, n_threads=n_threads)
+    seg_stitched = project_node_labels_to_pixels(rag, seg, node_labels, n_threads=n_threads)
 
     if with_background:
-        vigra.analysis.relabelConsecutive(seg_stitched, out=seg_stitched, start_label=1, keep_zeros=True)
+        seg_stitched, _, _ = bic.segmentation.relabel_sequential(seg_stitched, offset=1)
     else:
-        vigra.analysis.relabelConsecutive(seg_stitched, out=seg_stitched, start_label=1, keep_zeros=False)
+        # keep_zeros=False semantics: also renumber the 0 value. Shift labels by +1 first.
+        seg_stitched, _, _ = bic.segmentation.relabel_sequential(seg_stitched + 1, offset=1)
 
     if return_before_stitching:
         return seg_stitched, seg
@@ -222,14 +226,14 @@ def stitch_tiled_segmentation(
     """
     shape = segmentation.shape
     ndim = len(shape)
-    blocking = nt.blocking([0] * ndim, shape, tile_shape)
-    n_blocks = blocking.numberOfBlocks
+    blocking = bic.utils.Blocking([0] * ndim, list(shape), list(tile_shape))
+    n_blocks = blocking.number_of_blocks
 
     block_segs = []
 
     # Get the tiles from the segmentation of shape: 'tile_shape'.
     for block_id in tqdm(range(n_blocks), desc="Get tiles from the segmentation", disable=not verbose):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
         block_seg = segmentation[bb]
         block_segs.append(block_seg)
@@ -247,7 +251,7 @@ def stitch_tiled_segmentation(
     def _compute_overlaps(block_id):
         # For each axis, load the face with the lower block neighbor and compute the object overlaps
         for axis in range(ndim):
-            ngb_id = blocking.getNeighborId(block_id, axis, lower=True)
+            ngb_id = blocking.get_neighbor_id(block_id, axis, lower=True)
             if ngb_id == -1:
                 continue
 
@@ -269,17 +273,20 @@ def stitch_tiled_segmentation(
             # Both the faces from each tile are expected to be of the same shape
             assert this_face.shape == ngb_face.shape, (this_face.shape, ngb_face.shape)
 
-            # Compute the object overlaps.
-            # In this step, we compute the per-instance overlap over both faces
-            overlap_comp = compute_overlap(this_face, ngb_face)
+            # Compute the object overlaps via bioimage-cpp's segmentation_overlap.
+            overlap_comp = bic.utils.segmentation_overlap(this_face.astype("uint64"), ngb_face.astype("uint64"))
             this_ids = np.unique(this_face).astype("uint32")
-            overlaps = {this_id: overlap_comp.overlapArraysNormalized(this_id, sorted=False) for this_id in this_ids}
-            overlap_ids = {this_id: ovlps[0] for this_id, ovlps in overlaps.items()}
-            overlap_values = {this_id: ovlps[1] for this_id, ovlps in overlaps.items()}
-            overlap_uv_ids = np.array([
-                [this_id, ovlp_id] for this_id, ovlp_ids in overlap_ids.items() for ovlp_id in ovlp_ids
-            ])
-            overlap_values = np.array([ovlp for ovlps in overlap_values.values() for ovlp in ovlps], dtype="float32")
+            overlap_uv_ids = []
+            overlap_values = []
+            for this_id in this_ids:
+                table = overlap_comp.overlaps_for_label_a(int(this_id), normalize=True)
+                for row in table:
+                    overlap_uv_ids.append([int(this_id), int(row["label"])])
+                    overlap_values.append(float(row["fraction"]))
+            if not overlap_uv_ids:
+                continue
+            overlap_uv_ids = np.array(overlap_uv_ids, dtype="uint64")
+            overlap_values = np.array(overlap_values, dtype="float32")
             assert len(overlap_uv_ids) == len(overlap_values)
 
             # Next, we remove the invalid edges.
@@ -314,6 +321,6 @@ def stitch_tiled_segmentation(
 
     # Run multicut to get the segmentation result.
     node_labels = multicut_decomposition(rag, costs)
-    seg_stitched = project_node_labels_to_pixels(rag, node_labels)
+    seg_stitched = project_node_labels_to_pixels(rag, segmentation, node_labels)
 
     return seg_stitched
