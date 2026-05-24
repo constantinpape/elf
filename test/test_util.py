@@ -1,4 +1,6 @@
 import unittest
+
+import bioimage_cpp as bic
 import nifty.tools as nt
 import numpy as np
 
@@ -38,7 +40,7 @@ class TestUtil(unittest.TestCase):
     def test_checkerboard(self):
         from elf.util import divide_blocks_into_checkerboard
         shape, block_shape = (512, 512), (128, 128)
-        blocking = nt.blocking([0, 0], shape, block_shape)
+        blocking = bic.utils.Blocking([0, 0], list(shape), list(block_shape))
         blocks_a, blocks_b = divide_blocks_into_checkerboard(blocking)
 
         expected_pos_a = [
@@ -47,8 +49,8 @@ class TestUtil(unittest.TestCase):
             [2, 0], [2, 2],
             [3, 1], [3, 3]
         ]
-        for block_id in range(blocking.numberOfBlocks):
-            grid_pos = blocking.blockGridPosition(block_id)
+        for block_id in range(blocking.number_of_blocks):
+            grid_pos = list(blocking.block_grid_position(block_id))
             if grid_pos in expected_pos_a:
                 self.assertIn(block_id, blocks_a)
             else:
