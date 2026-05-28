@@ -74,7 +74,7 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
             feats = _compute_xyz_boundary_features(rag, boundaries, watershed, use_2dws, n_threads)
         features.append(feats)
     if "raw-region-features" in feature_names:
-        feats = elf_feats.compute_region_features(rag.uvIds(), raw, watershed.astype("uint32"), n_threads=n_threads)
+        feats = elf_feats.compute_region_features(rag.uv_ids(), raw, watershed.astype("uint32"), n_threads=n_threads)
         features.append(feats)
 
     # for now, we always append the length as one other feature
@@ -85,7 +85,7 @@ def _compute_features(raw, boundaries, watershed, feature_names, use_2dws, n_thr
     features.append(edge_len[:, None])
 
     features = np.concatenate(features, axis=1)
-    assert len(features) == rag.numberOfEdges
+    assert len(features) == rag.number_of_edges
     return rag, features
 
 
@@ -102,7 +102,7 @@ def _compute_features_and_labels(
         edge_mask = np.logical_and(edge_mask, edge_mask1)
 
     if mask is not None:
-        edge_mask2 = (rag.uvIds() != 0).any(axis=1)
+        edge_mask2 = (rag.uv_ids() != 0).any(axis=1)
         edge_mask = np.logical_and(edge_mask, edge_mask2)
 
     features, edge_labels = features[edge_mask], edge_labels[edge_mask]
@@ -127,7 +127,7 @@ def _get_solver(solver):
 
 
 def _mask_edges(rag, edge_costs):
-    uv_ids = rag.uvIds()
+    uv_ids = rag.uv_ids()
     ignore_edges = (uv_ids == 0).any(axis=1)
     edge_costs[ignore_edges] = - np.abs(edge_costs).max()
     return edge_costs

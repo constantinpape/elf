@@ -123,7 +123,7 @@ class TestMulticut(unittest.TestCase):
         # placed in its own voxel so every block touches a unique subset.
         from elf.segmentation.multicut import blockwise_multicut
         graph, costs = load_multicut_problem('A', 'small')
-        n_nodes = graph.numberOfNodes
+        n_nodes = graph.number_of_nodes
         # arrange node ids in a roughly cubic volume
         side = int(np.ceil(n_nodes ** (1.0 / 3.0)))
         seg = np.zeros((side, side, side), dtype='uint64')

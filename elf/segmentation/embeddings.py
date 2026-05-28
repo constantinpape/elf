@@ -73,7 +73,7 @@ def edge_probabilities_from_embeddings(
     Returns:
         The edge probabilties.
     """
-    n_nodes = rag.numberOfNodes
+    n_nodes = rag.number_of_nodes
     embed_dim = embeddings.shape[0]
 
     segmentation = segmentation.astype("uint32")
@@ -82,7 +82,7 @@ def edge_probabilities_from_embeddings(
         mean_embed = _region_features(embeddings[cid], segmentation, ["mean"])["mean"]
         mean_embeddings[:, cid] = mean_embed
 
-    uv_ids = rag.uvIds()
+    uv_ids = rag.uv_ids()
     embed_u = mean_embeddings[uv_ids[:, 0]]
     embed_v = mean_embeddings[uv_ids[:, 1]]
     edge_probabilities = 1. - _embeddings_to_probabilities(embed_u, embed_v, delta, embedding_axis=1)
@@ -357,7 +357,7 @@ def _process_weights(g, edges, weights, weight_function, beta,
         for chan_id, weightc in enumerate(weights):
             weights[chan_id] = weight_function(weightc)
         edges, weights = compute_grid_graph_affinity_features(g, weights)
-        assert len(weights) == g.numberOfEdges
+        assert len(weights) == g.number_of_edges
         return edges, weights
 
     def apply_weight_function_lr():
@@ -457,7 +457,7 @@ def segment_embeddings_mws(
     )
     if bias > 0:
         mutex_costs += bias
-    uvs = g.uvIds()
+    uvs = g.uv_ids()
     seg = mutex_watershed_clustering(uvs, mutex_uvs, costs, mutex_costs).reshape(embeddings.shape[1:])
     if mask is not None:
         seg = _ensure_mask_is_zero(seg, mask)

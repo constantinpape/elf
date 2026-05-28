@@ -39,7 +39,7 @@ class TestEmbeddings(unittest.TestCase):
         embed_dim = 4
         embeddings = rng.random((embed_dim,) + shape).astype("float32")
         probs = edge_probabilities_from_embeddings(embeddings, seg, rag, delta=0.5)
-        self.assertEqual(len(probs), rag.numberOfEdges)
+        self.assertEqual(len(probs), rag.number_of_edges)
         self.assertTrue((probs >= 0).all())
         self.assertTrue((probs <= 1).all())
 

@@ -62,7 +62,7 @@ class TestLiftedMulticutRealProblem(unittest.TestCase):
         cls.costs = costs.astype('float64')
 
         rng = np.random.default_rng(0)
-        n_nodes = graph.numberOfNodes
+        n_nodes = graph.number_of_nodes
         # synthesize 200 random lifted node pairs; drop self-loops and any that
         # coincide with base edges. A small set is enough to exercise the solvers.
         sample = rng.integers(0, n_nodes, size=(400, 2), dtype='uint64')
@@ -83,7 +83,7 @@ class TestLiftedMulticutRealProblem(unittest.TestCase):
     def test_gaec(self):
         from elf.segmentation.lifted_multicut import lifted_multicut_gaec
         labels = lifted_multicut_gaec(self.graph, self.costs, self.lifted_uvs, self.lifted_costs)
-        self.assertEqual(labels.shape, (self.graph.numberOfNodes,))
+        self.assertEqual(labels.shape, (self.graph.number_of_nodes,))
         self.assertLess(self._energy(labels), 0)
 
     def test_kernighan_lin(self):
@@ -101,7 +101,7 @@ class TestLiftedMulticutRealProblem(unittest.TestCase):
 
     def test_blockwise_lifted_multicut(self):
         from elf.segmentation.lifted_multicut import blockwise_lifted_multicut
-        n_nodes = self.graph.numberOfNodes
+        n_nodes = self.graph.number_of_nodes
         side = int(np.ceil(n_nodes ** (1.0 / 3.0)))
         seg = np.zeros((side, side, side), dtype='uint64')
         seg.reshape(-1)[:n_nodes] = np.arange(n_nodes, dtype='uint64')

@@ -202,7 +202,7 @@ def compute_boundary_features_with_filters(
                 feats.append(compute_boundary_features(rag, segmentation, chan_data, n_threads=n_threads))
 
             out = np.concatenate(feats, axis=1)
-            assert len(out) == rag.numberOfEdges
+            assert len(out) == rag.number_of_edges
             return out
 
         features = [_compute_2d(filter_name, sigma)
@@ -225,7 +225,7 @@ def compute_boundary_features_with_filters(
                 chan_data = response[..., chan]
                 feats.append(compute_boundary_features(rag, segmentation, chan_data, n_threads=1))
             out = np.concatenate(feats, axis=1)
-            assert len(out) == rag.numberOfEdges, f"{len(out), {rag.numberOfEdges}}"
+            assert len(out) == rag.number_of_edges, f"{len(out), {rag.number_of_edges}}"
             return out
 
         with futures.ThreadPoolExecutor(n_threads) as tp:
@@ -234,7 +234,7 @@ def compute_boundary_features_with_filters(
             features = [t.result() for t in tasks]
 
     features = np.concatenate(features, axis=1)
-    assert len(features) == rag.numberOfEdges
+    assert len(features) == rag.number_of_edges
     return features
 
 
@@ -409,11 +409,6 @@ def compute_grid_graph(shape: Tuple[int, ...]):
     return bic.graph.grid_graph(shape)
 
 
-def _as_bic_grid_graph(graph):
-    """@private"""
-    return graph
-
-
 def _nn_offsets(ndim):
     return [[-1 if i == d else 0 for i in range(ndim)] for d in range(ndim)]
 
@@ -463,7 +458,6 @@ def compute_grid_graph_image_features(
         The uv ids of the edges.
         The edge features.
     """
-    grid_graph = _as_bic_grid_graph(grid_graph)
     gndim = len(grid_graph.shape)
 
     if image.ndim == gndim:
@@ -524,7 +518,6 @@ def compute_grid_graph_affinity_features(
         The uv ids of the edges.
         The edge features.
     """
-    grid_graph = _as_bic_grid_graph(grid_graph)
     gndim = len(grid_graph.shape)
     if affinities.ndim != gndim + 1:
         raise ValueError("affinities must have shape (channels, *grid_graph.shape)")
@@ -642,7 +635,7 @@ def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
         raise ValueError(f"Graph distance must be greater equal 2, got {max_graph_distance}")
     # With all-zero node_labels and mode='all', every node pair within the BFS hop window
     # [2, max_graph_distance] is returned (base-graph edges excluded).
-    node_labels = np.zeros(graph.numberOfNodes, dtype="uint64")
+    node_labels = np.zeros(graph.number_of_nodes, dtype="uint64")
     lifted_uvs = bic.graph.lifted_multicut.lifted_edges_from_node_labels(
         graph, node_labels, graph_depth=max_graph_distance, mode="all",
     )
@@ -748,7 +741,7 @@ def lifted_problem_from_segmentation(
     ovlp = bic.utils.segmentation_overlap(watershed, input_segmentation)
     ws_ids = np.unique(watershed)
     n_labels = int(ws_ids[-1]) + 1
-    assert n_labels == rag.numberOfNodes, "%i, %i" % (n_labels, rag.numberOfNodes)
+    assert n_labels == rag.number_of_nodes, "%i, %i" % (n_labels, rag.number_of_nodes)
 
     node_labels = np.zeros(n_labels, dtype="uint64")
     node_label_vals = np.zeros(len(ws_ids), dtype="uint64")
@@ -764,7 +757,7 @@ def lifted_problem_from_segmentation(
         rag, node_labels, graph_depth=graph_depth, mode=mode,
         ignore_label=0, number_of_threads=n_threads,
     )
-    assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()), rag.numberOfNodes)
+    assert lifted_uvs.max() < rag.number_of_nodes, "%i, %i" % (int(lifted_uvs.max()), rag.number_of_nodes)
     lifted_labels = node_labels[lifted_uvs]
     lifted_costs = np.zeros(len(lifted_labels), dtype="float64")
 
@@ -826,7 +819,7 @@ def get_stitch_edges(
             )
             uv_ids = np.unique(uv_ids, axis=0)
 
-            edge_ids = rag.findEdges(uv_ids)
+            edge_ids = rag.find_edges(uv_ids)
             edge_ids = edge_ids[edge_ids != -1]
             stitch_edges.append(edge_ids)
 
@@ -848,7 +841,7 @@ def get_stitch_edges(
 
     stitch_edges = np.concatenate([st for st in stitch_edges if st is not None])
     stitch_edges = np.unique(stitch_edges)
-    full_edges = np.zeros(rag.numberOfEdges, dtype="bool")
+    full_edges = np.zeros(rag.number_of_edges, dtype="bool")
     full_edges[stitch_edges] = 1
     return full_edges
 
@@ -868,8 +861,8 @@ def project_node_labels_to_pixels(
         The segmentation.
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    if len(node_labels) != rag.numberOfNodes:
-        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels), rag.numberOfNodes))
+    if len(node_labels) != rag.number_of_nodes:
+        raise ValueError("Incompatible number of node labels: %i, %i" % (len(node_labels), rag.number_of_nodes))
     # bic.graph.project_node_labels_to_pixels requires integer dtypes for both arrays.
     if segmentation.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
         segmentation = segmentation.astype("uint64")
@@ -889,9 +882,9 @@ def compute_z_edge_mask(rag, watershed: np.ndarray) -> np.ndarray:
     Returns:
         The edge mask indicating in-between slice edges.
     """
-    node_z_coords = np.zeros(rag.numberOfNodes, dtype="uint32")
+    node_z_coords = np.zeros(rag.number_of_nodes, dtype="uint32")
     for z in range(watershed.shape[0]):
         node_z_coords[watershed[z]] = z
-    uv_ids = rag.uvIds()
+    uv_ids = rag.uv_ids()
     z_edge_mask = node_z_coords[uv_ids[:, 0]] != node_z_coords[uv_ids[:, 1]]
     return z_edge_mask

@@ -20,10 +20,9 @@ class TestFeatures(unittest.TestCase):
         shape = (16, 32, 32)
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
-        # bic RAG exposes both camelCase and snake_case aliases
-        self.assertEqual(rag.numberOfNodes, int(seg.max()) + 1)
-        self.assertEqual(rag.uvIds().shape[1], 2)
-        self.assertGreater(rag.numberOfEdges, 0)
+        self.assertEqual(rag.number_of_nodes, int(seg.max()) + 1)
+        self.assertEqual(rag.uv_ids().shape[1], 2)
+        self.assertGreater(rag.number_of_edges, 0)
 
     def test_compute_boundary_features(self):
         from elf.segmentation.features import compute_rag, compute_boundary_features
@@ -32,7 +31,7 @@ class TestFeatures(unittest.TestCase):
         rag = compute_rag(seg)
         bmap = np.random.rand(*shape).astype('float32')
         feats = compute_boundary_features(rag, seg, bmap)
-        self.assertEqual(len(feats), rag.numberOfEdges)
+        self.assertEqual(len(feats), rag.number_of_edges)
         self.assertGreater(feats.shape[1], 1)
 
     def test_compute_affinity_features(self):
@@ -43,7 +42,7 @@ class TestFeatures(unittest.TestCase):
         offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
         affs = np.random.rand(len(offsets), *shape).astype('float32')
         feats = compute_affinity_features(rag, seg, affs, offsets)
-        self.assertEqual(len(feats), rag.numberOfEdges)
+        self.assertEqual(len(feats), rag.number_of_edges)
         self.assertGreater(feats.shape[1], 1)
 
     def test_compute_boundary_mean_and_length(self):
@@ -53,7 +52,7 @@ class TestFeatures(unittest.TestCase):
         rag = compute_rag(seg)
         bmap = np.random.rand(*shape).astype('float32')
         feats = compute_boundary_mean_and_length(rag, seg, bmap)
-        self.assertEqual(feats.shape, (rag.numberOfEdges, 2))
+        self.assertEqual(feats.shape, (rag.number_of_edges, 2))
         # column 1 (size) must be > 0 for valid edges
         self.assertTrue((feats[:, 1] > 0).all())
 
@@ -63,7 +62,7 @@ class TestFeatures(unittest.TestCase):
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
         # collapse to a 2-class labelling
-        node_labels = (np.arange(rag.numberOfNodes) % 2).astype('uint64')
+        node_labels = (np.arange(rag.number_of_nodes) % 2).astype('uint64')
         out = project_node_labels_to_pixels(rag, seg, node_labels)
         self.assertEqual(out.shape, shape)
         self.assertTrue((np.unique(out) <= [0, 1]).all())
@@ -74,7 +73,7 @@ class TestFeatures(unittest.TestCase):
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
         mask = get_stitch_edges(rag, seg, block_shape=(16, 16))
-        self.assertEqual(len(mask), rag.numberOfEdges)
+        self.assertEqual(len(mask), rag.number_of_edges)
         self.assertEqual(mask.dtype, np.bool_)
 
     def test_compute_z_edge_mask(self):
@@ -88,7 +87,7 @@ class TestFeatures(unittest.TestCase):
             seg[z] = z * nz_per_slice + slice_ids.reshape(shape[1], shape[2])
         rag = compute_rag(seg)
         mask = compute_z_edge_mask(rag, seg)
-        self.assertEqual(len(mask), rag.numberOfEdges)
+        self.assertEqual(len(mask), rag.number_of_edges)
         # at least some edges should cross slices
         self.assertGreater(int(mask.sum()), 0)
 
@@ -109,7 +108,7 @@ class TestFeatures(unittest.TestCase):
         inp = np.random.rand(*shape).astype('float32')
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
-        uv_ids = rag.uvIds()
+        uv_ids = rag.uv_ids()
 
         feats = compute_region_features(uv_ids, inp, seg)
         self.assertEqual(len(uv_ids), len(feats))
@@ -145,11 +144,11 @@ class TestFeatures(unittest.TestCase):
         rag = compute_rag(seg)
 
         feats = compute_boundary_features_with_filters(rag, seg, inp)
-        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertEqual(rag.number_of_edges, len(feats))
         self.assertFalse(np.allclose(feats, 0))
 
         feats = compute_boundary_features_with_filters(rag, seg, inp, apply_2d=True)
-        self.assertEqual(rag.numberOfEdges, len(feats))
+        self.assertEqual(rag.number_of_edges, len(feats))
         self.assertFalse(np.allclose(feats, 0))
 
     def test_lifted_problem_from_probabilities(self):
@@ -195,12 +194,12 @@ class TestFeatures(unittest.TestCase):
         # 2d test
         shape = (64, 64)
         g = compute_grid_graph(shape)
-        self.assertEqual(g.numberOfNodes, shape[0] * shape[1])
+        self.assertEqual(g.number_of_nodes, shape[0] * shape[1])
 
         # 3d test
         shape = (32, 64, 64)
         g = compute_grid_graph(shape)
-        self.assertEqual(g.numberOfNodes, shape[0] * shape[1] * shape[2])
+        self.assertEqual(g.number_of_nodes, shape[0] * shape[1] * shape[2])
 
     def _test_grid_graph_affinity_features(self, shape, offsets, strides):
         from elf.segmentation.features import compute_grid_graph, compute_grid_graph_affinity_features
@@ -218,9 +217,9 @@ class TestFeatures(unittest.TestCase):
         # for the case without offsets, the edges returned must correspond
         # to the edges of the grid graph
         edges, feats = compute_grid_graph_affinity_features(g, affs)
-        self.assertEqual(len(edges), g.numberOfEdges)
-        self.assertEqual(len(feats), g.numberOfEdges)
-        self.assertTrue(np.array_equal(edges, g.uvIds()))
+        self.assertEqual(len(edges), g.number_of_edges)
+        self.assertEqual(len(feats), g.number_of_edges)
+        self.assertTrue(np.array_equal(edges, g.uv_ids()))
         _check_feats(feats)
 
         # test - with offsets
@@ -281,9 +280,9 @@ class TestFeatures(unittest.TestCase):
             edges, feats = compute_grid_graph_image_features(g, im, dist)
             # for the case without offsets, the edges returned must correspond
             # to the edges of the grid graph
-            self.assertEqual(len(edges), g.numberOfEdges)
-            self.assertEqual(len(feats), g.numberOfEdges)
-            self.assertTrue(np.array_equal(edges, g.uvIds()))
+            self.assertEqual(len(edges), g.number_of_edges)
+            self.assertEqual(len(feats), g.number_of_edges)
+            self.assertTrue(np.array_equal(edges, g.uv_ids()))
             _check_dists(feats, dist)
 
             # with offsets
@@ -334,7 +333,7 @@ class TestFeatures(unittest.TestCase):
         _, weights = compute_grid_graph_affinity_features(g, affs)
         mask = np.random.rand(*shape) > 0.5
         weights = apply_mask_to_grid_graph_weights(g, mask, weights)
-        self.assertEqual(len(weights), g.numberOfEdges)
+        self.assertEqual(len(weights), g.number_of_edges)
 
     def test_apply_mask_to_grid_graph_edges_and_weights(self):
         from elf.segmentation.features import (apply_mask_to_grid_graph_edges_and_weights,

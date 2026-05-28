@@ -25,11 +25,11 @@ class TestLearning(unittest.TestCase):
         gt = _make_seg(shape, change_prob=0.95)
         rag = compute_rag(seg)
         edge_labels = compute_edge_labels(rag, seg, gt)
-        self.assertEqual(len(edge_labels), rag.numberOfEdges)
+        self.assertEqual(len(edge_labels), rag.number_of_edges)
         self.assertEqual(edge_labels.dtype, np.uint8)
         # mix of cut and merge edges expected
         self.assertGreater(int(edge_labels.sum()), 0)
-        self.assertLess(int(edge_labels.sum()), rag.numberOfEdges)
+        self.assertLess(int(edge_labels.sum()), rag.number_of_edges)
 
     def test_compute_edge_labels_with_ignore(self):
         from elf.segmentation.features import compute_rag
@@ -41,8 +41,8 @@ class TestLearning(unittest.TestCase):
         gt[:4] = 0
         rag = compute_rag(seg)
         edge_labels, edge_mask = compute_edge_labels(rag, seg, gt, ignore_label=0)
-        self.assertEqual(len(edge_labels), rag.numberOfEdges)
-        self.assertEqual(len(edge_mask), rag.numberOfEdges)
+        self.assertEqual(len(edge_labels), rag.number_of_edges)
+        self.assertEqual(len(edge_mask), rag.number_of_edges)
         self.assertLess(int(edge_mask.sum()), len(edge_mask))
 
     def test_learn_edge_random_forest(self):

@@ -55,14 +55,14 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=
     """@private
     """
     # problem size and cost summary
-    n_nodes, n_edges = graph.numberOfNodes, graph.numberOfEdges
+    n_nodes, n_edges = graph.number_of_nodes, graph.number_of_edges
     min_cost, max_cost = costs.min(), costs.max()
     mean_cost, std_cost = costs.mean(), costs.std()
 
     # component analysis
     merge_edges = costs > cost_threshold
     ufd = bic.utils.UnionFind(int(n_nodes))
-    uv_ids = graph.uvIds()
+    uv_ids = graph.uv_ids()
     if merge_edges.any():
         ufd.merge(uv_ids[merge_edges].astype("uint64"))
     cc_labels = ufd.element_labeling()

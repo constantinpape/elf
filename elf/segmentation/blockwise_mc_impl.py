@@ -62,7 +62,7 @@ def solve_subproblems(graph, costs, segmentation,
                       solver, blocking, halo, n_threads):
     """@private
     """
-    uv_ids = graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds()
+    uv_ids = graph.uv_ids()
 
     # solve sub-problem from one block
     def solve_subproblem(block_id):
@@ -84,7 +84,7 @@ def solve_subproblems(graph, costs, segmentation,
         sub_graph = bic.graph.UndirectedGraph.from_edges(n_local_nodes, sub_uvs)
 
         sub_costs = costs[inner_edges]
-        assert len(sub_costs) == sub_graph.numberOfEdges
+        assert len(sub_costs) == sub_graph.number_of_edges
 
         # solve multicut for the sub-graph; only cut the outer edges if we don't have edges in this block
         if len(sub_costs) > 0:
@@ -106,7 +106,7 @@ def solve_subproblems(graph, costs, segmentation,
         results = [t.result() for t in tasks]
 
     # merge the edge results to get all merge edges
-    cut_edges = np.zeros(graph.numberOfEdges, dtype="uint16")
+    cut_edges = np.zeros(graph.number_of_edges, dtype="uint16")
     for res in results:
         cut_edges[res] += 1
     return cut_edges == 0
@@ -116,9 +116,9 @@ def reduce_problem(graph, costs, merge_edges, n_threads):
     """@private
     """
     # merge node pairs with ufd
-    n_nodes = graph.numberOfNodes
+    n_nodes = graph.number_of_nodes
     nodes = np.arange(n_nodes, dtype="uint64")
-    uv_ids = np.asarray(graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds(), dtype="uint64")
+    uv_ids = np.asarray(graph.uv_ids(), dtype="uint64")
     ufd = bic.utils.UnionFind(n_nodes)
     ufd.merge(np.ascontiguousarray(uv_ids[merge_edges], dtype="uint64"))
 

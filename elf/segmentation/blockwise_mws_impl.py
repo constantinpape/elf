@@ -36,7 +36,7 @@ def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
             if edges.size == 0:
                 return None
 
-        edge_ids = rag.findEdges(edges)
+        edge_ids = rag.find_edges(edges)
         assert (edge_ids != -1).all()
         return edge_ids
 
@@ -53,7 +53,7 @@ def compute_stitch_edges(rag, segmentation, blocking, with_mask=False):
             if this_stitch_edges is not None:
                 stitch_edges.append(this_stitch_edges)
 
-    stitch_edge_mask = np.zeros(rag.numberOfEdges, dtype="bool")
+    stitch_edge_mask = np.zeros(rag.number_of_edges, dtype="bool")
 
     if len(stitch_edges) > 0:
         stitch_edges = np.concatenate(stitch_edges, axis=0)
@@ -150,7 +150,7 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
         # if we have a mask, set all edges with 0 to be maximally repulsive
         if mask is not None:
             max_repulsive = 5 * costs.min()
-            uv_ids = rag.uvIds()
+            uv_ids = rag.uv_ids()
             costs[(uv_ids == 0).any(axis=1)] = max_repulsive
 
     # 4.) compute multicut

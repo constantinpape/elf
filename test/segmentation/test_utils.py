@@ -154,8 +154,8 @@ class TestUtilsDownload(unittest.TestCase):
     def test_load_multicut_problem(self):
         from elf.segmentation.utils import load_multicut_problem
         graph, costs = load_multicut_problem("A", "small")
-        self.assertGreater(graph.numberOfNodes, 0)
-        self.assertEqual(len(costs), graph.numberOfEdges)
+        self.assertGreater(graph.number_of_nodes, 0)
+        self.assertEqual(len(costs), graph.number_of_edges)
 
     def test_load_mutex_watershed_problem(self):
         from elf.segmentation.utils import load_mutex_watershed_problem

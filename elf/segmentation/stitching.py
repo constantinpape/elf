@@ -99,7 +99,7 @@ def stitch_segmentation(
     # We initialize the edge disaffinities with a high value (corresponding to a low overlap),
     # so that merging pairs that are not on the edge is very unlikely
     # but not completely impossible in case it is needed for a consistent solution.
-    edge_disaffinities = np.full(rag.numberOfEdges, 0.9, dtype="float32")
+    edge_disaffinities = np.full(rag.number_of_edges, 0.9, dtype="float32")
 
     def _compute_overlaps(block_id):
 
@@ -161,7 +161,7 @@ def stitch_segmentation(
             overlap_uv_ids, overlap_values = overlap_uv_ids[valid_uv_ids], overlap_values[valid_uv_ids]
             assert len(overlap_uv_ids) == len(overlap_values)
 
-            edge_ids = rag.findEdges(overlap_uv_ids)
+            edge_ids = rag.find_edges(overlap_uv_ids)
             valid_edges = edge_ids != -1
             if valid_edges.sum() == 0:
                 continue
@@ -178,8 +178,8 @@ def stitch_segmentation(
 
     # If we have background, then set all the edges that are connecting 0 to another element to be very unlikely.
     if with_background:
-        uv_ids = rag.uvIds()
-        bg_edges = rag.findEdges(uv_ids[(uv_ids == 0).any(axis=1)])
+        uv_ids = rag.uv_ids()
+        bg_edges = rag.find_edges(uv_ids[(uv_ids == 0).any(axis=1)])
         edge_disaffinities[bg_edges] = 0.99
     costs = compute_edge_costs(edge_disaffinities, beta=beta)
 
@@ -246,7 +246,7 @@ def stitch_tiled_segmentation(
     # We initialize the edge disaffinities with a high value (corresponding to a low overlap)
     # so that merging things that are not on the edge is very unlikely
     # but not completely impossible in case it is needed for a consistent solution.
-    edge_disaffinities = np.full(rag.numberOfEdges, 0.9, dtype="float32")
+    edge_disaffinities = np.full(rag.number_of_edges, 0.9, dtype="float32")
 
     def _compute_overlaps(block_id):
         # For each axis, load the face with the lower block neighbor and compute the object overlaps
@@ -298,7 +298,7 @@ def stitch_tiled_segmentation(
             assert len(overlap_uv_ids) == len(overlap_values)
 
             # Get the edge ids.
-            edge_ids = rag.findEdges(overlap_uv_ids)
+            edge_ids = rag.find_edges(overlap_uv_ids)
             valid_edges = edge_ids != -1
             if valid_edges.sum() == 0:
                 continue
@@ -313,9 +313,9 @@ def stitch_tiled_segmentation(
             _compute_overlaps, range(n_blocks)), total=n_blocks, desc="Compute object overlaps", disable=not verbose,
         ))
 
-    uv_ids = rag.uvIds()
+    uv_ids = rag.uv_ids()
     if with_background:
-        bg_edges = rag.findEdges(uv_ids[(uv_ids == 0).any(axis=1)])
+        bg_edges = rag.find_edges(uv_ids[(uv_ids == 0).any(axis=1)])
         edge_disaffinities[bg_edges] = 0.99
     costs = compute_edge_costs(edge_disaffinities, beta=0.5)
 

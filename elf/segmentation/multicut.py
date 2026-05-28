@@ -143,9 +143,9 @@ def _to_objective(graph, costs):
     if isinstance(graph, bic.graph.UndirectedGraph):
         graph_ = graph
     else:
-        # Defensive path: rebuild on bic from any graph that exposes the legacy or new accessor.
-        uv = graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds()
-        graph_ = bic.graph.UndirectedGraph.from_edges(graph.numberOfNodes, np.asarray(uv, dtype="uint64"))
+        graph_ = bic.graph.UndirectedGraph.from_edges(
+            graph.number_of_nodes, np.asarray(graph.uv_ids(), dtype="uint64"),
+        )
     return bic.graph.multicut.MulticutObjective(graph_, costs)
 
 
@@ -423,9 +423,8 @@ def _nifty_objective_and_visitor(nifty, nmc, graph, costs, time_limit, **kwargs)
     if isinstance(graph, nifty.graph.UndirectedGraph):
         graph_ = graph
     else:
-        uv = graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds()
-        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
-        graph_.insertEdges(np.asarray(uv))
+        graph_ = nifty.graph.undirectedGraph(graph.number_of_nodes)
+        graph_.insertEdges(np.asarray(graph.uv_ids()))
     objective = nmc.multicutObjective(graph_, costs)
 
     logging_interval = kwargs.pop("logging_interval", None)
@@ -503,7 +502,7 @@ def multicut_rama(
     """
     if rama_py is None:
         raise RuntimeError("Need rama_py to use multicut_rama function")
-    uv_ids = graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds()
+    uv_ids = graph.uv_ids()
     if mode is None:
         opts = rama_py.multicut_solver_options()
     else:
@@ -511,7 +510,7 @@ def multicut_rama(
         opts = rama_py.multicut_solver_options(mode)
     opts.verbose = False
     node_labels = rama_py.rama_cuda(uv_ids[:, 0], uv_ids[:, 1], costs, opts)[0]
-    assert len(node_labels) == graph.numberOfNodes, f"{len(node_labels)}, {graph.numberOfNodes}"
+    assert len(node_labels) == graph.number_of_nodes, f"{len(node_labels)}, {graph.number_of_nodes}"
     return node_labels
 
 

@@ -28,7 +28,7 @@ def compute_edge_labels(
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
     node_labels = bic.graph.features.accumulate_labels(rag, segmentation, gt, number_of_threads=n_threads)
-    uv_ids = rag.uvIds()
+    uv_ids = rag.uv_ids()
 
     edge_labels = (node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]).astype("uint8")
 

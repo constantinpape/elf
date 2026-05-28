@@ -72,8 +72,9 @@ def _to_objective(graph, costs, lifted_uv_ids, lifted_costs):
     if isinstance(graph, bic.graph.UndirectedGraph):
         graph_ = graph
     else:
-        uv = graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds()
-        graph_ = bic.graph.UndirectedGraph.from_edges(graph.numberOfNodes, np.asarray(uv, dtype="uint64"))
+        graph_ = bic.graph.UndirectedGraph.from_edges(
+            graph.number_of_nodes, np.asarray(graph.uv_ids(), dtype="uint64"),
+        )
     return bic.graph.lifted_multicut.LiftedMulticutObjective(
         graph_, costs,
         lifted_uvs=np.asarray(lifted_uv_ids, dtype="uint64"),
