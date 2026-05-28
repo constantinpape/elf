@@ -410,14 +410,8 @@ def compute_grid_graph(shape: Tuple[int, ...]):
 
 
 def _as_bic_grid_graph(graph):
-    """@private
-
-    Accept either a bioimage-cpp GridGraph2D/3D or a legacy nifty UndirectedGridGraph
-    (still produced by the out-of-scope gasp_utils module) and return a bic grid graph.
-    """
-    if isinstance(graph, (bic.graph.GridGraph2D, bic.graph.GridGraph3D)):
-        return graph
-    return bic.graph.grid_graph(tuple(graph.shape))
+    """@private"""
+    return graph
 
 
 def _nn_offsets(ndim):
@@ -530,17 +524,6 @@ def compute_grid_graph_affinity_features(
         The uv ids of the edges.
         The edge features.
     """
-    # The out-of-scope `gasp_utils` module still hands in a nifty grid graph plus a
-    # per-channel edge mask. Honor that legacy call by dispatching to nifty's
-    # ``affinitiesToEdgeMapWithMask`` when both are present. New bic-only callers
-    # do not exercise this branch.
-    is_bic_grid = isinstance(grid_graph, (bic.graph.GridGraph2D, bic.graph.GridGraph3D))
-    if not is_bic_grid and mask is not None and offsets is not None:
-        n_edges, edges, features = grid_graph.affinitiesToEdgeMapWithMask(
-            affinities, offsets=offsets, mask=mask,
-        )
-        return edges[:n_edges], features[:n_edges]
-
     grid_graph = _as_bic_grid_graph(grid_graph)
     gndim = len(grid_graph.shape)
     if affinities.ndim != gndim + 1:

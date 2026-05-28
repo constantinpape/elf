@@ -4,15 +4,6 @@ import bioimage_cpp as bic
 import numpy as np
 
 
-def _to_bic_graph(graph):
-    """Accept a nifty graph or a bic graph; return a bic graph."""
-    if isinstance(graph, (bic.graph.UndirectedGraph, bic.graph.RegionAdjacencyGraph,
-                          bic.graph.GridGraph2D, bic.graph.GridGraph3D)):
-        return graph
-    # Fall back: convert via uv ids (handles nifty graphs from clustering.py).
-    return bic.graph.UndirectedGraph.from_edges(graph.numberOfNodes, graph.uvIds())
-
-
 def graph_watershed(graph, edge_weigths: np.ndarray, seed_nodes: np.ndarray) -> np.ndarray:
     """Compute graph watershed.
 
@@ -24,10 +15,9 @@ def graph_watershed(graph, edge_weigths: np.ndarray, seed_nodes: np.ndarray) -> 
     Returns:
         The node labeling results of the graph watershed.
     """
-    g = _to_bic_graph(graph)
-    assert len(edge_weigths) == g.number_of_edges
-    assert len(seed_nodes) == g.number_of_nodes
-    node_labels = bic.graph.edge_weighted_watershed(g, edge_weigths, seed_nodes)
+    assert len(edge_weigths) == graph.number_of_edges
+    assert len(seed_nodes) == graph.number_of_nodes
+    node_labels = bic.graph.edge_weighted_watershed(graph, edge_weigths, seed_nodes)
     return node_labels
 
 
@@ -52,8 +42,7 @@ def graph_size_filter(
     Returns:
         The size filtered node labeling.
     """
-    g = _to_bic_graph(graph)
-    n_nodes = g.number_of_nodes
+    n_nodes = graph.number_of_nodes
 
     if node_labels is None:
         seeds = np.zeros(n_nodes, dtype="uint64")
@@ -71,4 +60,4 @@ def graph_size_filter(
     if relabel:
         seeds, _, _ = bic.segmentation.relabel_sequential(seeds, offset=1)
 
-    return graph_watershed(g, edge_weigths, seeds)
+    return graph_watershed(graph, edge_weigths, seeds)

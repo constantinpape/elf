@@ -1,9 +1,7 @@
-import time
 from functools import partial
 from typing import Optional, Tuple, Union
 
-import nifty
-import nifty.graph.opt.lifted_multicut as nlmc
+import bioimage_cpp as bic
 import numpy as np
 
 from .blockwise_lmc_impl import blockwise_lmc_impl
@@ -29,7 +27,7 @@ def get_lifted_multicut_solver(name: str, **kwargs):
 
 
 def blockwise_lifted_multicut(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     lifted_uv_ids: np.ndarray,
     lifted_costs: np.ndarray,
@@ -71,19 +69,20 @@ def blockwise_lifted_multicut(
 
 
 def _to_objective(graph, costs, lifted_uv_ids, lifted_costs):
-    if isinstance(graph, nifty.graph.UndirectedGraph):
+    if isinstance(graph, bic.graph.UndirectedGraph):
         graph_ = graph
     else:
-        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
-        graph_.insertEdges(graph.uvIds())
-    objective = nlmc.liftedMulticutObjective(graph_)
-    objective.setGraphEdgesCosts(costs)
-    objective.setCosts(lifted_uv_ids, lifted_costs)
-    return objective
+        uv = graph.uv_ids() if hasattr(graph, "uv_ids") else graph.uvIds()
+        graph_ = bic.graph.UndirectedGraph.from_edges(graph.numberOfNodes, np.asarray(uv, dtype="uint64"))
+    return bic.graph.lifted_multicut.LiftedMulticutObjective(
+        graph_, costs,
+        lifted_uvs=np.asarray(lifted_uv_ids, dtype="uint64"),
+        lifted_costs=lifted_costs,
+    )
 
 
 def lifted_multicut_kernighan_lin(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     lifted_uv_ids: np.ndarray,
     lifted_costs: np.ndarray,
@@ -101,41 +100,25 @@ def lifted_multicut_kernighan_lin(
         costs: Edge costs of the lifted multicut problem.
         lifted_uv_ids: The lifted edges.
         lifted_costs: The lifted edge costs.
-        time_limit: The time limit for inference.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
         warmstart: Whether to warmstart with GAEC solution.
 
     Returns:
         The node label solution to the lifted multicut problem.
     """
     objective = _to_objective(graph, costs, lifted_uv_ids, lifted_costs)
-    solver_kl = objective.liftedMulticutKernighanLinFactory().create(objective)
-    if time_limit is None:
-        if warmstart:
-            solver_gaec = objective.liftedMulticutGreedyAdditiveFactory().create(objective)
-            res = solver_gaec.optimize()
-            return solver_kl.optimize(nodeLabels=res)
-        else:
-            return solver_kl.optimize()
+    if warmstart:
+        solver = bic.graph.lifted_multicut.LiftedChainedSolvers([
+            bic.graph.lifted_multicut.LiftedGreedyAdditiveMulticut(),
+            bic.graph.lifted_multicut.LiftedKernighanLinMulticut(),
+        ])
     else:
-        if warmstart:
-            solver_gaec = objective.liftedMulticutGreedyAdditiveFactory().create(objective)
-            visitor1 = objective.verboseVisitor(visitNth=1000000, timeLimitTotal=time_limit)
-            t0 = time.time()
-            res = solver_gaec.optimize(visitor=visitor1)
-            t0 = time.time() - t0
-            # Time limit is not hard, so t0 might actually be bigger than our time limit already.
-            if t0 > time_limit:
-                return res
-            visitor2 = objective.verboseVisitor(visitNth=1000000, timeLimitTotal=time_limit - t0)
-            return solver_kl.optimize(nodeLabels=res, visitor=visitor2)
-
-        else:
-            visitor = objective.verboseVisitor(visitNth=1000000, timeLimitTotal=time_limit)
-            return solver_kl.optimize(visitor=visitor)
+        solver = bic.graph.lifted_multicut.LiftedKernighanLinMulticut()
+    return solver.optimize(objective)
 
 
 def lifted_multicut_gaec(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     lifted_uv_ids: np.ndarray,
     lifted_costs: np.ndarray,
@@ -152,22 +135,17 @@ def lifted_multicut_gaec(
         costs: The edge costs of lifted multicut problem.
         lifted_uv_ids: The lifted edges.
         lifted_costs: The lifted edge costs.
-        time_limit: The time limit for inference.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
 
     Returns:
         The node label solution to the lifted multicut problem.
     """
     objective = _to_objective(graph, costs, lifted_uv_ids, lifted_costs)
-    solver = objective.liftedMulticutGreedyAdditiveFactory().create(objective)
-    if time_limit is None:
-        return solver.optimize()
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000, timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor)
+    return bic.graph.lifted_multicut.LiftedGreedyAdditiveMulticut().optimize(objective)
 
 
 def lifted_multicut_fusion_moves(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     lifted_uv_ids: np.ndarray,
     lifted_costs: np.ndarray,
@@ -186,7 +164,7 @@ def lifted_multicut_fusion_moves(
         costs: The edge costs of the lifted multicut problem.
         lifted_uv_ids: The lifted edges.
         lifted_costs: The lifted edge costs.
-        time_limit: The time limit for inference.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
         warmstart_gaec: Whether to warmstart with GAEC solution.
         warmstart_kl: Whether to warmstart with KL solution.
 
@@ -194,21 +172,17 @@ def lifted_multicut_fusion_moves(
         The node label solution to the lifted multicut problem.
     """
     objective = _to_objective(graph, costs, lifted_uv_ids, lifted_costs)
-
-    # TODO keep track of time limits when warmstarting
-    # perform warmstarts
-    node_labels = None
+    fusion = bic.graph.lifted_multicut.FusionMoveLiftedMulticut(
+        proposal_generator=bic.graph.lifted_multicut.WatershedProposalGenerator(),
+        sub_solver=bic.graph.lifted_multicut.LiftedKernighanLinMulticut(),
+        number_of_threads=1,
+    )
+    chain = []
     if warmstart_gaec:
-        solver_gaec = objective.liftedMulticutGreedyAdditiveFactory().create(objective)
-        node_labels = solver_gaec.optimize()
+        chain.append(bic.graph.lifted_multicut.LiftedGreedyAdditiveMulticut())
     if warmstart_kl:
-        solver_kl = objective.liftedMulticutKernighanLinFactory().create(objective)
-        node_labels = solver_kl.optimize(node_labels)
-
-    solver = objective.fusionMoveBasedFactory(numberOfThreads=1).create(objective)
-    if time_limit is None:
-        return solver.optimize() if node_labels is None else solver.optimize(node_labels)
-    else:
-        visitor = objective.verboseVisitor(visitNth=1000000, timeLimitTotal=time_limit)
-        return solver.optimize(visitor=visitor) if node_labels is None else\
-            solver.optimize(nodeLabels=node_labels, visitor=visitor)
+        chain.append(bic.graph.lifted_multicut.LiftedKernighanLinMulticut())
+    chain.append(fusion)
+    if len(chain) == 1:
+        return fusion.optimize(objective)
+    return bic.graph.lifted_multicut.LiftedChainedSolvers(chain).optimize(objective)

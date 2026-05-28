@@ -60,6 +60,18 @@ class TestEmbeddings(unittest.TestCase):
         seg = segment_embeddings_mws(embed, distance_type="l2", offsets=offsets)
         self.assertEqual(seg.shape, (24, 24))
 
+    def test_segment_embeddings_mws_with_weight_function(self):
+        from functools import partial
+        from elf.segmentation.embeddings import segment_embeddings_mws, discriminative_loss_weight
+        rng = np.random.default_rng(3)
+        embed = rng.standard_normal((3, 24, 24)).astype("float32")
+        offsets = [[-1, 0], [0, -1], [-3, 0], [0, -3]]
+        weight_function = partial(discriminative_loss_weight, delta=0.5)
+        seg = segment_embeddings_mws(
+            embed, distance_type="l2", offsets=offsets, weight_function=weight_function,
+        )
+        self.assertEqual(seg.shape, (24, 24))
+
 
 if __name__ == '__main__':
     unittest.main()

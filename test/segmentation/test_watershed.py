@@ -1,6 +1,6 @@
 import unittest
+import bioimage_cpp as bic
 import numpy as np
-import vigra
 
 
 class TestWatershed(unittest.TestCase):
@@ -104,7 +104,9 @@ class TestWatershed(unittest.TestCase):
         shape = (256, 256)
         inp = np.random.rand(*shape).astype("float32")
 
-        initial_seeds = vigra.analysis.labelImageWithBackground((np.random.rand(*shape) > 0.9).astype("uint8"))
+        initial_seeds = bic.segmentation.label(
+            (np.random.rand(*shape) > 0.9).astype("uint8"), background=0, connectivity=2,
+        )
         seg, max_id = distance_transform_watershed(inp, threshold=0.4, sigma_seeds=2.0, min_size=0, seeds=initial_seeds)
         self.assertEqual(inp.shape, seg.shape)
         self.assertTrue(np.allclose(initial_seeds[initial_seeds > 0], seg[initial_seeds > 0]))

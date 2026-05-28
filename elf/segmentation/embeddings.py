@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 
 from .features import (_region_features,
                        compute_grid_graph,
+                       compute_grid_graph_affinity_features,
                        compute_grid_graph_image_features)
 from .multicut import compute_edge_costs
 from .mutex_watershed import mutex_watershed_clustering
@@ -346,16 +347,39 @@ def _apply_mask(mask, g, weights, lr_edges, lr_weights):
 def _process_weights(g, edges, weights, weight_function, beta,
                      offsets=None, strides=None, randomize_strides=None):
 
-    if weight_function is not None:
-        # TODO(bic-gap): bioimage-cpp does not yet expose
-        # GridGraph.projectEdgeIdsToPixels / projectEdgeIdsToPixelsWithOffsets,
-        # which are needed to map per-edge weights back to per-pixel arrays for
-        # the weight_function transform. Until those land in bic, callers must
-        # leave weight_function=None.
-        raise NotImplementedError(
-            "weight_function is not yet supported on bioimage-cpp grid graphs "
-            "(bic does not expose projectEdgeIdsToPixels(WithOffsets) yet)."
+    def apply_weight_function():
+        nonlocal weights
+        edge_ids = g.project_edge_ids_to_pixels()
+        invalid_edges = edge_ids == -1
+        edge_ids[invalid_edges] = 0
+        weights = weights[edge_ids]
+        weights[invalid_edges] = 0
+        for chan_id, weightc in enumerate(weights):
+            weights[chan_id] = weight_function(weightc)
+        edges, weights = compute_grid_graph_affinity_features(g, weights)
+        assert len(weights) == g.numberOfEdges
+        return edges, weights
+
+    def apply_weight_function_lr():
+        nonlocal weights
+        edge_ids, _ = g.project_edge_ids_to_pixels_with_offsets(np.asarray(offsets))
+        invalid_edges = edge_ids == -1
+        edge_ids[invalid_edges] = 0
+        weights = weights[edge_ids]
+        weights[invalid_edges] = 0
+        for chan_id, weightc in enumerate(weights):
+            weights[chan_id] = weight_function(weightc)
+        edges, weights = compute_grid_graph_affinity_features(
+            g, weights, offsets=offsets,
+            strides=strides, randomize_strides=randomize_strides,
         )
+        return edges, weights
+
+    apply_weight = weight_function is not None
+    if apply_weight and offsets is None:
+        edges, weights = apply_weight_function()
+    elif apply_weight and offsets is not None:
+        edges, weights = apply_weight_function_lr()
 
     if beta is not None:
         weights = compute_edge_costs(weights, beta=beta)

@@ -135,13 +135,12 @@ class TestUtilsEdges(unittest.TestCase):
 class TestUtilsAnalyse(unittest.TestCase):
 
     def test_analyse_multicut_problem(self):
-        import nifty.graph
+        import bioimage_cpp as bic
         from elf.segmentation.utils import analyse_multicut_problem
         # simple 4-node graph with two CCs at threshold 0
         n_nodes = 4
         uv_ids = np.array([[0, 1], [1, 2], [2, 3]], dtype="uint64")
-        graph = nifty.graph.undirectedGraph(n_nodes)
-        graph.insertEdges(uv_ids)
+        graph = bic.graph.UndirectedGraph.from_edges(n_nodes, uv_ids)
         costs = np.array([1.0, -2.0, 1.0], dtype="float32")  # cut in the middle
         df = analyse_multicut_problem(graph, costs, verbose=False)
         self.assertEqual(int(df["n_nodes"].iloc[0]), n_nodes)
@@ -160,7 +159,7 @@ class TestUtilsDownload(unittest.TestCase):
 
     def test_load_mutex_watershed_problem(self):
         from elf.segmentation.utils import load_mutex_watershed_problem
-        affs, offsets = load_mutex_watershed_problem("test")
+        affs, offsets = load_mutex_watershed_problem()
         self.assertEqual(affs.ndim, 4)
         self.assertEqual(len(offsets), affs.shape[0])
 

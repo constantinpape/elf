@@ -469,8 +469,6 @@ def blockwise_mutex_watershed(
     Returns:
         The instance segmentation.
     """
-    if blockwise_mws_impl is None:
-        raise RuntimeError("Cannot run blockwise mutex watershed, probably nifty is misssing.")
     assert len(affs) == len(offsets)
     return blockwise_mws_impl(affs, offsets, strides, block_shape,
                               randomize_strides, mask=mask,
