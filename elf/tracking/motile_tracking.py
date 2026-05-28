@@ -12,7 +12,7 @@ try:
 except ImportError:
     motile, costs, constraints = None, None, None
 
-from nifty.tools import takeDict
+import bioimage_cpp as bic
 from skimage.measure import regionprops
 
 from . import tracking_utils as utils
@@ -88,7 +88,7 @@ def recolor_segmentation(segmentation, node_to_assignment):
     # We need to add a value for mapping 0, otherwise the function fails.
     node_to_assignment_ = deepcopy(node_to_assignment)
     node_to_assignment_[0] = 0
-    recolored_segmentation = takeDict(node_to_assignment_, segmentation)
+    recolored_segmentation = bic.utils.take_dict(node_to_assignment_, segmentation)
     return recolored_segmentation
 
 
