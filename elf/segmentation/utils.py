@@ -1,68 +1,26 @@
 import os
-import urllib.request
-from shutil import move
-from typing import Optional, Tuple
-from zipfile import ZipFile
+from typing import Tuple
 
-import h5py
+import bioimage_cpp as bic
+from bioimage_cpp import _data as bic_data
 import numpy as np
-import nifty
-import nifty.ground_truth as ngt
-import nifty.ufd as nufd
 import pandas as pd
-from scipy.ndimage import convolve, distance_transform_edt
-from vigra.analysis import relabelConsecutive
+from scipy.ndimage import convolve
 
 
 #
 # multicut and mutex watershed utils
 #
 
-def load_mutex_watershed_problem(split="test", prefix=None):
+def load_mutex_watershed_problem():
     """@private
     """
-    assert split in ("test", "train")
-    url = "https://oc.embl.de/index.php/s/sXJzYVK0xEgowOz/download"
-    if prefix is None:
-        prefix = "mutex_example_"
-
-    train_path, test_path = f"{prefix}train.h5", f"{prefix}test.h5"
-    if not (os.path.exists(train_path) and os.path.exists(test_path)):
-
-        zip_path = "mutex_example.zip"
-        print("Download mutex example data")
-        with urllib.request.urlopen(url) as f:
-            problem = f.read()
-        with open(zip_path, "wb") as f:
-            f.write(problem)
-
-        for name_in_zip, out_path in zip(
-            ["isbi_train_volume.h5", "isbi_test_volume.h5"], [train_path, test_path]
-        ):
-            with ZipFile(zip_path, "r") as f:
-                f.extract(name_in_zip)
-            move(name_in_zip, out_path)
-
-        os.remove(zip_path)
-
-    path = test_path if split == "test" else train_path
-    with h5py.File(path, "r") as f:
-        affs = f["affinities"][:]
-    offsets = [
-        [-1, 0, 0], [0, -1, 0], [0, 0, -1],
-        [-1, -1, -1], [-1, 1, 1], [-1, -1, 1], [-1, 1, -1],
-        [0, -9, 0], [0, 0, -9],
-        [0, -9, -9], [0, 9, -9], [0, -9, -4],
-        [0, -4, -9], [0, 4, -9], [0, 9, -4],
-        [0, -27, 0], [0, 0, -27]
-    ]
-
-    return affs, offsets
+    return bic_data.load_isbi_affinities()
 
 
 def load_multicut_problem(
-    sample: str, size: str, path: Optional[str] = None
-) -> Tuple[nifty.graph.UndirectedGraph, np.ndarray]:
+    sample: str, size: str
+) -> Tuple["bic.graph.UndirectedGraph", np.ndarray]:
     """Load example multicut problems.
 
     These problems were introduced in
@@ -72,41 +30,22 @@ def load_multicut_problem(
     Args:
         sample: The sample for this problem, one of "A" "B" or "C".
         size: The size of this problem, one of "small" or "medium".
-        path: Where to save the problem file.
 
     Returns:
         The graph of the problem.
         The costs of the problem.
     """
-    problems = {
-        "A": {
-            "small": "https://oc.embl.de/index.php/s/yVKwyQ8VoPXYkft/download",
-            "medium": "https://oc.embl.de/index.php/s/ztnwjmv0bmd3mnS/download"
-        },
-        "B": {
-            "small": "https://oc.embl.de/index.php/s/QKYA2EoMXqxQuO4/download",
-            "medium": "https://oc.embl.de/index.php/s/yuk7VwCvgZC017q/download"
-        },
-        "C": {
-            "small": "https://oc.embl.de/index.php/s/eDZprDwT2cXFAe0/download",
-            "medium": "https://oc.embl.de/index.php/s/hGyqlkenHfsq5P4/download"
-        }
-    }
-    assert sample in problems
-    assert size in problems[sample]
-    url = problems[sample][size]
-    path = f"{size}_problem_sample{sample}" if path is None else path
-    if not os.path.exists(path):
-        with urllib.request.urlopen(url) as f:
-            problem = f.read().decode("utf-8")
-        with open(path, "w") as f:
-            f.write(problem)
+    valid_samples = ("A", "B", "C")
+    valid_sizes = ("small", "medium")
+    assert sample in valid_samples, f"sample must be one of {valid_samples}"
+    assert size in valid_sizes, f"size must be one of {valid_sizes}"
+
+    path = bic_data.fetch(f"multicut_problem_{sample}_{size}.txt")
 
     problem = np.genfromtxt(path)
     uv_ids = problem[:, :2].astype("uint64")
     n_nodes = int(uv_ids.max()) + 1
-    graph = nifty.graph.undirectedGraph(n_nodes)
-    graph.insertEdges(uv_ids)
+    graph = bic.graph.UndirectedGraph.from_edges(n_nodes, uv_ids)
     costs = problem[:, -1].astype("float32")
 
     return graph, costs
@@ -116,19 +55,20 @@ def analyse_multicut_problem(graph, costs, verbose=True, cost_threshold=0, topk=
     """@private
     """
     # problem size and cost summary
-    n_nodes, n_edges = graph.numberOfNodes, graph.numberOfEdges
+    n_nodes, n_edges = graph.number_of_nodes, graph.number_of_edges
     min_cost, max_cost = costs.min(), costs.max()
     mean_cost, std_cost = costs.mean(), costs.std()
 
     # component analysis
     merge_edges = costs > cost_threshold
-    ufd = nufd.ufd(n_nodes)
-    uv_ids = graph.uvIds()
-    ufd.merge(uv_ids[merge_edges])
-    cc_labels = ufd.elementLabeling()
-    cc_labels, max_id, _ = relabelConsecutive(cc_labels, start_label=0,
-                                              keep_zeros=False)
-    n_components = max_id + 1
+    ufd = bic.utils.UnionFind(int(n_nodes))
+    uv_ids = graph.uv_ids()
+    if merge_edges.any():
+        ufd.merge(uv_ids[merge_edges].astype("uint64"))
+    cc_labels = ufd.element_labeling()
+    cc_labels, _, _ = bic.segmentation.relabel_sequential(cc_labels + 1, offset=1)
+    cc_labels -= 1
+    n_components = int(cc_labels.max()) + 1
     _, component_sizes = np.unique(cc_labels, return_counts=True)
     component_sizes = np.sort(component_sizes)[::-1]
     topk_rel_sizes = component_sizes[:topk].astype("float32") / n_nodes
@@ -197,14 +137,11 @@ def compute_maximum_label_overlap(seg_a: np.ndarray, seg_b: np.ndarray, ignore_z
     ids_a = np.unique(seg_a)
     overlaps = np.zeros(int(ids_a.max() + 1), dtype=seg_b.dtype)
 
-    ovlp = ngt.overlap(seg_a, seg_b)
-    ovlp = [ovlp.overlapArrays(id_a, True)[0] for id_a in ids_a]
-    if ignore_zeros:
-        ovlp = np.array([ovl[1] if (ovl[0] == 0 and len(ovl) > 1) else ovl[0] for ovl in ovlp])
-    else:
-        ovlp = np.array([ovl[0] for ovl in ovlp])
+    ovlp = bic.utils.segmentation_overlap(seg_a, seg_b)
+    best = np.array([ovlp.best_overlap_for_label_a(int(id_a), ignore_zero=ignore_zeros).label
+                     for id_a in ids_a], dtype=seg_b.dtype)
 
-    overlaps[ids_a] = ovlp
+    overlaps[ids_a] = best
     return overlaps
 
 
@@ -269,7 +206,7 @@ def smooth_edges(edges: np.ndarray, gain: float = 1.0) -> np.ndarray:
     Returns:
         The smoothed edge map.
     """
-    distances = distance_transform_edt(1 - edges)
+    distances = bic.distance.distance_transform((1 - edges).astype("uint8"))
     return np.exp(-gain * distances)
 
 

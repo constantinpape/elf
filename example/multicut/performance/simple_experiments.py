@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import time
 
 from elf.segmentation.multicut import get_multicut_solver, _to_objective
@@ -8,10 +7,8 @@ from elf.segmentation.utils import load_multicut_problem
 
 
 def simple_performance_experiments(problem, solvers):
-    os.makedirs("problems", exist_ok=True)
-    path = f"./problems/{problem}"
     sample, size = problem.split("_")
-    graph, costs = load_multicut_problem(sample, size, path)
+    graph, costs = load_multicut_problem(sample, size)
     objective = _to_objective(graph, costs)
 
     results = {}

@@ -1,29 +1,65 @@
-import numpy as np
 import time
+import warnings
 from typing import Dict, List, Optional, Tuple
 
-from affogato import segmentation as aff_segm
-
-import nifty.graph.agglo as nifty_agglo
-from nifty.graph import components, UndirectedGraph
-
-import warnings
-
-from nifty import tools as ntools
-from affogato.affinities import compute_affinities
-from affogato.segmentation import compute_mws_segmentation_from_affinities
+import bioimage_cpp as bic
+import numpy as np
 
 from . import gasp_utils
 from .multicut import compute_edge_costs
 
 
+_LINKAGE_ALIASES = {
+    "mean": "mean", "average": "mean", "avg": "mean",
+    "max": "max", "single_linkage": "max",
+    "min": "min", "complete_linkage": "min",
+    "mutex_watershed": "mutex_watershed", "abs_max": "abs_max",
+    "sum": "sum",
+}
+_UNSUPPORTED_LINKAGES = {
+    "quantile", "rank", "generalized_mean", "gmean", "smooth_max", "smax",
+}
+
+
+def _normalize_linkage(criterion: str) -> str:
+    """@private"""
+    if criterion in _UNSUPPORTED_LINKAGES:
+        raise NotImplementedError(
+            f"Linkage criterion '{criterion}' is not supported on the bioimage-cpp backend."
+        )
+    try:
+        return _LINKAGE_ALIASES[criterion]
+    except KeyError as err:
+        raise ValueError(f"Unknown linkage criterion: {criterion}") from err
+
+
+def _node_labels_to_edge_labels(graph, node_labels: np.ndarray) -> np.ndarray:
+    """@private"""
+    uv = np.asarray(graph.uv_ids())
+    return (node_labels[uv[:, 0]] != node_labels[uv[:, 1]]).astype("uint8")
+
+
+def _map_node_labels_to_pixels(projection: np.ndarray, node_labels: np.ndarray) -> np.ndarray:
+    """@private
+
+    Project per-node labels back to a pixel grid using ``projection``, an array of node ids
+    with ``-1`` marking masked-out pixels. Replicates ``nifty.tools.mapFeaturesToLabelArray``
+    with ``fill_value=-1, ignore_label=-1`` for a 1-channel feature vector.
+    """
+    proj = np.asarray(projection)
+    out = np.full(proj.shape, -1, dtype=np.int64)
+    valid = proj != -1
+    out[valid] = node_labels[proj[valid]]
+    return out
+
+
 def run_GASP(
-    graph: UndirectedGraph,
-    signed_edge_weights: np.array,
+    graph,
+    signed_edge_weights: np.ndarray,
     linkage_criteria: str = "mean",
     add_cannot_link_constraints: bool = False,
     edge_sizes: Optional[np.ndarray] = None,
-    is_mergeable_edge: np.ndarray = None,
+    is_mergeable_edge: Optional[np.ndarray] = None,
     use_efficient_implementations: bool = True,
     verbose: bool = False,
     linkage_criteria_kwargs: Optional[Dict] = None,
@@ -34,107 +70,91 @@ def run_GASP(
     """Run the Generalized Algorithm for Agglomerative Clustering on Signed Graphs (GASP).
 
     Args:
-        graph: Instance of a graph, e.g. nifty.graph.UndirectedGraph, nifty.graph.undirectedLongRangeGridGraph
-            or nifty.graph.rag.gridRag.
+        graph: An undirected graph (``bioimage_cpp.graph.UndirectedGraph`` or
+            ``RegionAdjacencyGraph``).
         signed_edge_weights: Signed edge weights for clustering.
             Attractive weights are positive; repulsive weights are negative.
-        linkage_criteria: Specifies the linkage criteria / update rule used during agglomeration.
-            List of available criteria:
-                - 'mean', 'average', 'avg'
-                - 'max', 'single_linkage'
-                - 'min', 'complete_linkage'
-                - 'mutex_watershed', 'abs_max'
-                - 'sum'
-                - 'quantile', 'rank' keeps statistics in a histogram, with parameters:
-                        * q : float (default 0.5 equivalent to the median)
-                        * numberOfBins: int (default: 40)
-                - 'generalized_mean', 'gmean' with parameters:
-                        * p : float (default: 1.0)
-                        * https://en.wikipedia.org/wiki/Generalized_mean
-                - 'smooth_max', 'smax' with parameters:
-                        * p : float (default: 0.0)
-                        * https://en.wikipedia.org/wiki/Smooth_maximum
-        add_cannot_link_constraints: Whether to add cannot link constraints for negative edges.
+        linkage_criteria: Linkage criterion / update rule used during agglomeration.
+            Available criteria: 'mean'/'average'/'avg', 'max'/'single_linkage',
+            'min'/'complete_linkage', 'mutex_watershed'/'abs_max', 'sum'.
+        add_cannot_link_constraints: Not supported on the bioimage-cpp backend; must be False
+            (cannot-link constraints are implicit for the 'mutex_watershed' linkage).
         edge_sizes: Size of the graph edges.
-            Depending on the linkage criteria, they can be used during the agglomeration to weight differently
-            the edges  (e.g. with sum or avg linkage criteria). Commonly used with regionAdjGraphs when edges
-            represent boundaries of different length between segments / super-pixels. By default, all edges have
-            the same weighting.
-        is_mergeable_edge: Specifies if an edge can be merged or not.
-            Sometimes some edges represent direct-neighbor relations
-            and others describe long-range connections. If a long-range connection /edge is assigned to
-            `is_mergeable_edge = False`, then the two associated nodes are not merged until they become
-            direct neighbors and they get connected in the image-plane.
-            By default all edges are mergeable.
-        use_efficient_implementations: In the following special cases, efficient implementations are used:
-            - 'abs_max' criteria: Mutex Watershed (https://github.com/hci-unihd/mutex-watershed.git)
-            - 'max' criteria without cannot-link constraints: maximum spanning tree
-        verbose: Whether to be verbose.
-        linkage_criteria_kwargs: Additional optional parameters passed to the chosen linkage criteria.
-        print_every: After how many agglomeration iteration to print in verbose mode.
+        is_mergeable_edge: Boolean mask marking edges that may trigger a merge. Non-mergeable
+            edges are processed only to install cluster-level cannot-link constraints.
+        use_efficient_implementations: In the following special cases, efficient
+            implementations are used:
+            - 'abs_max' criterion: graph-based mutex watershed.
+            - 'max' criterion: connected components on positive-weight edges.
+        verbose: Not supported on the bioimage-cpp backend; must be False.
+        linkage_criteria_kwargs: Not supported on the bioimage-cpp backend; must be None.
+        merge_constrained_edges_at_the_end: Not supported on the bioimage-cpp backend; must be False.
+        export_agglomeration_data: Not supported on the bioimage-cpp backend; must be False.
+        print_every: Not supported on the bioimage-cpp backend.
 
     Returns:
         The node labels representing the final clustering.
         The runtime.
     """
-
-    if use_efficient_implementations and (linkage_criteria in ["mutex_watershed", "abs_max"] or
-                                          (linkage_criteria == "max" and not add_cannot_link_constraints)):
-        assert not export_agglomeration_data, "Exporting extra agglomeration data is not possible when using " \
-                                            "the efficient implementation."
-        if is_mergeable_edge is not None:
-            if not is_mergeable_edge.all():
-                print("WARNING: Efficient implementations only works when all edges are mergeable. "
-                      "In this mode, lifted and local edges will be treated equally, so there could be final clusters "
-                      "consisting of multiple components 'disconnennted' in the image plane.")
-        # assert is_mergeable_edge is None, "Efficient implementations only works when all edges are mergeable"
-        nb_nodes = graph.numberOfNodes
-        uv_ids = graph.uvIds()
-        mutex_edges = signed_edge_weights < 0.
-
-        tick = time.time()
-        # These implementations use the convention where all edge weights are positive
-        assert aff_segm is not None, "For the efficient implementation of GASP, affogato module is needed"
-        if linkage_criteria in ["mutex_watershed", "abs_max"]:
-            node_labels = aff_segm.compute_mws_clustering(nb_nodes,
-                                                          uv_ids[np.logical_not(mutex_edges)],
-                                                          uv_ids[mutex_edges],
-                                                          signed_edge_weights[np.logical_not(mutex_edges)],
-                                                          -signed_edge_weights[mutex_edges])
-        else:
-            graph_components = components(graph)
-            graph_components.buildFromEdgeLabels(mutex_edges)
-            node_labels = graph_components.componentLabels()
-        runtime = time.time() - tick
-    else:
-        cluster_policy = nifty_agglo.get_GASP_policy(
-            graph, signed_edge_weights,
-            edge_sizes=edge_sizes,
-            linkage_criteria=linkage_criteria,
-            linkage_criteria_kwargs=linkage_criteria_kwargs,
-            add_cannot_link_constraints=add_cannot_link_constraints,
-            is_mergeable_edge=is_mergeable_edge,
-            merge_constrained_edges_at_the_end=merge_constrained_edges_at_the_end,
-            collect_stats_for_exported_data=export_agglomeration_data
+    if add_cannot_link_constraints:
+        raise NotImplementedError(
+            "add_cannot_link_constraints=True is not supported on the bioimage-cpp backend; "
+            "use linkage_criteria='mutex_watershed' for hard cannot-link constraints."
         )
-        agglomerativeClustering = nifty_agglo.agglomerativeClustering(cluster_policy)
-
-        # Run clustering:
-        tick = time.time()
-        agglomerativeClustering.run(verbose=verbose, printNth=print_every)
-        runtime = time.time() - tick
-
-        # Collect results:
-        node_labels = agglomerativeClustering.result()
-
-        if export_agglomeration_data:
-            exported_data = cluster_policy.exportAgglomerationData()
-
+    if verbose:
+        raise NotImplementedError("verbose=True is not supported on the bioimage-cpp backend.")
+    if linkage_criteria_kwargs is not None:
+        raise NotImplementedError(
+            "linkage_criteria_kwargs is not supported on the bioimage-cpp backend."
+        )
+    if merge_constrained_edges_at_the_end:
+        raise NotImplementedError(
+            "merge_constrained_edges_at_the_end=True is not supported on the bioimage-cpp backend."
+        )
     if export_agglomeration_data:
-        out_dict = {"agglomeration_data": exported_data}
-        return node_labels, runtime, out_dict
-    else:
+        raise NotImplementedError(
+            "export_agglomeration_data=True is not supported on the bioimage-cpp backend."
+        )
+    del print_every  # accepted for backwards-compatibility; bic policies have no verbose hook
+
+    criterion = _normalize_linkage(linkage_criteria)
+    signed_edge_weights = np.asarray(signed_edge_weights)
+
+    if use_efficient_implementations and criterion in ("mutex_watershed", "abs_max", "max"):
+        if is_mergeable_edge is not None and not np.asarray(is_mergeable_edge).all():
+            print("WARNING: Efficient implementations only work when all edges are mergeable. "
+                  "In this mode, lifted and local edges will be treated equally, so there could be final clusters "
+                  "consisting of multiple components 'disconnennted' in the image plane.")
+
+        n_nodes = int(graph.number_of_nodes)
+        uv_ids = np.asarray(graph.uv_ids(), dtype="uint64")
+        mutex_edges = signed_edge_weights < 0.0
+
+        tick = time.time()
+        if criterion in ("mutex_watershed", "abs_max"):
+            attractive_uvs = uv_ids[~mutex_edges]
+            attractive_graph = bic.graph.UndirectedGraph.from_edges(n_nodes, attractive_uvs)
+            node_labels = bic.graph.mutex_watershed.mutex_watershed_clustering(
+                attractive_graph,
+                signed_edge_weights[~mutex_edges].astype("float32"),
+                uv_ids[mutex_edges],
+                (-signed_edge_weights[mutex_edges]).astype("float32"),
+            )
+        else:  # criterion == "max"
+            node_labels = bic.graph.connected_components(graph, edge_mask=~mutex_edges)
+        runtime = time.time() - tick
         return node_labels, runtime
+
+    policy = bic.graph.agglomeration.GaspClusterPolicy(num_clusters_stop=1, linkage=criterion)
+    tick = time.time()
+    node_labels = policy.optimize(
+        graph,
+        signed_edge_weights.astype("float64"),
+        edge_sizes=None if edge_sizes is None else np.asarray(edge_sizes, dtype="float64"),
+        is_mergeable=None if is_mergeable_edge is None else np.asarray(is_mergeable_edge, dtype=bool),
+    )
+    runtime = time.time() - tick
+    return node_labels, runtime
 
 
 class GaspFromAffinities:
@@ -279,7 +299,8 @@ class GaspFromAffinities:
     def run_GASP_from_pixels(self, affinities, mask_used_edges=None, foreground_mask=None, affinities_weights=None):
         """@private
         """
-        assert affinities_weights is None, "Not yet implemented from pixels"
+        if affinities_weights is not None:
+            raise NotImplementedError("affinities_weights are not supported on the bioimage-cpp backend.")
         assert affinities.shape[0] == len(self.offsets)
         offsets = self.offsets
         if self.used_offsets is not None:
@@ -290,33 +311,48 @@ class GaspFromAffinities:
 
         image_shape = affinities.shape[1:]
 
-        # affinities = affinities - np.mean(affinities, axis=(1,2,3))[:,np.newaxis,np.newaxis, np.newaxis]
         # Check if I should use efficient implementation of the MWS:
         run_kwargs = self.run_GASP_kwargs
         export_agglomeration_data = run_kwargs.get("export_agglomeration_data", False)
-        # TODO: add implementation of single-linkage from pixels using affogato.segmentation.connected_components
-        if run_kwargs.get("use_efficient_implementations", True) and\
+        if run_kwargs.get("use_efficient_implementations", True) and \
            run_kwargs.get("linkage_criteria") in ["mutex_watershed", "abs_max"]:
-            assert compute_mws_segmentation_from_affinities is not None, \
-                "Efficient MWS implementation not available. Update the affogato repository "
+            if mask_used_edges is not None:
+                raise NotImplementedError(
+                    "Edge masks are not supported by the efficient pixel-level mutex watershed."
+                )
             assert not export_agglomeration_data, "Exporting extra agglomeration data is not possible when using " \
                                                   "the efficient implementation of MWS."
             if self.set_only_direct_neigh_as_mergeable:
                 warnings.warn("With efficient implementation of MWS, it is not possible to set only direct neighbors"
                               "as mergeable.")
+            # Reorder so that direct-neighbor (attractive) channels come first.
+            is_dir_neighbor, _ = gasp_utils.find_indices_direct_neighbors_in_offsets(offsets)
+            attractive_idx = np.where(is_dir_neighbor)[0]
+            mutex_idx = np.where(~is_dir_neighbor)[0]
+            ordered_idx = np.concatenate([attractive_idx, mutex_idx])
+            ordered_offsets = offsets[ordered_idx]
+            ordered_affs = affinities[ordered_idx]
+
+            # Apply beta_bias: attractive weight = affinity - beta, mutex weight = beta - affinity.
+            weights = np.empty_like(ordered_affs, dtype="float32")
+            n_attractive = int(attractive_idx.size)
+            weights[:n_attractive] = ordered_affs[:n_attractive] - self.beta_bias
+            weights[n_attractive:] = self.beta_bias - ordered_affs[n_attractive:]
+
             tick = time.time()
-            segmentation, valid_edge_mask = compute_mws_segmentation_from_affinities(
-                affinities, offsets, beta_parameter=self.beta_bias,
-                foreground_mask=foreground_mask, edge_mask=mask_used_edges,
-                return_valid_edge_mask=True)
+            segmentation = bic.segmentation.mutex_watershed(
+                weights, list(map(list, ordered_offsets)),
+                number_of_attractive_channels=n_attractive,
+                mask=foreground_mask,
+            )
             runtime = time.time() - tick
+            segmentation = segmentation.astype(np.int64)
+
             if self.return_extra_outputs:
-                MC_energy = self.get_multicut_energy_segmentation(segmentation, affinities,
-                                                                  offsets, valid_edge_mask)
+                MC_energy = self.get_multicut_energy_segmentation(segmentation, affinities, offsets)
                 out_dict = {"runtime": runtime, "multicut_energy": MC_energy}
                 return segmentation, out_dict
-            else:
-                return segmentation, runtime
+            return segmentation, runtime
 
         # Build graph:
         if self.verbose:
@@ -338,37 +374,23 @@ class GaspFromAffinities:
         if self.use_logarithmic_weights:
             signed_weights = log_costs
         else:
-            # signed_weights = edge_weights + 0.3
             signed_weights = edge_weights - self.beta_bias
 
         # Run GASP:
         if self.verbose:
             print("Start agglo...")
 
-        outputs = run_GASP(graph,
-                           signed_weights,
-                           edge_sizes=edge_sizes,
-                           is_mergeable_edge=is_local_edge,
-                           verbose=self.verbose,
-                           **self.run_GASP_kwargs)
+        node_seg, runtime = run_GASP(graph,
+                                     signed_weights,
+                                     edge_sizes=edge_sizes,
+                                     is_mergeable_edge=is_local_edge,
+                                     **self.run_GASP_kwargs)
 
-        if export_agglomeration_data:
-            nodeSeg, runtime, exported_data = outputs
-        else:
-            exported_data = {}
-            nodeSeg, runtime = outputs
-
-        segmentation = ntools.mapFeaturesToLabelArray(
-            projected_node_ids_to_pixels,
-            np.expand_dims(nodeSeg, axis=-1),
-            nb_threads=self.n_threads,
-            fill_value=-1.,
-            ignore_label=-1,
-        )[..., 0].astype(np.int64)
+        segmentation = _map_node_labels_to_pixels(projected_node_ids_to_pixels, node_seg)
 
         if self.return_extra_outputs:
-            frustration = self.get_frustration(graph, nodeSeg, signed_weights)
-            MC_energy = self.get_multicut_energy(graph, nodeSeg, signed_weights, edge_sizes)
+            frustration = self.get_frustration(graph, node_seg, signed_weights)
+            MC_energy = self.get_multicut_energy(graph, node_seg, signed_weights, edge_sizes)
             out_dict = {"multicut_energy": MC_energy,
                         "runtime": runtime,
                         "graph": graph,
@@ -376,35 +398,33 @@ class GaspFromAffinities:
                         "edge_sizes": edge_sizes,
                         "edge_weights": signed_weights,
                         "frustration": frustration}
-            if export_agglomeration_data:
-                out_dict.update(exported_data)
             return segmentation, out_dict
-        else:
-            if export_agglomeration_data:
-                warnings.warn("In order to export agglomeration data, also set the `return_extra_outputs` to True")
-            return segmentation, runtime
+        return segmentation, runtime
 
     def run_GASP_from_superpixels(self, affinities, superpixel_segmentation, foreground_mask=None,
                                   mask_used_edges=None, affinities_weights=None):
         """@private
         """
-        # TODO: compute affiniteis_weights automatically from segmentation if needed
-        # When I will implement the mask_edge, remeber to crop it depending on the used offsets
+        if affinities_weights is not None:
+            raise NotImplementedError(
+                "affinities_weights are not supported on the bioimage-cpp backend."
+            )
         assert mask_used_edges is None, "Edge mask cannot be used when starting from a segmentation."
         assert self.set_only_direct_neigh_as_mergeable, "Not implemented atm from superpixels"
-        featurer = gasp_utils.AccumulatorLongRangeAffs(self.offsets,
-                                                       offsets_weights=self.offsets_weights,
-                                                       used_offsets=self.used_offsets,
-                                                       verbose=self.verbose,
-                                                       n_threads=self.n_threads,
-                                                       invert_affinities=False,
-                                                       statistic="mean",
-                                                       offset_probabilities=self.offsets_probabilities,
-                                                       return_dict=True)
+        featurer = gasp_utils.AccumulatorLongRangeAffs(
+            self.offsets,
+            offsets_weights=self.offsets_weights,
+            used_offsets=self.used_offsets,
+            verbose=self.verbose,
+            n_threads=self.n_threads,
+            invert_affinities=False,
+            statistic="mean",
+            offset_probabilities=self.offsets_probabilities,
+            return_dict=True,
+        )
 
         # Compute graph and edge weights by accumulating over the affinities:
-        featurer_outputs = featurer(affinities, superpixel_segmentation,
-                                    affinities_weights=affinities_weights)
+        featurer_outputs = featurer(affinities, superpixel_segmentation)
         graph = featurer_outputs["graph"]
         edge_indicators = featurer_outputs["edge_indicators"]
         edge_sizes = featurer_outputs["edge_sizes"]
@@ -417,42 +437,23 @@ class GaspFromAffinities:
         else:
             signed_weights = edge_indicators - self.beta_bias
 
-        # Run GASP:
-        export_agglomeration_data = self.run_GASP_kwargs.get("export_agglomeration_data", False)
-        outputs = \
-            run_GASP(graph, signed_weights,
-                     edge_sizes=edge_sizes,
-                     is_mergeable_edge=is_local_edge,
-                     verbose=self.verbose,
-                     **self.run_GASP_kwargs)
-
-        if export_agglomeration_data:
-            node_labels, runtime, exported_data = outputs
-        else:
-            exported_data = {}
-            node_labels, runtime = outputs
+        node_labels, runtime = run_GASP(graph, signed_weights,
+                                        edge_sizes=edge_sizes,
+                                        is_mergeable_edge=is_local_edge,
+                                        **self.run_GASP_kwargs)
 
         # Map node labels back to the original superpixel segmentation:
-        final_segm = ntools.mapFeaturesToLabelArray(
-            superpixel_segmentation,
-            np.expand_dims(node_labels, axis=-1),
-            nb_threads=self.n_threads,
-            fill_value=-1.,
-            ignore_label=-1,
-        )[..., 0].astype(np.int64)
+        final_segm = _map_node_labels_to_pixels(superpixel_segmentation, node_labels)
 
         # If there was a background label, reset it to zero:
         min_label = final_segm.min()
         if min_label < 0:
             assert min_label == -1
-
-            # Move bacground label to 0, and map 0 segment (if any) to MAX_LABEL+1.
-            # In this way, most of the final labels will stay consistent with the graph and given over-segmentation
             background_mask = final_segm == min_label
             zero_mask = final_segm == 0
             if np.any(zero_mask):
                 max_label = final_segm.max()
-                warnings.warn("Zero segment remapped to {} in final segmentation".format(max_label+1))
+                warnings.warn("Zero segment remapped to {} in final segmentation".format(max_label + 1))
                 final_segm[zero_mask] = max_label + 1
             final_segm[background_mask] = 0
 
@@ -463,20 +464,15 @@ class GaspFromAffinities:
                         "graph": graph,
                         "is_local_edge": is_local_edge,
                         "edge_sizes": edge_sizes}
-            if export_agglomeration_data:
-                out_dict.update(exported_data)
             return final_segm, out_dict
-        else:
-            if export_agglomeration_data:
-                warnings.warn("In order to export agglomeration data, also set the `return_extra_outputs` to True")
-            return final_segm, runtime
+        return final_segm, runtime
 
     def get_multicut_energy(self, graph, node_segm, edge_weights, edge_sizes=None):
         """@private
         """
         if edge_sizes is None:
             edge_sizes = np.ones_like(edge_weights)
-        edge_labels = graph.nodeLabelsToEdgeLabels(node_segm)
+        edge_labels = _node_labels_to_edge_labels(graph, node_segm)
         return (edge_weights * edge_labels * edge_sizes).sum()
 
     def get_multicut_energy_segmentation(self, pixel_segm, affinities, offsets, edge_mask=None):
@@ -488,15 +484,17 @@ class GaspFromAffinities:
         log_affinities = compute_edge_costs(1 - affinities, beta=self.beta_bias)
 
         # Find affinities "on cut":
-        affs_not_on_cut, _ = compute_affinities(pixel_segm.astype("uint64"), offsets.tolist(), False, 0)
+        affs_not_on_cut, _ = bic.affinities.compute_affinities(
+            pixel_segm.astype("uint64"), list(map(list, offsets)), ignore_label=0,
+        )
         return log_affinities[np.logical_and(affs_not_on_cut == 0, edge_mask)].sum()
 
     def get_frustration(self, graph, node_segm, edge_weights):
         """@private
         """
-        edge_labels = graph.nodeLabelsToEdgeLabels(node_segm)
+        edge_labels = _node_labels_to_edge_labels(graph, node_segm)
         pos_frus = ((edge_weights > 0) * edge_labels).sum()
-        neg_frus = ((edge_weights < 0) * (1-edge_labels)).sum()
+        neg_frus = ((edge_weights < 0) * (1 - edge_labels)).sum()
         return [pos_frus, neg_frus]
 
 
