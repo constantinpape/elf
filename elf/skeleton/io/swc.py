@@ -1,7 +1,7 @@
 from typing import Optional, Tuple, Union
 
 import numpy as np
-import nifty
+import bioimage_cpp as bic
 
 #
 # Parser for swc skeleton format
@@ -53,12 +53,12 @@ def read_swc(
                 types.append(int(values[1]))
 
     # TODO return edges instead of parents
+    if return_radius and return_type:
+        return ids, coords, parents, radii, types
     if return_radius:
         return ids, coords, parents, radii
     if return_type:
         return ids, coords, parents, types
-    if return_radius and return_type:
-        return ids, coords, parents, radii, types
     return ids, coords, parents
 
 
@@ -84,17 +84,23 @@ def write_swc(
             To switch between xyz (expected by swc) and zyx (numpy default) order.
     """
     # map coords to resolution and invert if necessary
+    # we operate on a copy so that the caller's array is not modified in place
+    # (and to allow scaling integer node coordinates by a float resolution).
     if resolution is not None:
         if isinstance(resolution, float):
             resolution = 3 * [resolution]
         assert len(resolution) == 3, str(len(resolution))
-        nodes *= np.array(resolution)
+        nodes = nodes * np.array(resolution)
     if invert_coords:
         nodes = nodes[:, ::-1]
 
     n_nodes = nodes.shape[0]
-    graph = nifty.graph.undirectedGraph(n_nodes)
-    graph.insertEdges(edges)
+    # build the adjacency graph in order to derive the parent of each node.
+    # self-edges carry no adjacency information and are not supported by the graph backend,
+    # so we drop them here (skeletons produced by elf do not contain self-edges).
+    edges = np.asarray(edges, dtype="uint64")
+    edges = edges[edges[:, 0] != edges[:, 1]]
+    graph = bic.graph.UndirectedGraph.from_edges(n_nodes, edges)
     # swc format per node
     # node-id
     # type (hard-coded to 0 = undefined here)
@@ -105,7 +111,7 @@ def write_swc(
     with open(output_path, "w") as f:
         for node_id in range(n_nodes):
 
-            ngbs = [adj[0] for adj in graph.nodeAdjacency(node_id)]
+            ngbs = [adj[0] for adj in graph.node_adjacency(node_id)]
 
             # only a single neighbor -> terminal node and no parent
             # also, for some reasons ngbs can be empty

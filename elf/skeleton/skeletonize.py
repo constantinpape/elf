@@ -43,14 +43,15 @@ def skeletonize(
     """
     impl = METHODS.get(method, None)
     if impl is None:
-        raise ValueError(f"Inalid method {method}, expect one of {', '.join(get_method_names())}")
-    params = DEFAULT_PARAMS.get(method, {})
+        raise ValueError(f"Invalid method {method}, expect one of {', '.join(get_method_names())}")
+    # copy the default params so that we don't mutate the shared DEFAULT_PARAMS dict.
+    params = dict(DEFAULT_PARAMS.get(method, {}))
     params.update(method_params)
 
     ndim = obj.ndim
     if resolution is None:
         resolution = ndim * (1,)
-    if isinstance(resolution, int):
+    if isinstance(resolution, (int, float)):
         resolution = ndim * (resolution,)
 
     nodes, edges = impl(obj, resolution, boundary_distances, **params)
