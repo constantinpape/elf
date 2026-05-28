@@ -6,7 +6,7 @@ import numpy as np
 from .blockwise_mws_impl import blockwise_mws_impl
 
 
-# TODO(bic-gap): bioimage-cpp does not yet provide an MWSGridGraph replacement that
+# Note: bioimage-cpp does not provide an MWSGridGraph replacement that
 # supports seed-edge injection. The helper class below reimplements the parts of
 # affogato.segmentation.MWSGridGraph that elf.segmentation needs (seeded NN /
 # long-range affinity emission + mask + explicit seed-state injection) on top of
@@ -30,7 +30,6 @@ class _MWSGridGraph:
         self.add_attractive_seed_edges = False
         self._explicit_seed_edges = None  # (edges (M,2), weights (M,))
 
-    # affogato-compatible mutators
     def set_mask(self, mask: np.ndarray):
         assert mask.shape == self.shape
         self.mask = mask.astype(bool)
@@ -115,12 +114,11 @@ class _MWSGridGraph:
             weights = weights[~both_masked]
             one_masked = (u_masked | v_masked) & ~both_masked
             one_masked = one_masked[~both_masked]
-            # Use 0 as a very repulsive transition weight on attractive passes (mirrors affogato).
+            # Use 0 as a very repulsive transition weight on attractive passes.
             weights[one_masked] = 0.0
 
         # Apply strides if requested: subsample edges. We apply it to the combined
-        # (local + lifted) set; NN edges with very high attractive weights still
-        # win in MWS, so this matches affogato's behaviour for our use case.
+        # (local + lifted) set; NN edges with very high attractive weights still win in MWS.
         if strides is not None and np.prod(strides) > 1:
             keep = int(np.prod(strides))
             n = len(uvs)
@@ -224,7 +222,7 @@ def mutex_watershed_clustering(
 
     graph = bic.graph.UndirectedGraph.from_edges(int(n_nodes), canon_uvs)
     # The original used `weights.max() - weights` to flip the sense; bic's mutex_watershed_clustering
-    # also picks higher weights first, so we do the same flip here for parity with affogato.
+    # also picks higher weights first, so we do the same flip here.
     flipped = (canon_weights.max() - canon_weights).astype("float32", copy=False)
     mutex_weights = mutex_weights.astype("float32", copy=False)
     node_labels = bic.graph.mutex_watershed.mutex_watershed_clustering(
@@ -303,7 +301,7 @@ def mutex_watershed_with_seeds(
 
     n_nodes = grid_graph.n_nodes
     seg = mutex_watershed_clustering(uvs, mutex_uvs, weights, mutex_weights, n_nodes=n_nodes)
-    # Match affogato's convention: foreground starts at 1, mask pixels are 0.
+    # Foreground starts at 1, mask pixels are 0.
     seg = seg.astype("uint64", copy=False) + 1
     seg = seg.reshape(shape)
     if mask is not None:

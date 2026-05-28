@@ -105,6 +105,7 @@ class TestFeatures(unittest.TestCase):
         from elf.segmentation.features import compute_rag, compute_region_features
 
         shape = (32, 128, 128)
+        ndim = len(shape)
         inp = np.random.rand(*shape).astype('float32')
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
@@ -113,6 +114,27 @@ class TestFeatures(unittest.TestCase):
         feats = compute_region_features(uv_ids, inp, seg)
         self.assertEqual(len(uv_ids), len(feats))
         self.assertFalse(np.allclose(feats, 0))
+        # The feature layout matches the previous vigra implementation: the per-node statistics
+        # (Count, Kurtosis, Maximum, Minimum, Quantiles[7], RegionRadii[ndim], Skewness, Sum,
+        # Variance -> 14 + ndim cols) combined via [min, max, absdiff, sum], plus the coordinate
+        # features (weighted + geometric centroid -> 2 * ndim cols) combined via squared distance.
+        self.assertEqual(feats.shape[1], 4 * (14 + ndim) + 2 * ndim)
+        self.assertTrue(np.isfinite(feats).all())
+
+    def test_region_features_values(self):
+        from elf.segmentation.features import _region_features
+
+        seg = np.array([[0, 0, 1], [2, 2, 1], [2, 4, 4]], dtype="uint32")  # labels 0, 1, 2, 4 (gap at 3)
+        inp = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype="float32")
+        feats = _region_features(inp, seg, ["Count", "mean", "RegionCenter"])
+
+        # Count is dense over 0..max(label), with the gap (label 3) staying zero.
+        np.testing.assert_array_equal(feats["Count"], np.bincount(seg.ravel(), minlength=5))
+        for label in (0, 1, 2, 4):
+            self.assertAlmostEqual(feats["mean"][label], inp[seg == label].mean(), places=5)
+        self.assertEqual(feats["mean"][3], 0.0)
+        # geometric centroid (row, col) of label 4 at (2, 1) and (2, 2)
+        np.testing.assert_allclose(feats["RegionCenter"][4], [2.0, 1.5], atol=1e-5)
 
     def test_boundary_features_with_filters(self):
         from elf.segmentation.features import compute_rag, compute_boundary_features_with_filters

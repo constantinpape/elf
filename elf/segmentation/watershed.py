@@ -4,10 +4,10 @@ from typing import List, Optional, Tuple
 
 import bioimage_cpp as bic
 import numpy as np
-import vigra  # TODO(bic-gap): watershedsNew, localMaxima, localMaxima3D have no bic equivalent yet
 
-from nifty.filters import nonMaximumDistanceSuppression  # TODO(bic-gap): no bic equivalent
 from numpy.typing import ArrayLike
+from scipy.ndimage import minimum_filter
+from skimage.feature import peak_local_max
 from tqdm import tqdm
 
 from ..util import divide_blocks_into_checkerboard
@@ -28,12 +28,13 @@ def watershed(
         The watershed segmentation.
         The max id of the watershed segmentation.
     """
-    # vigra.analysis.watershedsNew is picky: input must be float32 (or uint8) and seeds uint32.
+    # bic.segmentation.watershed needs a float heightmap and integer markers.
     if input_.dtype != np.float32:
         input_ = input_.astype("float32")
     if seeds.dtype != np.uint32:
         seeds = seeds.astype("uint32")
-    ws, max_id = vigra.analysis.watershedsNew(input_, seeds=seeds)
+    ws = bic.segmentation.watershed(input_, seeds)
+    max_id = int(ws.max())
     if size_filter > 0:
         ws, max_id = apply_size_filter(ws, input_, size_filter, exclude=exclude)
     return ws, max_id
@@ -66,19 +67,27 @@ def apply_size_filter(
         input_ = input_.astype("float32")
     if segmentation.dtype != np.uint32:
         segmentation = segmentation.astype("uint32")
-    _, max_id = vigra.analysis.watershedsNew(input_, seeds=segmentation, out=segmentation)
+    # If every segment was filtered there are no seeds left to grow from. vigra.analysis.watershedsNew
+    # fell back to an unseeded watershed in this case; reproduce that by seeding the local minima of
+    # the height map (bic.segmentation.watershed requires explicit markers).
+    if int(segmentation.max()) == 0:
+        minima = input_ == minimum_filter(input_, size=3)
+        segmentation = bic.segmentation.label(
+            minima.view("uint8"), background=0, connectivity=input_.ndim
+        ).astype("uint32")
+    segmentation = bic.segmentation.watershed(input_, segmentation)
+    max_id = int(segmentation.max())
     return segmentation, max_id
 
 
 def non_maximum_suppression(dt, seeds):
     """@private
     """
-    # Apply non maximum distance suppression to seeds.
-    seeds = np.array(np.where(seeds)).transpose()
-    seeds = nonMaximumDistanceSuppression(dt, seeds)
+    # Apply non-maximum distance suppression to seeds via bioimage-cpp.
+    coords = np.array(np.where(seeds)).transpose()
+    coords = bic.distance.non_maximum_distance_suppression(dt, coords)
     vol = np.zeros(dt.shape, dtype="bool")
-    coords = tuple(seeds[:, i] for i in range(seeds.shape[1]))
-    vol[coords] = 1
+    vol[tuple(coords[:, i] for i in range(coords.shape[1]))] = True
     return vol
 
 
@@ -115,9 +124,6 @@ def distance_transform_watershed(
         The watershed segmentation.
         The max id of watershed segmentation.
     """
-    if apply_nonmax_suppression and nonMaximumDistanceSuppression is None:
-        raise ValueError("Non-maximum suppression is only available with nifty.")
-
     # check the mask if it was passed
     if mask is not None:
         if mask.shape != input_.shape or mask.dtype != np.dtype("bool"):
@@ -153,10 +159,12 @@ def distance_transform_watershed(
             "The seeds passed to distance_transform_watershed must have consecutive ids and start from 1"
         initial_seeds = seeds
 
-    # TODO(bic-gap): bic has no replacement for vigra.analysis.localMaxima(3D) yet
-    compute_maxima = vigra.analysis.localMaxima if dt.ndim == 2 else vigra.analysis.localMaxima3D
-    seeds = compute_maxima(dt, marker=np.nan, allowAtBorder=True, allowPlateaus=True)
-    seeds = np.isnan(seeds)
+    # Detect local maxima of the distance transform. peak_local_max with exclude_border=False
+    # and min_distance=1 reproduces vigra.analysis.localMaxima(allowAtBorder=True, allowPlateaus=True):
+    # it returns every local-maximum pixel, including border maxima and full plateaus.
+    coords = peak_local_max(dt, min_distance=1, exclude_border=False)
+    seeds = np.zeros(dt.shape, dtype=bool)
+    seeds[tuple(coords.T)] = True
     if apply_nonmax_suppression:
         seeds = non_maximum_suppression(dt, seeds)
     seeds = bic.segmentation.label(seeds.view("uint8"), background=0, connectivity=seeds.ndim)

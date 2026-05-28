@@ -4,16 +4,8 @@ from typing import Dict, List, Optional, Tuple
 
 import bioimage_cpp as bic
 import numpy as np
-import vigra  # TODO(bic-gap): extractRegionFeatures has no bic equivalent yet
-
-try:
-    # TODO(bic-gap): bic.graph.lifted_multicut.lifted_edges_from_node_labels segfaults
-    # on RAGs/graphs at production scale. nifty.distributed.liftedNeighborhoodFromNodeLabels
-    # is kept as a fallback for `lifted_problem_from_probabilities` /
-    # `lifted_problem_from_segmentation` until the bic crash is resolved.
-    import nifty.distributed as ndist
-except ImportError:
-    ndist = None
+from scipy.stats import kurtosis, skew
+from skimage.measure import regionprops_table
 
 from tqdm import tqdm
 from .multicut import transform_probabilities_to_costs
@@ -246,6 +238,109 @@ def compute_boundary_features_with_filters(
     return features
 
 
+# Intensity statistics that skimage.measure.regionprops does not provide natively.
+# Each callback receives the region's cropped (regionmask, intensity_image); see
+# `_region_features`. The function names double as the keys in the regionprops table.
+def _quantiles(regionmask, intensity_image):
+    """@private"""
+    return np.percentile(intensity_image[regionmask], [0, 10, 25, 50, 75, 90, 100])
+
+
+def _kurtosis(regionmask, intensity_image):
+    """@private"""
+    values = intensity_image[regionmask]
+    if values.size < 2 or values.min() == values.max():
+        return 0.0
+    return kurtosis(values)
+
+
+def _skewness(regionmask, intensity_image):
+    """@private"""
+    values = intensity_image[regionmask]
+    if values.size < 2 or values.min() == values.max():
+        return 0.0
+    return skew(values)
+
+
+def _variance(regionmask, intensity_image):
+    """@private"""
+    return np.var(intensity_image[regionmask])
+
+
+def _sum(regionmask, intensity_image):
+    """@private"""
+    return intensity_image[regionmask].sum()
+
+
+# Map vigra `extractRegionFeatures` names to their source in a skimage regionprops table.
+# Names starting with "_" are computed via the extra-property callbacks above; the rest are
+# native regionprops properties (array-valued ones are expanded into "<name>-<i>" columns).
+_REGION_FEATURE_KEYS = {
+    "Count": "num_pixels",
+    "Maximum": "intensity_max",
+    "Minimum": "intensity_min",
+    "mean": "intensity_mean",
+    "RegionCenter": "centroid",
+    "Weighted<RegionCenter>": "centroid_weighted",
+    "RegionRadii": "inertia_tensor_eigvals",
+    "Quantiles": "_quantiles",
+    "Kurtosis": "_kurtosis",
+    "Skewness": "_skewness",
+    "Variance": "_variance",
+    "Sum": "_sum",
+}
+_REGION_FEATURE_EXTRA = {
+    "_quantiles": _quantiles,
+    "_kurtosis": _kurtosis,
+    "_skewness": _skewness,
+    "_variance": _variance,
+    "_sum": _sum,
+}
+
+
+def _region_features(input_map: np.ndarray, segmentation: np.ndarray, feature_names: List[str]) -> Dict:
+    """@private
+
+    Replacement for ``vigra.analysis.extractRegionFeatures`` based on
+    ``skimage.measure.regionprops``. Returns a dict mapping each requested feature name to a
+    dense array indexed by label id (``0 .. segmentation.max()``); scalar features are 1D and
+    coordinate/quantile/radii features are 2D, matching the vigra layout. Missing label ids
+    (gaps) stay zero.
+    """
+    if segmentation.dtype.kind not in "iu":
+        segmentation = segmentation.astype("int64")
+    keys = [_REGION_FEATURE_KEYS[name] for name in feature_names]
+    native = tuple(dict.fromkeys(key for key in keys if not key.startswith("_")))
+    extra = tuple(dict.fromkeys(_REGION_FEATURE_EXTRA[key] for key in keys if key.startswith("_")))
+
+    # skimage treats label 0 as background; shift by 1 so the original label 0 is included.
+    table = regionprops_table(
+        segmentation + 1, intensity_image=input_map.astype("float32", copy=False),
+        properties=("label",) + native, extra_properties=(extra or None),
+    )
+    labels = np.asarray(table["label"]) - 1
+    n_nodes = int(segmentation.max()) + 1
+
+    def _gather(base):
+        if base in table:
+            return np.asarray(table[base], dtype="float32")[:, None]
+        cols, i = [], 0
+        while f"{base}-{i}" in table:
+            cols.append(np.asarray(table[f"{base}-{i}"], dtype="float32"))
+            i += 1
+        return np.stack(cols, axis=1)
+
+    result = {}
+    for name, base in zip(feature_names, keys):
+        cols = _gather(base)
+        if name == "RegionRadii":  # vigra returns radii = sqrt of the coordinate-covariance eigenvalues
+            cols = np.sqrt(np.maximum(cols, 0.0))
+        dense = np.zeros((n_nodes, cols.shape[1]), dtype="float32")
+        dense[labels] = cols
+        result[name] = dense[:, 0] if dense.shape[1] == 1 else dense
+    return result
+
+
 def compute_region_features(
     uv_ids: np.ndarray,
     input_map: np.ndarray,
@@ -253,8 +348,6 @@ def compute_region_features(
     n_threads: Optional[int] = None
 ) -> np.ndarray:
     """Compute edge features from an input map accumulated over segmentation and mapped to edges.
-
-    TODO(bic-gap): vigra.analysis.extractRegionFeatures has no bic equivalent yet.
 
     Args:
         uv_ids: The edge uv ids.
@@ -272,8 +365,7 @@ def compute_region_features(
                           "RegionRadii", "Skewness", "Sum", "Variance"]
     coord_feature_names = ["Weighted<RegionCenter>", "RegionCenter"]
     feature_names = stat_feature_names + coord_feature_names
-    node_features = vigra.analysis.extractRegionFeatures(input_map, segmentation,
-                                                         features=feature_names)
+    node_features = _region_features(input_map, segmentation, feature_names)
 
     # get the image statistics based features, that are combined via [min, max, sum, absdiff]
     stat_features = [node_features[fname] for fname in stat_feature_names]
@@ -560,30 +652,16 @@ def apply_mask_to_grid_graph_edges_and_weights(
 # Lifted Features
 #
 
-def _rag_as_undirected(rag_or_graph):
-    """@private
-
-    Workaround: ``bic.graph.lifted_multicut.lifted_edges_from_node_labels`` segfaults
-    when fed a ``RegionAdjacencyGraph`` directly; rebuild as a plain
-    ``UndirectedGraph`` first.
-    """
-    if isinstance(rag_or_graph, bic.graph.RegionAdjacencyGraph):
-        return bic.graph.UndirectedGraph.from_edges(rag_or_graph.numberOfNodes, rag_or_graph.uvIds())
-    return rag_or_graph
-
-
 def lifted_edges_from_graph_neighborhood(graph, max_graph_distance):
     """@private
     """
     if max_graph_distance < 2:
         raise ValueError(f"Graph distance must be greater equal 2, got {max_graph_distance}")
-    g = _rag_as_undirected(graph)
-    n_nodes = g.number_of_nodes
     # With all-zero node_labels and mode='all', every node pair within the BFS hop window
     # [2, max_graph_distance] is returned (base-graph edges excluded).
-    node_labels = np.zeros(n_nodes, dtype="uint64")
+    node_labels = np.zeros(graph.numberOfNodes, dtype="uint64")
     lifted_uvs = bic.graph.lifted_multicut.lifted_edges_from_node_labels(
-        g, node_labels, graph_depth=max_graph_distance, mode="all",
+        graph, node_labels, graph_depth=max_graph_distance, mode="all",
     )
     return lifted_uvs
 
@@ -636,19 +714,15 @@ def lifted_problem_from_probabilities(
     n_nodes = int(watershed.max()) + 1
     node_labels = np.zeros(n_nodes, dtype="uint64")
     node_features = np.zeros(n_nodes, dtype="float32")
-    # TODO(bic-gap): no replacement for vigra.analysis.extractRegionFeatures yet
     for class_id, inp in enumerate(input_maps):
-        mean_prob = vigra.analysis.extractRegionFeatures(inp, watershed, features=["mean"])["mean"]
+        mean_prob = _region_features(inp, watershed, ["mean"])["mean"]
         class_mask = mean_prob > assignment_threshold
         node_labels[class_mask] = class_id
         node_features[class_mask] = mean_prob[class_mask]
 
-    assert ndist is not None, "Need nifty.distributed package"
-    uv_ids = rag.uvIds()
-    g_temp = ndist.Graph(uv_ids)
-    lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(
-        g_temp, node_labels, graph_depth, mode=mode,
-        numberOfThreads=n_threads, ignoreLabel=0,
+    lifted_uvs = bic.graph.lifted_multicut.lifted_edges_from_node_labels(
+        rag, node_labels, graph_depth=graph_depth, mode=mode,
+        ignore_label=0, number_of_threads=n_threads,
     )
     lifted_labels = node_labels[lifted_uvs]
     lifted_features = node_features[lifted_uvs]
@@ -703,12 +777,9 @@ def lifted_problem_from_segmentation(
     node_label_vals[overlap_values < overlap_threshold] = 0
     node_labels[ws_ids] = node_label_vals
 
-    assert ndist is not None, "Need nifty.distributed package"
-    uv_ids = rag.uvIds()
-    g_temp = ndist.Graph(uv_ids)
-    lifted_uvs = ndist.liftedNeighborhoodFromNodeLabels(
-        g_temp, node_labels, graph_depth, mode=mode,
-        numberOfThreads=n_threads, ignoreLabel=0,
+    lifted_uvs = bic.graph.lifted_multicut.lifted_edges_from_node_labels(
+        rag, node_labels, graph_depth=graph_depth, mode=mode,
+        ignore_label=0, number_of_threads=n_threads,
     )
     assert lifted_uvs.max() < rag.numberOfNodes, "%i, %i" % (int(lifted_uvs.max()), rag.numberOfNodes)
     lifted_labels = node_labels[lifted_uvs]

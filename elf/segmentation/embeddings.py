@@ -3,7 +3,6 @@ from threadpoolctl import threadpool_limits
 from typing import List, Optional
 
 import numpy as np
-import vigra  # TODO(bic-gap): extractRegionFeatures has no bic equivalent yet
 try:
     import hdbscan
 except ImportError:
@@ -13,7 +12,8 @@ from scipy.ndimage import shift
 from sklearn.cluster import MeanShift
 from sklearn.decomposition import PCA
 
-from .features import (compute_grid_graph,
+from .features import (_region_features,
+                       compute_grid_graph,
                        compute_grid_graph_image_features)
 from .multicut import compute_edge_costs
 from .mutex_watershed import mutex_watershed_clustering
@@ -78,7 +78,7 @@ def edge_probabilities_from_embeddings(
     segmentation = segmentation.astype("uint32")
     mean_embeddings = np.zeros((n_nodes, embed_dim), dtype="float32")
     for cid in range(embed_dim):
-        mean_embed = vigra.analysis.extractRegionFeatures(embeddings[cid], segmentation, features=["mean"])["mean"]
+        mean_embed = _region_features(embeddings[cid], segmentation, ["mean"])["mean"]
         mean_embeddings[:, cid] = mean_embed
 
     uv_ids = rag.uvIds()
