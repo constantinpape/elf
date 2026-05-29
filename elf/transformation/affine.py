@@ -5,15 +5,11 @@ from numbers import Number
 from typing import List, Optional, Tuple
 
 import numpy as np
+import bioimage_cpp as bic
 from numpy.typing import ArrayLike
 
 from .transform_impl import transform_subvolume
-from ..io import is_z5py, is_h5py
-
-try:
-    import nifty.transformation as ntrafo
-except ImportError:
-    ntrafo = None
+from ..util import sigma_to_halo
 
 
 def update_parameters(scale, rotation, shear, translation, dim):
@@ -218,6 +214,75 @@ def scale_from_matrix(matrix: np.ndarray) -> np.ndarray:
 #     pass
 
 
+def _transform_subvolume_affine_chunked(data, matrix, bb, order, fill_value, sigma):
+    """@private
+
+    Apply an affine transformation to a sub-volume of chunked on-disk data.
+
+    bioimage-cpp's affine transform only operates on numpy arrays, so we reconstruct the chunked
+    transformation by blocking over the output frame: for each output block we determine the input
+    region it samples from (by transforming the block corners through the matrix), read only that
+    region into memory, and apply the in-memory affine transform with a matrix shifted into the
+    local coordinate frames.
+    """
+    ndim = data.ndim
+    matrix = np.asarray(matrix, dtype="float64")
+    linear = matrix[:ndim, :ndim]
+    translation = matrix[:ndim, ndim]
+
+    out_start = tuple(b.start for b in bb)
+    out_stop = tuple(b.stop for b in bb)
+    out_shape = tuple(sto - sta for sta, sto in zip(out_start, out_stop))
+    out = np.full(out_shape, fill_value, dtype=data.dtype)
+
+    # The required input region per output block is computed from the (linear) corner mapping.
+    # We pad it by an interpolation halo (and a smoothing halo if pre-smoothing is requested) and
+    # then clamp to the data bounds so that the in-memory transform finds all samples it needs.
+    halo = order + 1
+    if sigma is not None:
+        sigma_halo = sigma_to_halo(sigma, order)
+        if isinstance(sigma_halo, Number):
+            sigma_halo = ndim * (sigma_halo,)
+        halo = tuple(halo + sh for sh in sigma_halo)
+    else:
+        halo = ndim * (halo,)
+
+    blocking = bic.utils.Blocking(list(out_start), list(out_stop), list(data.chunks))
+    for block_id in range(blocking.number_of_blocks):
+        block = blocking.get_block(block_id)
+        block_begin = list(block.begin)
+        block_end = list(block.end)
+
+        # Determine the input region sampled by this output block and pad / clamp it.
+        in_start_f, in_stop_f = transform_roi_with_affine(block_begin, block_end, matrix)
+        in_start = [max(0, int(np.floor(s)) - h) for s, h in zip(in_start_f, halo)]
+        in_stop = [min(sh, int(np.ceil(s)) + h) for s, h, sh in zip(in_stop_f, halo, data.shape)]
+        if any(sto <= sta for sta, sto in zip(in_start, in_stop)):
+            # The block maps entirely outside the input data, it stays at fill_value.
+            continue
+
+        in_bb = tuple(slice(sta, sto) for sta, sto in zip(in_start, in_stop))
+        in_region = np.asarray(data[in_bb])
+        if sigma is not None:
+            in_region = bic.filters.gaussian_smoothing(in_region, sigma).astype(data.dtype, copy=False)
+
+        # Shift the matrix into the local coordinate frames: it maps local output coordinates
+        # (starting at 0) to local input coordinates (relative to in_start).
+        local_matrix = matrix.copy()
+        local_matrix[:ndim, ndim] = linear @ np.array(block_begin, dtype="float64") + translation - in_start
+
+        block_shape = tuple(end - beg for beg, end in zip(block_begin, block_end))
+        local_bb = tuple(slice(0, sh) for sh in block_shape)
+        res = bic.transformation.affine_transform(
+            in_region, local_matrix, bounding_box=local_bb, order=order, fill_value=fill_value
+        )
+
+        out_bb = tuple(slice(beg - osta, end - osta) for beg, end, osta in zip(block_begin, block_end, out_start))
+        out[out_bb] = res
+
+    return out
+
+
 def transform_subvolume_affine(
     data: ArrayLike,
     matrix: np.ndarray,
@@ -230,10 +295,11 @@ def transform_subvolume_affine(
     """Apply affine transformation to a subvolume.
 
     Args:
-        data: The input data, can be a numpy array or another array-like object.
-        matrix: The 4x4 matrix defining the affine transformation.
-        bb: The ounding box into the output data.
-        order: The interpolation order.
+        data: The input data, can be a numpy array or a chunked array-like object (e.g. zarr / hdf5).
+        matrix: The matrix defining the affine transformation, with shape (ndim + 1, ndim + 1).
+            It maps output coordinates to input coordinates in numpy axis order.
+        bb: The bounding box into the output data.
+        order: The interpolation order, supports orders 0 to 5 (see bioimage_cpp.transformation.affine_transform).
         fill_value: Output value for invald coordinates.
         sigma: Sigma value used for pre-smoothing the input in order to avoid aliasing effects.
         use_python_fallback_impl: Whether to use the slow pure python implementation.
@@ -241,27 +307,19 @@ def transform_subvolume_affine(
     Returns:
         The transformed subvolume.
     """
-    # TODO implement pre-smoothing in nifty
-    # TODO more orders in nifty
-    has_nifty_trafo = (ntrafo is not None) and (isinstance(data, np.ndarray) or is_z5py(data) or is_h5py(data))
-    has_nifty_trafo = has_nifty_trafo and (sigma is None) and (order < 2)
-
-    if has_nifty_trafo:
-        if isinstance(data, np.ndarray):
-            return ntrafo.affineTransformation(data, matrix, order, bb, fill_value)
-        elif is_z5py(data):
-            return ntrafo.affineTransformationZ5(data, matrix, order, bb, fill_value, sigma)
-        elif is_h5py(data):
-            return ntrafo.affineTransformationH5(data, matrix, order, bb, fill_value, sigma)
-    else:
-        if not use_python_fallback_impl:
-            msg = (
-                "Could not find c++ implementation for affine transformation"
-                "set 'use_python_fallback_impl' to True to compute the transformation via slow python fallback"
-            )
-            raise RuntimeError(msg)
-        warnings.warn("Could not find c++ implementation for affine transformation, using slow python implementation.")
+    if use_python_fallback_impl:
+        warnings.warn("Using the slow pure python implementation for the affine transformation.")
         trafo = partial(transform_coordinate, matrix=matrix)
-        return transform_subvolume(
-            data, trafo, bb, order=order, fill_value=fill_value, sigma=sigma
+        return transform_subvolume(data, trafo, bb, order=order, fill_value=fill_value, sigma=sigma)
+
+    if isinstance(data, np.ndarray):
+        if sigma is None:
+            return bic.transformation.affine_transform(
+                data, matrix, bounding_box=bb, order=order, fill_value=fill_value
+            )
+        return bic.transformation.resample(
+            data, matrix, bounding_box=bb, order=order, fill_value=fill_value, anti_aliasing_sigma=sigma
         )
+
+    # Chunked on-disk data: bioimage-cpp's affine transform is numpy-only, so we apply it block-wise.
+    return _transform_subvolume_affine_chunked(data, matrix, bb, order, fill_value, sigma)
