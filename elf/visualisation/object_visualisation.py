@@ -1,6 +1,5 @@
 from functools import partial
 
-import numba
 import numpy as np
 
 from ..evaluation.dice import _best_dice_bic
@@ -8,27 +7,14 @@ from ..evaluation.matching import _compute_scores
 from ..evaluation.variation_of_information import object_vi
 
 
-@numba.jit()
-def map_dict_2d(array, replace_dict):
+def _map_scores_to_image(segmentation, scores):
     """@private
     """
-    out = np.zeros_like(array, dtype="float32")
-    for i in range(array.shape[0]):
-        for j in range(array.shape[1]):
-            out[i, j] = replace_dict[array[i, j]]
-    return out
-
-
-@numba.jit()
-def map_dict_3d(array, replace_dict):
-    """@private
-    """
-    out = np.zeros_like(array, dtype="float32")
-    for i in range(array.shape[0]):
-        for j in range(array.shape[1]):
-            for k in range(array.shape[2]):
-                out[i, j, k] = replace_dict[array[i, j, k]]
-    return out
+    # Build a lookup table indexed by object id and map it onto the segmentation.
+    lut = np.zeros(int(segmentation.max()) + 1, dtype="float32")
+    for object_id, score in scores.items():
+        lut[int(object_id)] = score
+    return lut[segmentation]
 
 
 def visualise_object_scores(segmentation, groundtruth, scoring_function, ignore_background):
@@ -41,7 +27,7 @@ def visualise_object_scores(segmentation, groundtruth, scoring_function, ignore_
     assert len(scores) == len(object_ids), f"{len(scores)}, {len(object_ids)}"
     if ignore_background:
         scores[0] = 0.0
-    object_layer = map_dict_2d(segmentation, scores) if segmentation.ndim == 2 else map_dict_3d(segmentation, scores)
+    object_layer = _map_scores_to_image(segmentation, scores)
     return object_layer
 
 
@@ -49,7 +35,7 @@ def iou_scoring(segmentation, groundtruth):
     """@private
     """
     object_ids = np.unique(segmentation)
-    scores = _compute_scores(segmentation, groundtruth, "iou")[-1]
+    scores = _compute_scores(segmentation, groundtruth, "iou", ignore_label=0)[-1]
     scores = np.max(scores, axis=1)
     scores = np.concatenate([np.array([0.0]), scores], axis=0)
     assert len(scores) == len(object_ids), f"{len(scores)}, {len(object_ids)}"

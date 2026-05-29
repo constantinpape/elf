@@ -31,8 +31,8 @@ def visualize_edges_isbi():
     edge_weights = feats.compute_boundary_features(rag, boundaries)[:, 0]
     z_edges = feats.compute_z_edge_mask(rag, watershed)
     xy_edges = ~z_edges
-    xy_vals = visualise_edges(rag, edge_weights, ignore_edges=z_edges, edge_direction=0)
-    z_vals = visualise_edges(rag, edge_weights, ignore_edges=xy_edges, edge_direction=2)
+    xy_vals = visualise_edges(rag, watershed, edge_weights, ignore_edges=z_edges, edge_direction=0)
+    z_vals = visualise_edges(rag, watershed, edge_weights, ignore_edges=xy_edges, edge_direction=2)
 
     with napari.gui_qt():
         viewer = napari.Viewer()
@@ -77,23 +77,23 @@ def visualize_attractive_and_repulsive_edges_isbi(view_costs=False, weighting_sc
             edge_populations = [xy_edges, z_edges]
         costs = mc.transform_probabilities_to_costs(edge_feats, edge_sizes=edge_sizes,
                                                     edge_populations=edge_populations)
-        att1xy, rep1xy = visualise_attractive_and_repulsive_edges(rag, costs,
+        att1xy, rep1xy = visualise_attractive_and_repulsive_edges(rag, watershed, costs,
                                                                   ignore_edges=z_edges,
                                                                   threshold=0.,
                                                                   large_values_are_attractive=True,
                                                                   edge_direction=0)
-        att1z, rep1z = visualise_attractive_and_repulsive_edges(rag, costs,
+        att1z, rep1z = visualise_attractive_and_repulsive_edges(rag, watershed, costs,
                                                                 ignore_edges=xy_edges,
                                                                 threshold=0.,
                                                                 large_values_are_attractive=True,
                                                                 edge_direction=2)
     else:
-        att1xy, rep1xy = visualise_attractive_and_repulsive_edges(rag, edge_feats,
+        att1xy, rep1xy = visualise_attractive_and_repulsive_edges(rag, watershed, edge_feats,
                                                                   ignore_edges=z_edges,
                                                                   threshold=.5,
                                                                   large_values_are_attractive=False,
                                                                   edge_direction=0)
-        att1z, rep1z = visualise_attractive_and_repulsive_edges(rag, edge_feats,
+        att1z, rep1z = visualise_attractive_and_repulsive_edges(rag, watershed, edge_feats,
                                                                 ignore_edges=xy_edges,
                                                                 threshold=.5,
                                                                 large_values_are_attractive=False,
