@@ -2,7 +2,7 @@ import argparse
 import json
 import time
 
-import nifty
+import bioimage_cpp as bic
 import numpy as np
 from elf.segmentation.features import compute_grid_graph, compute_grid_graph_affinity_features
 from elf.segmentation.multicut import get_multicut_solver, compute_edge_costs, _to_objective
@@ -25,8 +25,8 @@ def pixelwise_performance_experiments(solvers):
 
     # compute the multicut problem by concatenating local and lr edges
     edges = np.concatenate([local_uvs, lr_uvs], axis=0)
-    graph = nifty.graph.undirectedGraph(grid_graph.numberOfNodes)
-    graph.insertEdges(edges)
+    graph = bic.graph.UndirectedGraph.from_edges(grid_graph.number_of_nodes,
+                                                 np.asarray(edges, dtype="uint64"))
     costs = np.concatenate([local_weights, lr_weights], axis=0)
     costs = compute_edge_costs(costs)
     objective = _to_objective(graph, costs)
@@ -54,7 +54,7 @@ def pixelwise_performance_experiments(solvers):
             node_labels = solver(graph, costs)
             t0 = time.time() - t0
 
-        energy = objective.evalNodeLabels(node_labels)
+        energy = objective.energy(np.asarray(node_labels, dtype="uint64"))
         print("Solver", solver_name, "runtime:", t0, "s, energy:", energy)
         results[solver_name] = (energy, t0)
     return results

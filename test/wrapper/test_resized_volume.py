@@ -3,13 +3,7 @@ import unittest
 import numpy as np
 from scipy.ndimage import affine_transform
 
-try:
-    import bioimage_cpp
-except ImportError:
-    bioimage_cpp = None
 
-
-@unittest.skipUnless(bioimage_cpp, "resize functionality needs bioimage_cpp")
 class TestResizedVolume(unittest.TestCase):
     def _reference(self, data, out_shape, order):
         # A resize is a coordinate scaling, which corresponds to an affine transform

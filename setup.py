@@ -4,6 +4,7 @@ from setuptools import setup, find_packages
 __version__ = runpy.run_path("elf/__version__.py")["__version__"]
 
 requires = [
+    "bioimage-cpp",
     "numpy>=2.0",
     "imageio",
     "requests",
@@ -24,7 +25,7 @@ extras = {
 # dependencies only available via conda,
 # we still collect them here, because the conda recipe
 # gets its requirements from setuptools.
-conda_only = ["vigra", "nifty", "z5py"]
+conda_only = ["z5py"]
 
 # collect all dependencies for conda
 conda_exclude = [

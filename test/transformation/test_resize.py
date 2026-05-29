@@ -8,11 +8,6 @@ from elf.io import open_file
 from elf.util import normalize_index
 
 try:
-    import bioimage_cpp
-except ImportError:
-    bioimage_cpp = None
-
-try:
     import h5py
 except ImportError:
     h5py = None
@@ -28,7 +23,6 @@ def _remove_path(path):
             pass
 
 
-@unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
 class TestResize(unittest.TestCase):
     def tearDown(self):
         _remove_path("tmp.n5")

@@ -1,12 +1,8 @@
 import unittest
 from functools import partial
 
+import bioimage_cpp as bic
 import numpy as np
-
-try:
-    import bioimage_cpp as bic
-except ImportError:
-    bic = None
 
 
 class TestClustering(unittest.TestCase):
@@ -37,12 +33,10 @@ class TestClustering(unittest.TestCase):
         self.assertGreater(node_labels.max(), 2)  # make sure solution is not trivial
         return node_labels
 
-    @unittest.skipUnless(bic, "Need bioimage-cpp for clustering functionality")
     def test_mala_clustering(self):
         from elf.segmentation.clustering import mala_clustering
         self._test_clustering(partial(mala_clustering, threshold=.75))
 
-    @unittest.skipUnless(bic, "Need bioimage-cpp for clustering functionality")
     def test_agglomerative_clustering(self):
         from elf.segmentation.clustering import agglomerative_clustering
         n_clusters = 50
@@ -51,7 +45,6 @@ class TestClustering(unittest.TestCase):
                                                n_stop=n_clusters, size_regularizer=1.))
         self.assertEqual(len(np.unique(labels)), n_clusters)
 
-    @unittest.skipUnless(bic, "Need bioimage-cpp for clustering functionality")
     def test_cluster_segmentation(self):
         from elf.segmentation.clustering import cluster_segmentation
         rng = np.random.default_rng(0)
@@ -65,7 +58,6 @@ class TestClustering(unittest.TestCase):
         # All resulting labels should be >= 1 since we relabel starting at 1.
         self.assertTrue((result >= 1).all())
 
-    @unittest.skipUnless(bic, "Need bioimage-cpp for clustering functionality")
     def test_cluster_segmentation_mala(self):
         from elf.segmentation.clustering import cluster_segmentation_mala
         rng = np.random.default_rng(1)

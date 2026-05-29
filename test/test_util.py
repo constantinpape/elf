@@ -1,7 +1,6 @@
 import unittest
 
 import bioimage_cpp as bic
-import nifty.tools as nt
 import numpy as np
 
 
@@ -34,7 +33,7 @@ class TestUtil(unittest.TestCase):
                 shape = tuple(np.random.randint(1, max_len, size=ndim))
                 scale = tuple(np.random.randint(1, max_scale, size=ndim))
                 ds_shape = downscale_shape(shape, scale)
-                exp_shape = tuple(nt.blocking(origin, list(shape), list(scale)).blocksPerAxis)
+                exp_shape = tuple(bic.utils.Blocking(origin, list(shape), list(scale)).blocks_per_axis)
                 self.assertEqual(ds_shape, exp_shape)
 
     def test_checkerboard(self):

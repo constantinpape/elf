@@ -1,11 +1,6 @@
 import unittest
 import numpy as np
 
-try:
-    import bioimage_cpp
-except ImportError:
-    bioimage_cpp = None
-
 
 class TestLabelMultiset(unittest.TestCase):
 
@@ -28,7 +23,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(l1.ids, l2.ids))
             self.assertTrue(np.array_equal(l1.counts, l2.counts))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_serialization(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         serialize_multiset, deserialize_multiset)
@@ -39,7 +33,6 @@ class TestLabelMultiset(unittest.TestCase):
         l2 = deserialize_multiset(ser, shape)
         self.check_multisets(l1, l2)
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_multiset(self):
         from elf.label_multiset import create_multiset_from_labels
         shape = (32, 32, 32)
@@ -54,7 +47,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_multiset_ds(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         downsample_multiset)
@@ -78,7 +70,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_merge_multisets(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         merge_multisets)
@@ -115,7 +106,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_multiset_2d(self):
         from elf.label_multiset import create_multiset_from_labels
         shape = (64, 64)
@@ -130,7 +120,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_multiset_ds_2d(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         downsample_multiset)
@@ -150,7 +139,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_merge_multisets_2d(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         merge_multisets)
@@ -178,7 +166,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_downsample_restrict_set(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         downsample_multiset)
@@ -199,7 +186,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertLessEqual(len(ids), restrict_set)
             self.assertEqual(len(counts), len(ids))
 
-    @unittest.skipUnless(bioimage_cpp, "Need bioimage_cpp")
     def test_deserialize_labels(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         serialize_multiset, deserialize_labels)
