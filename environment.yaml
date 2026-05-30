@@ -14,6 +14,7 @@ dependencies:
     - numba
     - pandas
     - pip
+    - pooch
     - requests
     - scikit-image
     - scikit-learn

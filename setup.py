@@ -7,6 +7,7 @@ requires = [
     "bioimage-cpp",
     "numpy>=2.0",
     "imageio",
+    "pooch",
     "requests",
     "scikit-image",
     "scikit-learn",

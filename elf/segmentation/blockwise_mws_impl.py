@@ -113,7 +113,7 @@ def blockwise_mws_impl(affs, offsets, strides, block_shape,
     # compute the block offsets
     id_offsets = np.roll(id_offsets, 1)
     id_offsets[0] = 0
-    id_offsets = np.cumsum(id_offsets)
+    id_offsets = np.cumsum(id_offsets).astype(segmentation.dtype)
 
     def apply_offset(block_id):
         block = blocking.get_block(block_id)
