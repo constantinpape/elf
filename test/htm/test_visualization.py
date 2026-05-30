@@ -1,11 +1,6 @@
 import unittest
 
-import importlib.util
 
-HAVE_NAPARI = importlib.util.find_spec("napari") is not None
-
-
-@unittest.skipUnless(HAVE_NAPARI, "Need napari for elf.htm.visualization")
 class TestParseWells(unittest.TestCase):
 
     def test_zero_based(self):
@@ -28,7 +23,6 @@ class TestParseWells(unittest.TestCase):
             parse_wells(["A0"], zero_based=False)
 
 
-@unittest.skipUnless(HAVE_NAPARI, "Need napari for elf.htm.visualization")
 class TestGetWorldPosition(unittest.TestCase):
 
     def test_2d_origin(self):

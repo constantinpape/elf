@@ -67,7 +67,7 @@ def simple_grid_view(
     spacing: int = 16,
     show: bool = True,
     is_rgb: Union[bool, Dict[str, bool]] = False,
-) -> napari.Viewer:
+) -> "napari.Viewer":
     """Show images in napari using a simple grid view.
 
     Args:
