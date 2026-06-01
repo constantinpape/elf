@@ -26,15 +26,18 @@ class TestNgff(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         os.makedirs(cls.tmp_folder, exist_ok=True)
-        for version in cls.versions:
-            version_folder = os.path.join(cls.tmp_folder, version)
-            os.makedirs(version_folder, exist_ok=True)
-            examples = NGFF_EXAMPLES[version]
-            for name, example_url in examples.items():
-                url = os.path.join(example_url, ".zattrs")
-                out_path = os.path.join(version_folder, f"{name}.json")
-                with requests.get(url) as r, open(out_path, "w") as f:
-                    f.write(r.content.decode("utf8"))
+        try:
+            for version in cls.versions:
+                version_folder = os.path.join(cls.tmp_folder, version)
+                os.makedirs(version_folder, exist_ok=True)
+                examples = NGFF_EXAMPLES[version]
+                for name, example_url in examples.items():
+                    url = os.path.join(example_url, ".zattrs")
+                    out_path = os.path.join(version_folder, f"{name}.json")
+                    with requests.get(url, timeout=30) as r, open(out_path, "w") as f:
+                        f.write(r.content.decode("utf8"))
+        except requests.exceptions.RequestException as exc:
+            raise unittest.SkipTest(f"Could not download NGFF test data: {exc}")
 
     @classmethod
     def tearDownClass(cls):
