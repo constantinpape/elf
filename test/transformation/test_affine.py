@@ -28,6 +28,14 @@ def _remove_path(path):
             pass
 
 
+def _close_file(f):
+    # Some backends (e.g. zarr v3 groups) do not expose a callable ``close``;
+    # closing is best-effort cleanup, so only call it when it is actually a method.
+    close = getattr(f, "close", None)
+    if callable(close):
+        close()
+
+
 class TestAffine(unittest.TestCase):
     def tearDown(self):
         try:
@@ -63,7 +71,7 @@ class TestAffine(unittest.TestCase):
             self.assertTrue(np.allclose(res, exp_bb))
 
         if out_file is not None:
-            f.close()
+            _close_file(f)
 
     def test_affine_subvolume_2d(self):
         from elf.transformation import compute_affine_matrix
@@ -118,7 +126,7 @@ class TestAffine(unittest.TestCase):
         self.assertFalse(np.allclose(smoothed, plain))
 
         if out_file is not None:
-            f.close()
+            _close_file(f)
 
     def test_presmoothing(self):
         self._test_presmoothing()
@@ -151,7 +159,7 @@ class TestAffine(unittest.TestCase):
             self.assertTrue(np.allclose(res, exp_bb))
 
         if out_file is not None:
-            f.close()
+            _close_file(f)
 
     def test_affine_subvolume_3d(self):
         from elf.transformation import compute_affine_matrix
@@ -224,7 +232,7 @@ class TestAffine(unittest.TestCase):
                 chunked = transform_subvolume_affine(ds, mat, bb, order=order)
                 self.assertEqual(mem.shape, chunked.shape)
                 self.assertTrue(np.allclose(mem, chunked), f"order={order}")
-        f.close()
+        _close_file(f)
 
     @unittest.skipUnless(z5py, "Need z5py")
     def test_chunked_matches_memory_z5(self):

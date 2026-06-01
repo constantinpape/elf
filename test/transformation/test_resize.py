@@ -28,6 +28,14 @@ def _remove_path(path):
             pass
 
 
+def _close_file(f):
+    # Some backends (e.g. zarr v3 groups) do not expose a callable ``close``;
+    # closing is best-effort cleanup, so only call it when it is actually a method.
+    close = getattr(f, "close", None)
+    if callable(close):
+        close()
+
+
 class TestResize(unittest.TestCase):
     def tearDown(self):
         _remove_path("tmp.n5")
@@ -60,7 +68,7 @@ class TestResize(unittest.TestCase):
             self.assertTrue(np.allclose(res, exp_bb))
 
         if out_file is not None:
-            f.close()
+            _close_file(f)
 
     # NOTE: the order-0 (nearest neighbor) implementation rounds coordinates with numpy's
     # round-half-to-even, which only agrees with scipy when the scaled coordinates avoid exact
