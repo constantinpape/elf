@@ -10,11 +10,19 @@
 - `elf.tracking`: Graph-based tracking algorithms.
 - `elf.wrapper`: Wrapper for large microscopy data to enable on-the-fly processing.
 
+**Important:** We have recently switched to using [bioimage-cpp](https://github.com/computational-cell-analytics/bioimage-cpp) as new library to implement computationally expensive functionality that was previously used from affogato, nifty, and vigra.
+This enables installing elf via pip, but may lead to some bugs and incompatibilities.
+If you encounter some problem let us know in an issue; you can also install `elf < 0.9` to restore the previous version.
+
 # Installation
 
-`elf` is available on conda-forge. You can install it into an existing conda environment via:
-```
+`elf` is available on conda-forge and on PyPI. You can install it into an existing conda environment with conda via:
+```bash
 conda install -c conda-forge python-elf
+```
+or install it via pip as follows:
+```bash
+pip install python-elf
 ```
 
 We also provide a environment for a development environment. To set it up:
@@ -45,15 +53,16 @@ Example scripts for many of `elf`'s features can be found in [example](https://g
 
 `elf` also provides command line functionality. Currently provided are the command line interfaces:
 - `view_container`: Visualize the content of any file supported by `elf.io` with napari.
-"""
+"""  # noqa
 
 import warnings
-from .__version__ import __version__
+from .__version__ import __version__  # noqa
 
 warnings.warn(
-    "elf will switch to from affogato, vigra, and nifty to"
-    "https://github.com/computational-cell-analytics/bioimage-cpp as new backed for custom functionality"
-    "implemented in C++, e.g. mutex watershed or multicut etc. This may lead to some changes in behavior and"
-    "interface. If you rely on elf you may want to consider pinning it to a version < 0.9",
-    FutureWarning, stacklevel=2
+    "elf has switched from the affogato, vigra, and nifty librares to "
+    "https://github.com/computational-cell-analytics/bioimage-cpp as new backed for custom functionality "
+    "implemented in C++, e.g. mutex watershed, multicut etc. This may lead to some changes in behavior and "
+    "interface. If you run into issues with the new version consider installing a version < 0.9. "
+    "Please also consider raising an issue on github so that we are aware of issues with the migration.",
+    UserWarning, stacklevel=2
 )

@@ -2,6 +2,7 @@ from sys import platform
 
 import unittest
 import numpy as np
+import requests
 import bioimage_cpp as bic
 from elf.segmentation.utils import load_multicut_problem
 
@@ -26,7 +27,10 @@ class TestMulticut(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        load_multicut_problem('A', 'small')
+        try:
+            load_multicut_problem('A', 'small')
+        except (requests.exceptions.RequestException, OSError) as exc:
+            raise unittest.SkipTest(f"Could not download multicut test problem: {exc}")
 
     # https://github.com/constantinpape/graph/blob/master/src/andres/graph/unit-test/multicut/kernighan-lin.cxx
     def toy_problem(self):

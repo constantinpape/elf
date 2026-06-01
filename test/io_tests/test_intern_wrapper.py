@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import requests
 
 try:
     from intern import array
@@ -16,7 +17,10 @@ class TestInternWrapper(unittest.TestCase):
         from elf.io.intern_wrapper import InternDataset
 
         # Choosing a dataset at random to make sure we can access shape and dtype
-        ds = InternDataset("bossdb://witvliet2020/Dataset_1/em")
+        try:
+            ds = InternDataset("bossdb://witvliet2020/Dataset_1/em")
+        except (requests.exceptions.RequestException, OSError) as exc:
+            raise unittest.SkipTest(f"Could not access bossdb dataset: {exc}")
         self.assertEqual(ds.shape, (300, 26000, 22000))
         self.assertEqual(ds.dtype, np.uint8)
         self.assertEqual(ds.size, 300 * 26000 * 22000)
@@ -25,8 +29,11 @@ class TestInternWrapper(unittest.TestCase):
     def test_can_download_dataset(self):
         from elf.io.intern_wrapper import InternDataset
 
-        ds = InternDataset("bossdb://witvliet2020/Dataset_1/em")
-        cutout = ds[210:212, 7000:7064, 7000:7064]
+        try:
+            ds = InternDataset("bossdb://witvliet2020/Dataset_1/em")
+            cutout = ds[210:212, 7000:7064, 7000:7064]
+        except (requests.exceptions.RequestException, OSError) as exc:
+            raise unittest.SkipTest(f"Could not access bossdb dataset: {exc}")
         self.assertEqual(cutout.shape, (2, 64, 64))
         # Pick a few random points to verify. (This is a static dataset so
         # this won't fail unless the internet connection is broken.)
@@ -39,8 +46,11 @@ class TestInternWrapper(unittest.TestCase):
     def test_file(self):
         from elf.io.intern_wrapper import InternFile, InternDataset
 
-        f = InternFile("bossdb://witvliet2020/Dataset_1/em")
-        ds = f["data"]
+        try:
+            f = InternFile("bossdb://witvliet2020/Dataset_1/em")
+            ds = f["data"]
+        except (requests.exceptions.RequestException, OSError) as exc:
+            raise unittest.SkipTest(f"Could not access bossdb dataset: {exc}")
         self.assertIsInstance(ds, InternDataset)
 
 

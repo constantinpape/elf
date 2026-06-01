@@ -3,6 +3,7 @@ from sys import platform
 import unittest
 import bioimage_cpp as bic
 import numpy as np
+import requests
 
 
 class TestLiftedMulticut(unittest.TestCase):
@@ -57,7 +58,10 @@ class TestLiftedMulticutRealProblem(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from elf.segmentation.utils import load_multicut_problem
-        graph, costs = load_multicut_problem('A', 'small')
+        try:
+            graph, costs = load_multicut_problem('A', 'small')
+        except (requests.exceptions.RequestException, OSError) as exc:
+            raise unittest.SkipTest(f"Could not download multicut test problem: {exc}")
         cls.graph = graph
         cls.costs = costs.astype('float64')
 
