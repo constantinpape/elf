@@ -1,11 +1,11 @@
 ---
-name: build
+name: build (conda)
 
 on: [push, pull_request]
 
 jobs:
   test:
-    name: ${{ matrix.os }} ${{ matrix.python-version }}
+    name: conda ${{ matrix.os }} ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
 
     strategy:
