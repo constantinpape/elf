@@ -1,11 +1,6 @@
 import unittest
 import numpy as np
 
-try:
-    import nifty
-except ImportError:
-    nifty = None
-
 
 class TestLabelMultiset(unittest.TestCase):
 
@@ -28,7 +23,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(l1.ids, l2.ids))
             self.assertTrue(np.array_equal(l1.counts, l2.counts))
 
-    @unittest.skipUnless(nifty, "Need nifty")
     def test_serialization(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         serialize_multiset, deserialize_multiset)
@@ -39,7 +33,6 @@ class TestLabelMultiset(unittest.TestCase):
         l2 = deserialize_multiset(ser, shape)
         self.check_multisets(l1, l2)
 
-    @unittest.skipUnless(nifty, "Need nifty")
     def test_multiset(self):
         from elf.label_multiset import create_multiset_from_labels
         shape = (32, 32, 32)
@@ -54,7 +47,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(nifty, "Need nifty")
     def test_multiset_ds(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         downsample_multiset)
@@ -78,7 +70,6 @@ class TestLabelMultiset(unittest.TestCase):
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
 
-    @unittest.skipUnless(nifty, "Need nifty")
     def test_merge_multisets(self):
         from elf.label_multiset import (create_multiset_from_labels,
                                         merge_multisets)
@@ -114,6 +105,97 @@ class TestLabelMultiset(unittest.TestCase):
             ids_exp, counts_exp = np.unique(x[slice_], return_counts=True)
             self.assertTrue(np.array_equal(ids, ids_exp))
             self.assertTrue(np.array_equal(counts, counts_exp))
+
+    def test_multiset_2d(self):
+        from elf.label_multiset import create_multiset_from_labels
+        shape = (64, 64)
+        x = np.random.randint(0, 200, size=shape, dtype='uint64')
+        multiset = create_multiset_from_labels(x)
+        self.assertEqual(multiset.shape, x.shape)
+
+        slices_to_check = [np.s_[:2, :2], np.s_[:8, :4], np.s_[:1, :16], np.s_[:]]
+        for slice_ in slices_to_check:
+            ids, counts = multiset[slice_]
+            ids_exp, counts_exp = np.unique(x[slice_], return_counts=True)
+            self.assertTrue(np.array_equal(ids, ids_exp))
+            self.assertTrue(np.array_equal(counts, counts_exp))
+
+    def test_multiset_ds_2d(self):
+        from elf.label_multiset import (create_multiset_from_labels,
+                                        downsample_multiset)
+        shape = (64, 64)
+        x = np.random.randint(0, 200, size=shape, dtype='uint64')
+        multiset = create_multiset_from_labels(x)
+        ds = [2, 2]
+        multiset = downsample_multiset(multiset, ds)
+        self.assertEqual(multiset.shape, tuple(sh // dd for sh, dd in zip(x.shape, ds)))
+
+        slices_to_check = [(np.s_[:1, :1], np.s_[:2, :2]),
+                           (np.s_[:4, :2], np.s_[:8, :4]),
+                           (np.s_[:], np.s_[:])]
+        for slice_a, slice_b in slices_to_check:
+            ids, counts = multiset[slice_a]
+            ids_exp, counts_exp = np.unique(x[slice_b], return_counts=True)
+            self.assertTrue(np.array_equal(ids, ids_exp))
+            self.assertTrue(np.array_equal(counts, counts_exp))
+
+    def test_merge_multisets_2d(self):
+        from elf.label_multiset import (create_multiset_from_labels,
+                                        merge_multisets)
+        shape = (32, 32)
+        chunks = (16, 16)
+        x = np.random.randint(0, 200, size=shape, dtype='uint64')
+
+        multisets, grid_positions = [], []
+        for ii in (0, 1):
+            for jj in (0, 1):
+                grid_pos = (ii, jj)
+                slice_ = tuple(slice(p * ch, (p + 1) * ch)
+                               for p, ch in zip(grid_pos, chunks))
+                multisets.append(create_multiset_from_labels(x[slice_]))
+                grid_positions.append(grid_pos)
+
+        multiset = merge_multisets(multisets, grid_positions, shape, chunks)
+        self.assertEqual(multiset.shape, shape)
+        multiset_expected = create_multiset_from_labels(x)
+        self.check_multisets(multiset, multiset_expected, allow_equivalent=True)
+
+        for slice_ in [np.s_[:1, :1], np.s_[:8, :8], np.s_[:]]:
+            ids, counts = multiset[slice_]
+            ids_exp, counts_exp = np.unique(x[slice_], return_counts=True)
+            self.assertTrue(np.array_equal(ids, ids_exp))
+            self.assertTrue(np.array_equal(counts, counts_exp))
+
+    def test_downsample_restrict_set(self):
+        from elf.label_multiset import (create_multiset_from_labels,
+                                        downsample_multiset)
+        # use many unique labels per downsampled block (block of 4x4x4 = 64 voxels, all unique)
+        shape = (16, 16, 16)
+        x = np.arange(int(np.prod(shape)), dtype='uint64').reshape(shape)
+        multiset = create_multiset_from_labels(x)
+
+        restrict_set = 3
+        ds = [4, 4, 4]
+        multiset_r = downsample_multiset(multiset, ds, restrict_set=restrict_set)
+        self.assertEqual(multiset_r.shape, tuple(sh // dd for sh, dd in zip(shape, ds)))
+
+        # every per-pixel histogram in the downsampled multiset should be capped at restrict_set
+        for idx in np.ndindex(*multiset_r.shape):
+            slice_ = tuple(slice(i, i + 1) for i in idx)
+            ids, counts = multiset_r[slice_]
+            self.assertLessEqual(len(ids), restrict_set)
+            self.assertEqual(len(counts), len(ids))
+
+    def test_deserialize_labels(self):
+        from elf.label_multiset import (create_multiset_from_labels,
+                                        serialize_multiset, deserialize_labels)
+        shape = (16, 16, 16)
+        x = np.random.randint(0, 200, size=shape, dtype='uint64')
+        multiset = create_multiset_from_labels(x)
+        ser = serialize_multiset(multiset)
+        labels = deserialize_labels(ser, shape)
+        self.assertEqual(labels.shape, shape)
+        self.assertTrue(np.array_equal(labels.astype('uint64'), x))
 
 
 if __name__ == '__main__':

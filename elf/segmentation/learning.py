@@ -1,18 +1,23 @@
 import multiprocessing
 from typing import Optional, Sequence, Tuple, Union
 
+import bioimage_cpp as bic
 import numpy as np
-import nifty.graph.rag as nrag
 from sklearn.ensemble import RandomForestClassifier
 
 
 def compute_edge_labels(
-    rag, gt: np.ndarray, ignore_label: Optional[Union[int, Sequence[int]]] = None, n_threads: Optional[int] = None
+    rag,
+    segmentation: np.ndarray,
+    gt: np.ndarray,
+    ignore_label: Optional[Union[int, Sequence[int]]] = None,
+    n_threads: Optional[int] = None,
 ) -> np.ndarray:
     """Compute edge labels by mapping ground-truth segmentation to graph nodes.
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The over-segmentation used to construct the RAG.
         gt: The ground-truth segmentation.
         ignore_label: Label id(s) in the ground-truth to ignore in learning.
         n_threads: The number of threads.
@@ -22,8 +27,8 @@ def compute_edge_labels(
     """
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
-    node_labels = nrag.gridRagAccumulateLabels(rag, gt, n_threads)
-    uv_ids = rag.uvIds()
+    node_labels = bic.graph.features.accumulate_labels(rag, segmentation, gt, number_of_threads=n_threads)
+    uv_ids = rag.uv_ids()
 
     edge_labels = (node_labels[uv_ids[:, 0]] != node_labels[uv_ids[:, 1]]).astype("uint8")
 
@@ -67,7 +72,7 @@ def learn_edge_random_forest(
     else:
         if len(features) != len(edge_mask):
             raise ValueError("Incomatble feature and label dimensions")
-        features_, labels_ = features_[edge_mask], labels_[edge_mask]
+        features_, labels_ = features[edge_mask], labels[edge_mask]
 
     rf.fit(features_, labels_)
     rf.n_jobs = 1

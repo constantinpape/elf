@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import numpy as np
-import nifty.tools as nt
+from bioimage_cpp.label_multiset import read_subset
 from ..util import normalize_index
 
 
@@ -58,9 +58,7 @@ class LabelMultiset:
         offsets = self.offsets[index]
         sizes = self.entry_sizes[self.entry_offsets[index]]
 
-        # merge ids and counts with c++ helper from nifty
-        ids, counts = nt.readSubset(offsets, sizes, self.ids, self.counts,
-                                    argsort=True)
+        ids, counts = read_subset(offsets, sizes, self.ids, self.counts, argsort=True)
         return ids, counts
 
     @property

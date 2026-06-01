@@ -15,18 +15,125 @@ class TestFeatures(unittest.TestCase):
                 current_id += 1
         return seg.reshape(shape)
 
+    def test_compute_rag(self):
+        from elf.segmentation.features import compute_rag
+        shape = (16, 32, 32)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        self.assertEqual(rag.number_of_nodes, int(seg.max()) + 1)
+        self.assertEqual(rag.uv_ids().shape[1], 2)
+        self.assertGreater(rag.number_of_edges, 0)
+
+    def test_compute_boundary_features(self):
+        from elf.segmentation.features import compute_rag, compute_boundary_features
+        shape = (16, 32, 32)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        bmap = np.random.rand(*shape).astype('float32')
+        feats = compute_boundary_features(rag, seg, bmap)
+        self.assertEqual(len(feats), rag.number_of_edges)
+        self.assertGreater(feats.shape[1], 1)
+
+    def test_compute_affinity_features(self):
+        from elf.segmentation.features import compute_rag, compute_affinity_features
+        shape = (16, 32, 32)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
+        affs = np.random.rand(len(offsets), *shape).astype('float32')
+        feats = compute_affinity_features(rag, seg, affs, offsets)
+        self.assertEqual(len(feats), rag.number_of_edges)
+        self.assertGreater(feats.shape[1], 1)
+
+    def test_compute_boundary_mean_and_length(self):
+        from elf.segmentation.features import compute_rag, compute_boundary_mean_and_length
+        shape = (16, 32, 32)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        bmap = np.random.rand(*shape).astype('float32')
+        feats = compute_boundary_mean_and_length(rag, seg, bmap)
+        self.assertEqual(feats.shape, (rag.number_of_edges, 2))
+        # column 1 (size) must be > 0 for valid edges
+        self.assertTrue((feats[:, 1] > 0).all())
+
+    def test_project_node_labels_to_pixels(self):
+        from elf.segmentation.features import compute_rag, project_node_labels_to_pixels
+        shape = (8, 16, 16)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        # collapse to a 2-class labelling
+        node_labels = (np.arange(rag.number_of_nodes) % 2).astype('uint64')
+        out = project_node_labels_to_pixels(rag, seg, node_labels)
+        self.assertEqual(out.shape, shape)
+        self.assertTrue((np.unique(out) <= [0, 1]).all())
+
+    def test_get_stitch_edges(self):
+        from elf.segmentation.features import compute_rag, get_stitch_edges
+        shape = (32, 32)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        mask = get_stitch_edges(rag, seg, block_shape=(16, 16))
+        self.assertEqual(len(mask), rag.number_of_edges)
+        self.assertEqual(mask.dtype, np.bool_)
+
+    def test_compute_z_edge_mask(self):
+        from elf.segmentation.features import compute_rag, compute_z_edge_mask
+        shape = (4, 8, 8)
+        seg = np.zeros(shape, dtype='uint32')
+        # flat 2D superpixels per z slice with unique ids per slice
+        nz_per_slice = 4
+        for z in range(shape[0]):
+            slice_ids = np.arange(nz_per_slice).repeat(shape[1] * shape[2] // nz_per_slice)
+            seg[z] = z * nz_per_slice + slice_ids.reshape(shape[1], shape[2])
+        rag = compute_rag(seg)
+        mask = compute_z_edge_mask(rag, seg)
+        self.assertEqual(len(mask), rag.number_of_edges)
+        # at least some edges should cross slices
+        self.assertGreater(int(mask.sum()), 0)
+
+    def test_lifted_edges_from_graph_neighborhood(self):
+        from elf.segmentation.features import compute_rag, lifted_edges_from_graph_neighborhood
+        shape = (8, 16, 16)
+        seg = self.make_seg(shape)
+        rag = compute_rag(seg)
+        lifted_uvs = lifted_edges_from_graph_neighborhood(rag, max_graph_distance=3)
+        self.assertGreater(len(lifted_uvs), 0)
+        self.assertEqual(lifted_uvs.shape[1], 2)
+
     def test_region_features(self):
         from elf.segmentation.features import compute_rag, compute_region_features
 
         shape = (32, 128, 128)
+        ndim = len(shape)
         inp = np.random.rand(*shape).astype('float32')
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
-        uv_ids = rag.uvIds()
+        uv_ids = rag.uv_ids()
 
         feats = compute_region_features(uv_ids, inp, seg)
         self.assertEqual(len(uv_ids), len(feats))
         self.assertFalse(np.allclose(feats, 0))
+        # The feature layout matches the previous vigra implementation: the per-node statistics
+        # (Count, Kurtosis, Maximum, Minimum, Quantiles[7], RegionRadii[ndim], Skewness, Sum,
+        # Variance -> 14 + ndim cols) combined via [min, max, absdiff, sum], plus the coordinate
+        # features (weighted + geometric centroid -> 2 * ndim cols) combined via squared distance.
+        self.assertEqual(feats.shape[1], 4 * (14 + ndim) + 2 * ndim)
+        self.assertTrue(np.isfinite(feats).all())
+
+    def test_region_features_values(self):
+        from elf.segmentation.features import _region_features
+
+        seg = np.array([[0, 0, 1], [2, 2, 1], [2, 4, 4]], dtype="uint32")  # labels 0, 1, 2, 4 (gap at 3)
+        inp = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype="float32")
+        feats = _region_features(inp, seg, ["Count", "mean", "RegionCenter"])
+
+        # Count is dense over 0..max(label), with the gap (label 3) staying zero.
+        np.testing.assert_array_equal(feats["Count"], np.bincount(seg.ravel(), minlength=5))
+        for label in (0, 1, 2, 4):
+            self.assertAlmostEqual(feats["mean"][label], inp[seg == label].mean(), places=5)
+        self.assertEqual(feats["mean"][3], 0.0)
+        # geometric centroid (row, col) of label 4 at (2, 1) and (2, 2)
+        np.testing.assert_allclose(feats["RegionCenter"][4], [2.0, 1.5], atol=1e-5)
 
     def test_boundary_features_with_filters(self):
         from elf.segmentation.features import compute_rag, compute_boundary_features_with_filters
@@ -36,12 +143,12 @@ class TestFeatures(unittest.TestCase):
         seg = self.make_seg(shape)
         rag = compute_rag(seg)
 
-        feats = compute_boundary_features_with_filters(rag, inp)
-        self.assertEqual(rag.numberOfEdges, len(feats))
+        feats = compute_boundary_features_with_filters(rag, seg, inp)
+        self.assertEqual(rag.number_of_edges, len(feats))
         self.assertFalse(np.allclose(feats, 0))
 
-        feats = compute_boundary_features_with_filters(rag, inp, apply_2d=True)
-        self.assertEqual(rag.numberOfEdges, len(feats))
+        feats = compute_boundary_features_with_filters(rag, seg, inp, apply_2d=True)
+        self.assertEqual(rag.number_of_edges, len(feats))
         self.assertFalse(np.allclose(feats, 0))
 
     def test_lifted_problem_from_probabilities(self):
@@ -87,12 +194,12 @@ class TestFeatures(unittest.TestCase):
         # 2d test
         shape = (64, 64)
         g = compute_grid_graph(shape)
-        self.assertEqual(g.numberOfNodes, shape[0] * shape[1])
+        self.assertEqual(g.number_of_nodes, shape[0] * shape[1])
 
         # 3d test
         shape = (32, 64, 64)
         g = compute_grid_graph(shape)
-        self.assertEqual(g.numberOfNodes, shape[0] * shape[1] * shape[2])
+        self.assertEqual(g.number_of_nodes, shape[0] * shape[1] * shape[2])
 
     def _test_grid_graph_affinity_features(self, shape, offsets, strides):
         from elf.segmentation.features import compute_grid_graph, compute_grid_graph_affinity_features
@@ -110,9 +217,9 @@ class TestFeatures(unittest.TestCase):
         # for the case without offsets, the edges returned must correspond
         # to the edges of the grid graph
         edges, feats = compute_grid_graph_affinity_features(g, affs)
-        self.assertEqual(len(edges), g.numberOfEdges)
-        self.assertEqual(len(feats), g.numberOfEdges)
-        self.assertTrue(np.array_equal(edges, g.uvIds()))
+        self.assertEqual(len(edges), g.number_of_edges)
+        self.assertEqual(len(feats), g.number_of_edges)
+        self.assertTrue(np.array_equal(edges, g.uv_ids()))
         _check_feats(feats)
 
         # test - with offsets
@@ -173,9 +280,9 @@ class TestFeatures(unittest.TestCase):
             edges, feats = compute_grid_graph_image_features(g, im, dist)
             # for the case without offsets, the edges returned must correspond
             # to the edges of the grid graph
-            self.assertEqual(len(edges), g.numberOfEdges)
-            self.assertEqual(len(feats), g.numberOfEdges)
-            self.assertTrue(np.array_equal(edges, g.uvIds()))
+            self.assertEqual(len(edges), g.number_of_edges)
+            self.assertEqual(len(feats), g.number_of_edges)
+            self.assertTrue(np.array_equal(edges, g.uv_ids()))
             _check_dists(feats, dist)
 
             # with offsets
@@ -226,7 +333,7 @@ class TestFeatures(unittest.TestCase):
         _, weights = compute_grid_graph_affinity_features(g, affs)
         mask = np.random.rand(*shape) > 0.5
         weights = apply_mask_to_grid_graph_weights(g, mask, weights)
-        self.assertEqual(len(weights), g.numberOfEdges)
+        self.assertEqual(len(weights), g.number_of_edges)
 
     def test_apply_mask_to_grid_graph_edges_and_weights(self):
         from elf.segmentation.features import (apply_mask_to_grid_graph_edges_and_weights,

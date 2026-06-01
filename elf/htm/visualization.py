@@ -1,10 +1,14 @@
 import string
 from typing import Dict, List, Optional, Tuple, Union
 
-import napari
 import numpy as np
 
-from napari.experimental import link_layers
+try:
+    import napari
+    from napari.experimental import link_layers
+except ImportError:
+    napari = None
+    link_layers = None
 
 
 def parse_wells(well_names, zero_based):
@@ -124,8 +128,8 @@ def add_plate_layout(
         xmax, ymax = get_world_position(
             well_x + 1, well_y + 1, 0, well_shape, well_spacing, site_spacing, shape
         )[-2:]
-        xmin -= well_spacing // 2
-        ymin -= well_spacing // 2
+        xmax += well_spacing // 2
+        ymax += well_spacing // 2
 
         well_boxes.append(np.array([[xmin, ymin], [xmax, ymax]]))
     _add_layout(viewer, "wells", well_names, well_boxes, well_spacing // 2,
@@ -162,7 +166,7 @@ def view_plate(
     well_spacing: int = 16,
     site_spacing: int = 4,
     show: bool = True,
-) -> napari.Viewer:
+) -> "napari.Viewer":
     """Visualize data from a multi-well plate using napari.
 
     Args:
@@ -178,13 +182,15 @@ def view_plate(
         well_shape: the 2D shape of a well in terms of images, if not given will be derived.
             Well shape can only be derived for square wells and must be passed otherwise.
         zero_based: Whether the well indexing is zero-based.
-        well_sources: Spacing between wells, in pixels.
+        well_spacing: Spacing between wells, in pixels.
         site_spacing: Spacing between sites, in pixels.
         show: Whether to show the viewer.
 
     Returns:
         The napari viewer.
     """
+    assert napari is not None and link_layers is not None, "Requires napari"
+
     # find the number of positions per well
     first_channel_sources = next(iter(image_data.values()))
     pos_per_well = len(next(iter(first_channel_sources.values())))
@@ -309,7 +315,7 @@ def view_positional_images(
     label_settings: Optional[Dict[str, Dict]] = None,
     sample_measurements: Optional[Dict[str, Dict[str, Union[float, int, str]]]] = None,
     show: bool = True,
-) -> napari.Viewer:
+) -> "napari.Viewer":
     """Similar to `view_plate`, but using position data to place the images.
 
     Args:
@@ -324,6 +330,8 @@ def view_positional_images(
     Returns:
         The napari viewer.
     """
+    assert napari is not None and link_layers is not None, "Requires napari"
+
     all_samples = []
     for sources in image_data.values():
         all_samples.extend(list(sources.keys()))

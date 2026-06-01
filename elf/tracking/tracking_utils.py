@@ -6,13 +6,12 @@ motile or with other python tracking libraries.
 
 from typing import Dict, List, Union
 
-import nifty.ground_truth as ngt
+import bioimage_cpp as bic
 import numpy as np
 
 from scipy.spatial.distance import cdist
-from skimage.measure import regionprops, label
+from skimage.measure import regionprops
 from scipy.ndimage import binary_closing
-from skimage.segmentation import relabel_sequential
 from tqdm import trange
 
 
@@ -28,14 +27,14 @@ def compute_edges_from_overlap(segmentation: np.ndarray, verbose: bool = True) -
     """
 
     def compute_overlap_between_frames(frame_a, frame_b):
-        overlap_function = ngt.overlap(frame_a, frame_b)
+        overlap_function = bic.utils.segmentation_overlap(frame_a, frame_b)
 
         node_ids = np.unique(frame_a)[1:]
-        overlaps = [overlap_function.overlapArraysNormalized(node_id) for node_id in node_ids]
+        overlaps = [overlap_function.overlaps_for_label_a(node_id, normalize=True) for node_id in node_ids]
 
-        source_ids = [src for node_id, ovlp in zip(node_ids, overlaps) for src in [node_id] * len(ovlp[0])]
-        target_ids = [ov for ovlp in overlaps for ov in ovlp[0]]
-        overlap_values = [ov for ovlp in overlaps for ov in ovlp[1]]
+        source_ids = [src for node_id, ovlp in zip(node_ids, overlaps) for src in [node_id] * len(ovlp["label"])]
+        target_ids = [ov for ovlp in overlaps for ov in ovlp["label"]]
+        overlap_values = [ov for ovlp in overlaps for ov in ovlp["fraction"]]
         assert len(source_ids) == len(target_ids) == len(overlap_values), \
             f"{len(source_ids)}, {len(target_ids)}, {len(overlap_values)}"
 
@@ -151,7 +150,7 @@ def relabel_segmentation_across_time(segmentation: np.ndarray) -> np.ndarray:
     offset = 0
     relabeled = []
     for frame in segmentation:
-        frame, _, _ = relabel_sequential(frame)
+        frame, _, _ = bic.segmentation.relabel_sequential(frame)
         frame[frame != 0] += offset
         offset = frame.max()
         relabeled.append(frame)
@@ -182,19 +181,19 @@ def preprocess_closing(slice_segmentation: np.ndarray, gap_closing: int, verbose
 
         # Closing does not work for the first and last gap slices
         if z < gap_closing or z >= (n_slices - gap_closing):
-            seg_z, _, _ = relabel_sequential(seg_z, offset=offset)
+            seg_z, _, _ = bic.segmentation.relabel_sequential(seg_z, offset=offset)
             offset = int(seg_z.max()) + 1
             return seg_z, offset
 
         # Apply connected components to the closed segmentation.
-        closed_z = label(closed_segmentation[z])
+        closed_z = bic.segmentation.label(closed_segmentation[z])
 
         # Map objects in the closed and initial segmentation.
         # We take objects from the closed segmentation unless they
         # have overlap with more than one object from the initial segmentation.
         # This indicates wrong merging of closeby objects that we want to prevent.
-        matches = ngt.overlap(closed_z, seg_z)
-        matches = {seg_id: matches.overlapArrays(seg_id, sorted=False)[0]
+        matches = bic.utils.segmentation_overlap(closed_z, seg_z)
+        matches = {seg_id: matches.overlaps_for_label_a(seg_id, normalize=False)["label"]
                    for seg_id in range(1, int(closed_z.max() + 1))}
         matches = {k: v[v != 0] for k, v in matches.items()}
 
@@ -211,9 +210,11 @@ def preprocess_closing(slice_segmentation: np.ndarray, gap_closing: int, verbose
 
         if ids_initial:
             initial_mask = np.isin(seg_z, ids_initial)
-            seg_new[initial_mask] = relabel_sequential(seg_z[initial_mask], offset=seg_new.max() + 1)[0]
+            seg_new[initial_mask] = bic.segmentation.relabel_sequential(
+                seg_z[initial_mask], offset=int(seg_new.max()) + 1
+            )[0]
 
-        seg_new, _, _ = relabel_sequential(seg_new, offset=offset)
+        seg_new, _, _ = bic.segmentation.relabel_sequential(seg_new, offset=offset)
         max_z = seg_new.max()
         if max_z > 0:
             offset = int(max_z) + 1

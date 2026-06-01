@@ -6,12 +6,9 @@ import multiprocessing
 # would be nice to use dask, so that we can also run this on the cluster
 from concurrent import futures
 
+import bioimage_cpp as bic
 from tqdm import tqdm
-from skimage.measure import label as label_impl
-from skimage.segmentation import relabel_sequential
 
-import nifty.tools as nt
-import nifty.ufd as nufd
 from .common import get_blocking
 
 import numpy as np
@@ -21,12 +18,12 @@ from numpy.typing import ArrayLike
 def cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose):
     """@private
     """
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     # Compute the connected component for one block.
     @threadpool_limits.wrap(limits=1)  # Restrict the numpy threadpool to 1 to avoid oversubscription.
     def _cc_block(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # Check if we have a mask and if we do, if we have pixels in the mask.
@@ -45,7 +42,7 @@ def cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose):
         if mask is not None:
             d[~m] = bg_val
 
-        d = label_impl(d, background=bg_val, connectivity=1)
+        d = bic.segmentation.label(d, background=bg_val, connectivity=1)
 
         out[bb] = d
         return int(d.max())
@@ -62,21 +59,21 @@ def cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose):
 def merge_blocks(data, out, mask, offsets, blocking, max_id, with_background, n_threads, verbose):
     """@private
     """
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     ndim = out.ndim
 
     @threadpool_limits.wrap(limits=1)  # Restrict the numpy threadpool to 1 to avoid oversubscription.
     def _merge_block_faces(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         offset_block = offsets[block_id]
 
         merge_labels = []
         # For each axis, load the face with the lower block neighbor and compute the merge labels.
         for axis in range(ndim):
-            ngb_id = blocking.getNeighborId(block_id, axis, lower=True)
+            ngb_id = blocking.get_neighbor_id(block_id, axis, lower=True)
             if ngb_id == -1:
                 continue
-            ngb_block = blocking.getBlock(ngb_id)
+            ngb_block = blocking.get_block(ngb_id)
 
             # Make the bounding box for both faces and load the segmentation for it.
             face = tuple(slice(beg, end) if d != axis else slice(beg, beg + 1)
@@ -149,27 +146,27 @@ def merge_blocks(data, out, mask, offsets, blocking, max_id, with_background, n_
     merge_labels = np.concatenate(merge_labels, axis=0)
 
     # Merge labels via union find.
-    ufd = nufd.ufd(n_elements)
-    ufd.merge(merge_labels)
+    ufd = bic.utils.UnionFind(int(n_elements))
+    ufd.merge(merge_labels.astype("uint64"))
 
     # Get the new labels from the ufd.
-    old_labels = np.arange(n_elements, dtype=out.dtype)
+    old_labels = np.arange(n_elements, dtype="uint64")
     new_labels = ufd.find(old_labels)
     if with_background:
         assert new_labels[0] == 0
     # Relabel the new labels consecutively and return them.
-    return relabel_sequential(new_labels)[0]
+    return bic.segmentation.relabel_sequential(new_labels)[0]
 
 
 def write_mapping(out, mask, offsets, mapping, with_background, blocking, n_threads, verbose):
     """@private
     """
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
 
     # Compute the connected component for one block.
     @threadpool_limits.wrap(limits=1)  # Restrict the numpy threadpool to 1 to avoid oversubscription.
     def _write_block(block_id):
-        block = blocking.getBlock(block_id)
+        block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
 
         # Check if we have a mask and if we do, if we have pixels in the mask.
@@ -186,12 +183,12 @@ def write_mapping(out, mask, offsets, mapping, with_background, blocking, n_thre
                 d[d != 0] += offset
             else:
                 d += offset
-            d = nt.take(mapping, d)
+            d = mapping[d]
         else:
             if with_background:
                 m[d == 0] = 0
             values = (d[m] + offset)
-            values = nt.take(mapping, values)
+            values = mapping[values]
             d[m] = values
 
         out[bb] = d

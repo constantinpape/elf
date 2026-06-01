@@ -1,6 +1,6 @@
 import h5py
 import numpy as np
-import nifty.graph.rag as nrag
+import bioimage_cpp as bic
 
 
 def get_object_names(project):
@@ -17,33 +17,36 @@ def load_watershed_and_rag(project):
     with h5py.File(project, "r") as f:
         # load the watershed; we need to transpose due to axis-tags
         ws = f["preprocessing/graph/labels"][:].T
-    n_labels = int(ws.max() + 1)
-    rag = nrag.gridRag(ws, numberOfLabels=n_labels)
+    rag = bic.graph.region_adjacency_graph(ws)
     return ws, rag
 
 
 def export_object(project, name, ws=None, rag=None):
     """@private
     """
-    # TODO check for consistency in ws and rag arguments
+    if (ws is None) != (rag is None):
+        raise ValueError("ws and rag must either both be provided or both be None.")
     if ws is None:
         ws, rag = load_watershed_and_rag(project)
 
     with h5py.File(project, "r") as f:
-        fg = f["carving/objects/%s/sv" % name][:].squeeze()
-    node_labels = np.zeros(rag.numberOfNodes, dtype="uint32")
+        fg = f[f"carving/objects/{name}/sv"][:].squeeze()
+    node_labels = np.zeros(rag.number_of_nodes, dtype="uint32")
     node_labels[fg] = 1
-    seg = nrag.projectScalarNodeDataToPixels(rag, node_labels)
+    seg = bic.graph.project_node_labels_to_pixels(rag, ws, node_labels)
 
     return seg
 
 
-# TODO
-# def export_all_objects(project, postprocess=None):
-#     names = get_object_names(project)
-#     ws, rag = load_watershed_and_rag(project)
-#     for name in names:
-#         seg = export_object(project, name, ws, rag)
-#         # TODO save the seg
-#         if postprocess is not None:
-#             seg = postprocess(seg)
+def export_all_objects(project, postprocess=None):
+    """@private
+    """
+    names = get_object_names(project)
+    ws, rag = load_watershed_and_rag(project)
+    segmentations = {}
+    for name in names:
+        seg = export_object(project, name, ws=ws, rag=rag)
+        if postprocess is not None:
+            seg = postprocess(seg)
+        segmentations[name] = seg
+    return segmentations

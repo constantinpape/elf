@@ -128,3 +128,8 @@ dmypy.json
 # tmp folders and data
 tmp/
 *.h5
+
+CLAUDE.md
+
+# local debug artifacts
+repro_lifted_edges_segfault.py

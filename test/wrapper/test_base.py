@@ -3,9 +3,43 @@ from functools import partial
 
 import numpy as np
 
+from elf.util import normalize_index
+
 
 class TestBaseWrapper(unittest.TestCase):
     shape = (32, 256, 256)
+
+    def test_simple_transform_wrapper(self):
+        from elf.wrapper.base import SimpleTransformationWrapper
+
+        data = np.random.rand(*self.shape)
+        wrapper = SimpleTransformationWrapper(data, transformation=lambda x: 2 * x)
+
+        rois = (np.s_[5:24, 3:100, 4:123], np.s_[8:31, 2:200, :], np.s_[:], np.s_[4, 5, 6], np.s_[:, 0, 200])
+        for roi in rois:
+            x1, x2 = 2 * data[roi], wrapper[roi]
+            self.assertEqual(x1.shape, x2.shape)
+            self.assertTrue(np.allclose(x1, x2))
+
+    def test_transform_wrapper(self):
+        from elf.wrapper.base import TransformationWrapper
+
+        data = np.random.rand(*self.shape)
+
+        # The transformation depends on the data values and the coordinates (the index).
+        def transformation(volume, index):
+            offset = sum(ind.start for ind in index)
+            return volume + offset
+
+        wrapper = TransformationWrapper(data, transformation=transformation)
+
+        rois = (np.s_[5:24, 3:100, 4:123], np.s_[8:31, 2:200, :], np.s_[:], np.s_[4, 5, 6], np.s_[:, 0, 200])
+        for roi in rois:
+            index, _ = normalize_index(roi, self.shape)
+            offset = sum(ind.start for ind in index)
+            x1, x2 = data[roi] + offset, wrapper[roi]
+            self.assertEqual(x1.shape, x2.shape)
+            self.assertTrue(np.allclose(x1, x2))
 
     def test_simple_transform_wrapper_with_halo(self):
         from elf.wrapper.base import SimpleTransformationWrapperWithHalo

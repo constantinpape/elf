@@ -1,9 +1,7 @@
 from typing import List, Optional, Union
 
+import bioimage_cpp as bic
 import numpy as np
-import nifty.graph.agglo as nagglo
-from nifty.graph import UndirectedGraph
-from vigra.analysis import relabelConsecutive
 
 from .features import (compute_rag, compute_affinity_features,
                        compute_boundary_mean_and_length, project_node_labels_to_pixels)
@@ -11,7 +9,7 @@ from .watershed import apply_size_filter
 
 
 def mala_clustering(
-    graph: UndirectedGraph,
+    graph,
     edge_features: np.ndarray,
     edge_sizes: np.ndarray,
     threshold: float,
@@ -25,29 +23,27 @@ def mala_clustering(
     Args:
         graph: The graph to cluster.
         edge_features: The edge features for clustering.
-        edge_sizes: The edge sizes.
+        edge_sizes: The edge sizes. Currently ignored; kept for backwards-compatibility.
         threshold: The threshold to stop clustering.
-        return_object: Whether to return the clustering object instead of the result.
+        return_object: Not supported on the bioimage-cpp backend.
 
     Returns:
         The node labels obtained from clustering.
     """
-    n_nodes = graph.numberOfNodes
-    policy_class = nagglo.malaClusterPolicyWithUcm if return_object else nagglo.malaClusterPolicy
-    policy = policy_class(graph=graph,
-                          edgeIndicators=edge_features,
-                          nodeSizes=np.zeros(n_nodes, dtype="float"),
-                          edgeSizes=edge_sizes,
-                          threshold=threshold)
-    clustering = nagglo.agglomerativeClustering(policy)
     if return_object:
-        return clustering
-    clustering.run()
-    return clustering.result()
+        raise NotImplementedError(
+            "return_object=True is not supported on the bioimage-cpp backend "
+            "(no UCM policy variant)."
+        )
+    del edge_sizes  # MALA policy in bic does not consume edge sizes.
+    policy = bic.graph.agglomeration.MalaClusterPolicy(
+        threshold=float(threshold), num_clusters_stop=0,
+    )
+    return policy.optimize(graph, np.asarray(edge_features))
 
 
 def agglomerative_clustering(
-    graph: UndirectedGraph,
+    graph,
     edge_features: np.ndarray,
     node_sizes: np.ndarray,
     edge_sizes: np.ndarray,
@@ -64,61 +60,64 @@ def agglomerative_clustering(
         edge_sizes: The edge sizes.
         n_stop: The target number of clusters.
         size_regularizer: The strength of the size regularizer.
-        return_object: Whether to return the clustering object instead of the result.
+        return_object: Not supported on the bioimage-cpp backend.
 
     Returns:
         The node labels obtained from clustering.
     """
-    policy_class = nagglo.edgeWeightedClusterPolicyWithUcm if return_object else nagglo.edgeWeightedClusterPolicy
-    policy = policy_class(graph=graph,
-                          edgeIndicators=edge_features,
-                          nodeSizes=node_sizes.astype("float"),
-                          edgeSizes=edge_sizes.astype("float"),
-                          numberOfNodesStop=n_stop,
-                          sizeRegularizer=size_regularizer)
-    clustering = nagglo.agglomerativeClustering(policy)
     if return_object:
-        return clustering
-    clustering.run()
-    return clustering.result()
+        raise NotImplementedError(
+            "return_object=True is not supported on the bioimage-cpp backend "
+            "(no UCM policy variant)."
+        )
+    policy = bic.graph.agglomeration.EdgeWeightedClusterPolicy(
+        num_clusters_stop=int(n_stop), size_regularizer=float(size_regularizer),
+    )
+    return policy.optimize(
+        graph,
+        np.asarray(edge_features),
+        edge_sizes=np.asarray(edge_sizes, dtype="float64"),
+        node_sizes=np.asarray(node_sizes, dtype="float64"),
+    )
 
 
 def compute_graph_and_features(segmentation, input_map, offsets=None, n_threads=None):
     """@private
     """
-    # compute the graph and edge weihts / edge lens
-    graph = compute_rag(segmentation, n_threads=n_threads)
+    rag = compute_rag(segmentation, n_threads=n_threads)
     if offsets is None:
         if segmentation.shape != input_map.shape:
             raise ValueError("The shape of the boundary map and the segmentation needs to be the same")
-        edge_weights = compute_boundary_mean_and_length(graph, input_map, n_threads=n_threads)
+        edge_weights = compute_boundary_mean_and_length(rag, segmentation, input_map, n_threads=n_threads)
         edge_weights, edge_sizes = edge_weights[:, 0], edge_weights[:, 1]
     else:
-        n_offsets, spatial_shape = input_map[0], input_map[1:]
+        n_offsets, spatial_shape = input_map.shape[0], input_map.shape[1:]
         if segmentation.shape != spatial_shape:
             raise ValueError("The shape of the boundary map and the segmentation needs to be the same")
         if len(offsets) != n_offsets:
             raise ValueError("The number of channels in the affinity map and the number of offsets need to be the same")
-        edge_weights = compute_affinity_features(graph, input_map, offsets, n_threads=n_threads)[:, 0]
-        edge_sizes = compute_boundary_mean_and_length(graph, input_map[0], n_threads=n_threads)[:, 1]
-    return graph, edge_weights, edge_sizes
+        edge_weights = compute_affinity_features(rag, segmentation, input_map, offsets, n_threads=n_threads)[:, 0]
+        edge_sizes = compute_boundary_mean_and_length(rag, segmentation, input_map[0], n_threads=n_threads)[:, 1]
+    return rag, edge_weights, edge_sizes, rag
 
 
 def _cluster_segmentation_impl(segmentation, input_map, cluster_function,
                                offsets=None, n_threads=None, min_segment_size=0,
                                **cluster_kwargs):
-    graph, edge_weights, edge_sizes = compute_graph_and_features(segmentation, input_map,
-                                                                 offsets=offsets, n_threads=n_threads)
+    graph, edge_weights, edge_sizes, rag = compute_graph_and_features(
+        segmentation, input_map, offsets=offsets, n_threads=n_threads,
+    )
     clusters = cluster_function(graph=graph,
                                 edge_features=edge_weights,
                                 edge_sizes=edge_sizes,
                                 **cluster_kwargs)
-    clusters = relabelConsecutive(clusters, start_label=1, keep_zeros=False)[0].astype('uint32')
-    seg = project_node_labels_to_pixels(graph, clusters)
+    # Make labels consecutive starting at 1 (relabel_sequential preserves 0; shift by 1 to relabel zero too).
+    clusters = bic.segmentation.relabel_sequential(clusters.astype("uint64") + 1, offset=1)[0].astype("uint32")
+    seg = project_node_labels_to_pixels(rag, segmentation, clusters)
     if min_segment_size > 0:
         inp = input_map if offsets is None else input_map[0]
         seg = apply_size_filter(seg, inp, min_segment_size)[0]
-        seg = relabelConsecutive(seg, start_label=1, keep_zeros=False)[0]
+        seg = bic.segmentation.relabel_sequential(seg.astype("uint64") + 1, offset=1)[0]
     return seg
 
 
@@ -200,19 +199,14 @@ def cluster_segmentation_mala(
 def compute_linkage_matrix(clustering, normalize_distances=False):
     """@private
     """
-    us, vs, dist, sizes = clustering.runAndGetLinkageMatrix()
-    lm = [us, vs, dist, sizes]
-    lm = list(map(np.array, lm))
-    lm = np.concatenate([xx[:, None] for xx in lm], axis=1)
-    if normalize_distances:
-        lm[:, 2] -= lm[:, 2].min()
-        lm[:, 2] /= (lm[:, 2].max() + 1e-6)
-    return lm
+    raise NotImplementedError(
+        "Linkage matrix extraction is not available with the bioimage-cpp backend."
+    )
 
 
 def clusters_from_tree(tree, n_clusters):
     """@private
     """
-    idx = len(tree) - n_clusters
-    clusters = tree[:, idx]
-    return clusters
+    raise NotImplementedError(
+        "Linkage tree extraction is not available with the bioimage-cpp backend."
+    )

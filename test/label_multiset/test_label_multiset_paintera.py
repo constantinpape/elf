@@ -3,11 +3,6 @@ import unittest
 import numpy as np
 
 try:
-    import nifty
-except ImportError:
-    nifty = None
-
-try:
     import z5py
 except ImportError:
     z5py = None
@@ -75,19 +70,19 @@ class TestLabelMultisetPaintera(unittest.TestCase):
         expected_ser = f[key_expected].read_chunk((0, 0, 0))
         self.check_serializations(ser, expected_ser, x.shape)
 
-    @unittest.skipUnless(nifty and z5py, "Need nifty and z5py")
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_create_from_labels_uniform(self):
         self.check_expected('uniform', 'uniform/data/s0')
 
-    @unittest.skipUnless(nifty and z5py, "Need nifty and z5py")
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_create_from_labels_range(self):
         self.check_expected('range', 'range/data/s0')
 
-    @unittest.skipUnless(nifty and z5py, "Need nifty and z5py")
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_create_from_multiset_range(self):
         self.check_downscale('range', 'range/data/s1')
 
-    @unittest.skipUnless(nifty and z5py, "Need nifty and z5py")
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_create_from_multiset_uniform(self):
         self.check_downscale('uniform', 'uniform/data/s1')
 

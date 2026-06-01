@@ -50,16 +50,16 @@ def find_local_maxima(
 
     @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def local_maxima_block(block_id):
-        block = blocking.getBlockWithHalo(block_id, list(halo))
-        outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin, block.outerBlock.end))
+        block = blocking.get_block_with_halo(block_id, list(halo))
+        outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outer_block.begin, block.outer_block.end))
         block_data = data[outer_bb]
         local_maxima = peak_local_max(
             block_data, min_distance=min_distance, threshold_abs=threshold_abs, threshold_rel=threshold_rel
         )
 
         # Filter out maxima in halo.
-        inner_block_start = np.array(block.innerBlockLocal.begin)[None, :]
-        inner_block_stop = np.array(block.innerBlockLocal.end)[None, :]
+        inner_block_start = np.array(block.inner_block_local.begin)[None, :]
+        inner_block_stop = np.array(block.inner_block_local.end)[None, :]
         filter_mask = np.logical_and(
             np.greater_equal(local_maxima, inner_block_start),
             np.less(local_maxima, inner_block_stop),
@@ -67,11 +67,11 @@ def find_local_maxima(
         local_maxima = local_maxima[filter_mask]
 
         # Apply offest coordinates of the inner block.
-        offset = np.array(block.outerBlock.begin)[None, :]
+        offset = np.array(block.outer_block.begin)[None, :]
         local_maxima += offset
         return local_maxima
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
         results = list(tqdm(
             tp.map(local_maxima_block, range(n_blocks)), total=n_blocks,

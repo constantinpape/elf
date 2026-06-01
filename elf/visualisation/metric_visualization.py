@@ -1,18 +1,18 @@
 from typing import Optional
 
 import numpy as np
+import bioimage_cpp as bic
 
 from elf.evaluation.matching import label_overlap, MATCHING_CRITERIA
-from skimage.segmentation import relabel_sequential
-
-from qtpy.QtWidgets import QLabel
 
 try:
     import napari
     from magicgui import magic_factory
+    from qtpy.QtWidgets import QLabel
 except ImportError:
     napari = None
     magic_factory = None
+    QLabel = None
 
 
 def _compute_matches(prediction, ground_truth, overlap_matrix, iou_threshold):
@@ -58,8 +58,13 @@ def run_metric_visualization(
     """
     assert napari is not None and magic_factory is not None, "Requires napari"
 
-    ground_truth = relabel_sequential(ground_truth)[0]
-    prediction = relabel_sequential(prediction)[0]
+    # bic.segmentation.relabel_sequential requires integer dtypes.
+    if ground_truth.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
+        ground_truth = ground_truth.astype("uint32")
+    if prediction.dtype not in (np.uint32, np.uint64, np.int32, np.int64):
+        prediction = prediction.astype("uint32")
+    ground_truth = bic.segmentation.relabel_sequential(ground_truth)[0]
+    prediction = bic.segmentation.relabel_sequential(prediction)[0]
 
     # Compute the overlaps for objects in the prediction and ground-truth.
     intersection_function = MATCHING_CRITERIA[criterion]

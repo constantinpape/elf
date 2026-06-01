@@ -60,9 +60,10 @@ def write_n5(
         coordinate_offset: The coordinate offset for the skeleton nodes.
     """
     # check if we have offset and add up if we do
+    # we operate on a copy so that the caller's array is not modified in place
     if coordinate_offset is not None:
         assert len(coordinate_offset) == 3
-        nodes += np.array(coordinate_offset, dtype="uint64")
+        nodes = nodes + np.array(coordinate_offset, dtype="uint64")
 
     # make serialization for number of points and coordinates
     n_points = nodes.shape[0]

@@ -2,11 +2,12 @@ import multiprocessing
 from typing import Optional, Tuple
 
 import numpy as np
-import nifty.graph.rag as nrag
+import bioimage_cpp as bic
 
 
 def visualise_edges(
     rag,
+    segmentation: np.ndarray,
     edge_values: np.ndarray,
     edge_direction: int = 2,
     ignore_edges: Optional[np.ndarray] = None,
@@ -15,7 +16,8 @@ def visualise_edges(
     """Visualize values mapped to the edges of a rag as image.
 
     Args:
-        rag: The egion adjacency graph.
+        rag: The region adjacency graph.
+        segmentation: The segmentation that was used to construct the rag.
         edge_values: The values mapped to the rag edges.
         edge_direction: The direction into which the edges will be drawn:
             0 - drawn in both directions
@@ -27,30 +29,35 @@ def visualise_edges(
     Returns:
         The image with edge visualizations.
     """
-    assert rag.numberOfEdges == len(edge_values), "%i, %i" % (rag.numberOfEdges,
-                                                              len(edge_values))
+    assert rag.number_of_edges == len(edge_values), "%i, %i" % (rag.number_of_edges,
+                                                                len(edge_values))
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
 
-    edge_builder = nrag.ragCoordinates(rag, numberOfThreads=n_threads)
+    edge_builder = bic.graph.rag_coordinates(rag, segmentation, number_of_threads=n_threads)
     if ignore_edges is None:
         edge_values_ = edge_values
     else:
         edge_values_ = edge_values.copy()
         edge_values_[ignore_edges] = 0
-    edge_vol = edge_builder.edgesToVolume(edge_values_, edgeDirection=edge_direction)
+    edge_vol = edge_builder.edges_to_volume(edge_values_, edge_direction=edge_direction)
     return edge_vol
 
 
 def _scale_values(values, threshold, invert):
+    if values.size == 0:
+        return values
     if invert:
         values = threshold - values
     values -= values.min()
-    values /= values.max()
+    vmax = values.max()
+    if vmax > 0:
+        values /= vmax
     return values
 
 
 def visualise_attractive_and_repulsive_edges(
     rag,
+    segmentation: np.ndarray,
     edge_values: np.ndarray,
     threshold: float,
     large_values_are_attractive: bool = True,
@@ -62,6 +69,7 @@ def visualise_attractive_and_repulsive_edges(
 
     Args:
         rag: The region adjacency graph.
+        segmentation: The segmentation that was used to construct the rag.
         edge_values: The values mapped to the rag edges.
         threshold: The values below this threhold are repulsive, above attractive.
         large_values_are_attractive: Are large values or small values attractive?
@@ -76,10 +84,10 @@ def visualise_attractive_and_repulsive_edges(
         Image visualizing the attractive edges.
         Image visualizing the repulsive edges.
     """
-    assert rag.numberOfEdges == len(edge_values), "%i, %i" % (rag.numberOfEdges,
-                                                              len(edge_values))
+    assert rag.number_of_edges == len(edge_values), "%i, %i" % (rag.number_of_edges,
+                                                                len(edge_values))
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
-    edge_builder = nrag.ragCoordinates(rag, numberOfThreads=n_threads)
+    edge_builder = bic.graph.rag_coordinates(rag, segmentation, number_of_threads=n_threads)
 
     if ignore_edges is None:
         edge_values_ = edge_values
@@ -97,8 +105,8 @@ def visualise_attractive_and_repulsive_edges(
         attractive_edges = edge_values_ < threshold
         attractive_edge_values[attractive_edges] = _scale_values(edge_values_[attractive_edges],
                                                                  threshold, True)
-    edge_vol_attractive = edge_builder.edgesToVolume(attractive_edge_values,
-                                                     edgeDirection=edge_direction)
+    edge_vol_attractive = edge_builder.edges_to_volume(attractive_edge_values,
+                                                       edge_direction=edge_direction)
 
     # find and normalize the repulsive edge values
     repulsive_edge_values = np.zeros_like(edge_values)
@@ -110,7 +118,7 @@ def visualise_attractive_and_repulsive_edges(
         repulsive_edges = edge_values_ > threshold
         repulsive_edge_values[repulsive_edges] = _scale_values(edge_values_[repulsive_edges],
                                                                threshold, False)
-    edge_vol_repulsive = edge_builder.edgesToVolume(repulsive_edge_values,
-                                                    edgeDirection=edge_direction)
+    edge_vol_repulsive = edge_builder.edges_to_volume(repulsive_edge_values,
+                                                      edge_direction=edge_direction)
 
     return edge_vol_attractive, edge_vol_repulsive

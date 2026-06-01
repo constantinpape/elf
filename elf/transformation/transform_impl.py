@@ -3,15 +3,11 @@ from numbers import Number
 from typing import Optional, Tuple
 
 import numpy as np
-import nifty.tools as nt
+import bioimage_cpp as bic
 
 from numpy.typing import ArrayLike
 
 from ..util import sigma_to_halo
-try:
-    import fastfilters as ff
-except ImportError:
-    import vigra.filters as ff
 
 
 #
@@ -25,7 +21,7 @@ def apply_transform_chunked(data, out, transform_coordinate, interpolate_coordin
     ndim = data.ndim
     # initialise the chunk cache
     chunk_cache = {}
-    chunks = blocking.blockShape
+    chunks = blocking.block_shape
 
     # precompute for range check
     max_range = tuple(sh - 1 for sh in data.shape)
@@ -48,24 +44,24 @@ def apply_transform_chunked(data, out, transform_coordinate, interpolate_coordin
         # iterate over coordinates and compute the output value
         val = 0.
         for coord, weight in zip(coords, weights):
-            chunk_id = blocking.coordinatesToBlockId(list(coord))
+            chunk_id = blocking.coordinates_to_block_id(list(coord))
             chunk, offset = chunk_cache.get(chunk_id, (None, None))
             if chunk is None:
 
-                chunk_pos = blocking.blockGridPosition(chunk_id)
+                chunk_pos = blocking.block_grid_position(chunk_id)
                 if sigma is None:
-                    block = blocking.getBlock(chunk_id)
+                    block = blocking.get_block(chunk_id)
                     chunk_bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
                 else:
-                    block = blocking.getBlockWithHalo(chunk_id, list(halo))
-                    chunk_bb = tuple(slice(beg, end) for beg, end in zip(block.outerBlock.begin,
-                                                                         block.outerBlock.end))
+                    block = blocking.get_block_with_halo(chunk_id, list(halo))
+                    chunk_bb = tuple(slice(beg, end) for beg, end in zip(block.outer_block.begin,
+                                                                         block.outer_block.end))
 
                 chunk = data[chunk_bb]
                 if sigma is not None:
-                    chunk = ff.gaussianSmoothing(chunk, sigma)
-                    inner_bb = tuple(slice(beg, end) for beg, end in zip(block.innerBlockLocal.begin,
-                                                                         block.innerBlockLocal.end))
+                    chunk = bic.filters.gaussian_smoothing(chunk, sigma)
+                    inner_bb = tuple(slice(beg, end) for beg, end in zip(block.inner_block_local.begin,
+                                                                         block.inner_block_local.end))
                     chunk = chunk[inner_bb]
 
                 offset = [cp * ch for cp, ch in zip(chunk_pos, chunks)]
@@ -228,7 +224,7 @@ def transform_subvolume(
             raise NotImplementedError("Pre-smoothing is currently not implemented.")
         _apply = apply_transform
     else:
-        blocking = nt.blocking([0] * ndim, data.shape, chunks)
+        blocking = bic.utils.Blocking([0] * ndim, list(data.shape), list(chunks))
         _apply = partial(apply_transform_chunked, blocking=blocking, sigma=sigma)
 
     if order == 0:

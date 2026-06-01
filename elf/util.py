@@ -289,12 +289,12 @@ def _make_checkerboard(blocking):
     blocks_a = [0]
     blocks_b = []
     processed_blocks = [0]
-    ndim = len(blocking.blockShape)
+    ndim = len(blocking.block_shape)
 
     def recurse(current_block, insert_list):
         other_list = blocks_a if insert_list is blocks_b else blocks_b
         for dim in range(ndim):
-            ngb_id = blocking.getNeighborId(current_block, dim, False)
+            ngb_id = blocking.get_neighbor_id(current_block, dim, False)
             if ngb_id != -1 and (ngb_id not in processed_blocks):
                 insert_list.append(ngb_id)
                 processed_blocks.append(ngb_id)
@@ -302,7 +302,7 @@ def _make_checkerboard(blocking):
 
     recurse(0, blocks_b)
     all_blocks = blocks_a + blocks_b
-    expected = set(range(blocking.numberOfBlocks))
+    expected = set(range(blocking.number_of_blocks))
     assert len(all_blocks) == len(expected), "%i, %i" % (len(all_blocks), len(expected))
     assert len(set(all_blocks) - expected) == 0
     assert len(blocks_a) == len(blocks_b), "%i, %i" % (len(blocks_a), len(blocks_b))
@@ -312,20 +312,20 @@ def _make_checkerboard(blocking):
 def _make_checkerboard_with_roi(blocking, roi_begin, roi_end):
 
     # find the smallest roi coordinate
-    block0 = blocking.coordinatesToBlockId(roi_begin)
+    block0 = blocking.coordinates_to_block_id(roi_begin)
 
     blocks_a = [block0]
     blocks_b = []
     processed_blocks = [block0]
-    ndim = len(blocking.blockShape)
+    ndim = len(blocking.block_shape)
 
-    blocks_in_roi = blocking.getBlockIdsOverlappingBoundingBox(roi_begin, roi_end)
+    blocks_in_roi = blocking.get_block_ids_overlapping_bounding_box(roi_begin, roi_end)
     assert block0 in blocks_in_roi
 
     def recurse(current_block, insert_list):
         other_list = blocks_a if insert_list is blocks_b else blocks_b
         for dim in range(ndim):
-            ngb_id = blocking.getNeighborId(current_block, dim, False)
+            ngb_id = blocking.get_neighbor_id(current_block, dim, False)
             if (ngb_id != -1) and (ngb_id in blocks_in_roi) and (ngb_id not in processed_blocks):
                 insert_list.append(ngb_id)
                 processed_blocks.append(ngb_id)

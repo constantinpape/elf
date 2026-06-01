@@ -2,8 +2,7 @@ from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-import nifty
-import nifty.graph.opt.multicut as nmc
+import bioimage_cpp as bic
 
 from .blockwise_mc_impl import blockwise_mc_impl
 
@@ -141,63 +140,35 @@ def compute_edge_costs(
 
 
 def _to_objective(graph, costs):
-    if isinstance(graph, nifty.graph.UndirectedGraph):
+    if isinstance(graph, bic.graph.UndirectedGraph):
         graph_ = graph
     else:
-        graph_ = nifty.graph.undirectedGraph(graph.numberOfNodes)
-        graph_.insertEdges(graph.uvIds())
-    objective = nmc.multicutObjective(graph_, costs)
-    return objective
+        graph_ = bic.graph.UndirectedGraph.from_edges(
+            graph.number_of_nodes, np.asarray(graph.uv_ids(), dtype="uint64"),
+        )
+    return bic.graph.multicut.MulticutObjective(graph_, costs)
 
 
-def _get_solver_factory(objective, internal_solver, warmstart=True, warmstart_kl=False):
+def _get_solver(internal_solver):
     if internal_solver == "kernighan-lin":
-        sub_solver = objective.kernighanLinFactory(warmStartGreedy=warmstart)
+        return bic.graph.multicut.KernighanLinMulticut()
     elif internal_solver == "greedy-additive":
-        sub_solver = objective.greedyAdditiveFactory()
+        return bic.graph.multicut.GreedyAdditiveMulticut()
     elif internal_solver == "greedy-fixation":
-        sub_solver = objective.greedyFixationFactory()
-    elif internal_solver == "cut-glue-cut":
-        if not nifty.Configuration.WITH_QPBO:
-            raise RuntimeError("multicut_cgc requires nifty built with QPBO")
-        sub_solver = objective.cgcFactory(warmStartGreedy=warmstart, warmStartKl=warmstart_kl)
-    elif internal_solver == "ilp":
-        if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
-            raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
-        sub_solver = objective.multicutIlpFactory()
+        return bic.graph.multicut.GreedyFixationMulticut()
+    elif internal_solver in ("cut-glue-cut", "ilp"):
+        raise NotImplementedError(
+            f"{internal_solver} is not available as an internal solver for bic dispatch; "
+            "call multicut_cgc / multicut_ilp directly (these route through nifty)."
+        )
     elif internal_solver in ("fusion-move", "decomposition"):
         raise NotImplementedError(f"Using {internal_solver} as internal solver is currently not supported.")
     else:
         raise ValueError(f"{internal_solver} cannot be used as internal solver.")
-    return sub_solver
-
-
-def _get_visitor(objective, time_limit=None, **kwargs):
-    logging_interval = kwargs.pop("logging_interval", None)
-    log_level = kwargs.pop("log_level", "INFO")
-    if time_limit is not None or logging_interval is not None:
-        logging_interval = int(np.iinfo("int32").max) if logging_interval is None else logging_interval
-        time_limit = float("inf") if time_limit is None else time_limit
-        log_level = getattr(nifty.LogLevel, log_level, nifty.LogLevel.INFO)
-
-        # I can't see a real difference between loggingVisitor and verboseVisitor.
-        # Use loggingVisitor for now.
-
-        # visitor = objective.verboseVisitor(visitNth=logging_interval,
-        #                                    timeLimitTotal=time_limit,
-        #                                    logLevel=log_level)
-
-        visitor = objective.loggingVisitor(visitNth=logging_interval,
-                                           timeLimitTotal=time_limit,
-                                           logLevel=log_level)
-
-        return visitor
-    else:
-        return None
 
 
 def blockwise_multicut(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     segmentation: np.ndarray,
     internal_solver: Union[str, callable],
@@ -232,7 +203,7 @@ def blockwise_multicut(
 
 
 def multicut_kernighan_lin(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     warmstart: bool = True,
@@ -246,21 +217,26 @@ def multicut_kernighan_lin(
     Args:
         graph: The graph of the multicut problem.
         costs: The edge costs of multicut problem.
-        time_limit: The time limit for inference in seconds.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
         warmstart: Whether to warmstart with GAEC solution.
-        kwargs: Keyword arguments for the visitor.
+        kwargs: Ignored on the bioimage-cpp backend.
 
     Returns:
         The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
-    solver = objective.kernighanLinFactory(warmStartGreedy=warmstart).create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
-    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
+    if warmstart:
+        solver = bic.graph.multicut.ChainedMulticutSolvers([
+            bic.graph.multicut.GreedyAdditiveMulticut(),
+            bic.graph.multicut.KernighanLinMulticut(),
+        ])
+    else:
+        solver = bic.graph.multicut.KernighanLinMulticut()
+    return solver.optimize(objective)
 
 
 def multicut_gaec(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     **kwargs
@@ -273,20 +249,18 @@ def multicut_gaec(
     Args:
         graph: The graph of the multicut problem.
         costs: The edge costs of the multicut problem.
-        time_limit: The time limit for inference in seconds.
-        kwargs: Keyword arguments for the visitor.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
+        kwargs: Ignored on the bioimage-cpp backend.
 
     Returns:
         The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
-    solver = objective.greedyAdditiveFactory().create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
-    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
+    return bic.graph.multicut.GreedyAdditiveMulticut().optimize(objective)
 
 
 def multicut_greedy_fixation(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     **kwargs
@@ -299,20 +273,18 @@ def multicut_greedy_fixation(
     Args:
         graph: The graph of the multicut problem.
         costs: The edge costs of the multicut problem.
-        time_limit: The time limit for inference in seconds.
-        kwargs: Keyword arguments for the visitor.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
+        kwargs: Ignored on the bioimage-cpp backend.
 
     Returns:
         The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
-    solver = objective.greedyFixationFactory().create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
-    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
+    return bic.graph.multicut.GreedyFixationMulticut().optimize(objective)
 
 
 def multicut_cgc(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     warmstart: bool = True,
@@ -324,7 +296,8 @@ def multicut_cgc(
     Introduced in "Cut, Glue & Cut: A Fast, Approximate Solver for Multicut Partitioning":
     https://www.cv-foundation.org/openaccess/content_cvpr_2014/html/Beier_Cut_Glue__2014_CVPR_paper.html
 
-    Requires nifty build with QPBO.
+    Requires nifty build with QPBO. bioimage-cpp does not implement CGC, so this solver
+    falls back to nifty (lazy-imported).
 
     Args:
         graph: The graph of the multicut problem.
@@ -337,16 +310,22 @@ def multicut_cgc(
     Returns:
         The node label solution to the multicut problem.
     """
+    try:
+        import nifty
+        import nifty.graph.opt.multicut as nmc
+    except ImportError as e:
+        raise RuntimeError(
+            "multicut_cgc requires nifty (bioimage-cpp does not implement CGC)."
+        ) from e
     if not nifty.Configuration.WITH_QPBO:
         raise RuntimeError("multicut_cgc requires nifty built with QPBO")
-    objective = _to_objective(graph, costs)
+    objective, visitor = _nifty_objective_and_visitor(nifty, nmc, graph, costs, time_limit, **kwargs)
     solver = objective.cgcFactory(warmStartGreedy=warmstart, warmStartKl=warmstart_kl).create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_decomposition(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     n_threads: int = 1,
@@ -361,27 +340,25 @@ def multicut_decomposition(
     Args:
         graph: The graph of the multicut problem.
         costs: The dge costs of the multicut problem.
-        time_limit: The time limit for inference in seconds.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
         n_threads: The number of threads.
         internal_solver: The name of the solver to use for connected components.
-        kwargs: Keyword arguments for the visitor.
+        kwargs: Ignored on the bioimage-cpp backend.
 
     Returns:
         The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
-    solver_factory = _get_solver_factory(objective, internal_solver)
-    solver = objective.multicutDecomposerFactory(
-        submodelFactory=solver_factory,
-        fallthroughFactory=solver_factory,
-        numberOfThreads=n_threads
-    ).create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
-    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
+    solver = bic.graph.multicut.MulticutDecomposer(
+        sub_solver=_get_solver(internal_solver),
+        fallthrough_solver=_get_solver(internal_solver),
+        number_of_threads=n_threads,
+    )
+    return solver.optimize(objective)
 
 
 def multicut_fusion_moves(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     n_threads: int = 1,
@@ -402,7 +379,7 @@ def multicut_fusion_moves(
     Args:
         graph: The graph of the multicut problem.
         costs: The dge costs of the multicut problem.
-        time_limit: The time limit for inference in seconds.
+        time_limit: Ignored on the bioimage-cpp backend (no visitor support).
         n_threads: The number of threads.
         internal_solver: The name of solver used for fusion moves.
         warmstart: Whether to warmstart with GAEC solution.
@@ -411,28 +388,60 @@ def multicut_fusion_moves(
         num_it: The maximal number of iterations.
         num_it_stop: Stop if no improvement after num_it_stop.
         sigma: The smoothing factor for weights in proposal generator.
-        kwargs: Keyword arguments for the visitor.
+        kwargs: Ignored on the bioimage-cpp backend.
 
     Returns:
         The node label solution to the multicut problem.
     """
     objective = _to_objective(graph, costs)
-    sub_solver = _get_solver_factory(objective, internal_solver)
-    sub_solver = objective.fusionMoveSettings(mcFactory=sub_solver)
-    proposal_gen = objective.watershedCcProposals(sigma=sigma, numberOfSeeds=seed_fraction)
-    solver = objective.ccFusionMoveBasedFactory(fusionMove=sub_solver,
-                                                warmStartGreedy=warmstart,
-                                                warmStartKl=warmstart_kl,
-                                                proposalGenerator=proposal_gen,
-                                                numberOfThreads=n_threads,
-                                                numberOfIterations=num_it,
-                                                stopIfNoImprovement=num_it_stop).create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
-    return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
+    fusion = bic.graph.multicut.FusionMoveMulticut(
+        proposal_generator=bic.graph.multicut.WatershedProposalGenerator(
+            sigma=sigma, n_seeds_fraction=seed_fraction,
+        ),
+        sub_solver=_get_solver(internal_solver),
+        number_of_iterations=num_it,
+        stop_if_no_improvement=num_it_stop,
+        number_of_threads=n_threads,
+    )
+    chain = []
+    if warmstart:
+        chain.append(bic.graph.multicut.GreedyAdditiveMulticut())
+    if warmstart_kl:
+        chain.append(bic.graph.multicut.KernighanLinMulticut())
+    chain.append(fusion)
+    if len(chain) == 1:
+        return fusion.optimize(objective)
+    return bic.graph.multicut.ChainedMulticutSolvers(chain).optimize(objective)
+
+
+def _nifty_objective_and_visitor(nifty, nmc, graph, costs, time_limit, **kwargs):
+    """@private
+
+    Build a nifty multicut objective (and optional visitor) for solvers that still
+    route through nifty (multicut_cgc, multicut_ilp).
+    """
+    if isinstance(graph, nifty.graph.UndirectedGraph):
+        graph_ = graph
+    else:
+        graph_ = nifty.graph.undirectedGraph(graph.number_of_nodes)
+        graph_.insertEdges(np.asarray(graph.uv_ids()))
+    objective = nmc.multicutObjective(graph_, costs)
+
+    logging_interval = kwargs.pop("logging_interval", None)
+    log_level = kwargs.pop("log_level", "INFO")
+    if time_limit is None and logging_interval is None:
+        return objective, None
+    logging_interval = int(np.iinfo("int32").max) if logging_interval is None else logging_interval
+    time_limit = float("inf") if time_limit is None else time_limit
+    log_level = getattr(nifty.LogLevel, log_level, nifty.LogLevel.INFO)
+    visitor = objective.loggingVisitor(visitNth=logging_interval,
+                                       timeLimitTotal=time_limit,
+                                       logLevel=log_level)
+    return objective, visitor
 
 
 def multicut_ilp(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     **kwargs
@@ -442,7 +451,8 @@ def multicut_ilp(
     Introduced in "Globally Optimal Closed-surface Segmentation for Connectomics":
     https://link.springer.com/chapter/10.1007/978-3-642-33712-3_56
 
-    Requires nifty build with CPLEX, GUROBI or GLPK.
+    Requires nifty build with CPLEX, GUROBI or GLPK. bioimage-cpp does not implement
+    an ILP backend, so this solver falls back to nifty (lazy-imported).
 
     Args:
         graph: The graph of the multicut problem.
@@ -453,16 +463,22 @@ def multicut_ilp(
     Returns:
         The node label solution to the multicut problem.
     """
+    try:
+        import nifty
+        import nifty.graph.opt.multicut as nmc
+    except ImportError as e:
+        raise RuntimeError(
+            "multicut_ilp requires nifty (bioimage-cpp does not implement an ILP backend)."
+        ) from e
     if not any((nifty.Configuration.WITH_CPLEX, nifty.Configuration.WITH_GLPK, nifty.Configuration.WITH_GUROBI)):
         raise RuntimeError("multicut_ilp requires nifty built with at least one of CPLEX, GLPK or GUROBI")
-    objective = _to_objective(graph, costs)
+    objective, visitor = _nifty_objective_and_visitor(nifty, nmc, graph, costs, time_limit, **kwargs)
     solver = objective.multicutIlpFactory().create(objective)
-    visitor = _get_visitor(objective, time_limit, **kwargs)
     return solver.optimize() if visitor is None else solver.optimize(visitor=visitor)
 
 
 def multicut_rama(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     costs: np.ndarray,
     time_limit: Optional[float] = None,
     mode: Optional[str] = None,
@@ -486,7 +502,7 @@ def multicut_rama(
     """
     if rama_py is None:
         raise RuntimeError("Need rama_py to use multicut_rama function")
-    uv_ids = graph.uvIds()
+    uv_ids = graph.uv_ids()
     if mode is None:
         opts = rama_py.multicut_solver_options()
     else:
@@ -494,7 +510,7 @@ def multicut_rama(
         opts = rama_py.multicut_solver_options(mode)
     opts.verbose = False
     node_labels = rama_py.rama_cuda(uv_ids[:, 0], uv_ids[:, 1], costs, opts)[0]
-    assert len(node_labels) == graph.numberOfNodes, f"{len(node_labels)}, {graph.numberOfNodes}"
+    assert len(node_labels) == graph.number_of_nodes, f"{len(node_labels)}, {graph.number_of_nodes}"
     return node_labels
 
 

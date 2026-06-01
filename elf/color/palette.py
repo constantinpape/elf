@@ -24,6 +24,15 @@ def glasbey(
     Wrapper around https://github.com/taketwo/glasbey, based on
     "Glasbey et al. Colour Displays for Categorical Images."
 
+    Note:
+        This function requires the ``taketwo/glasbey`` package, which is not on PyPI.
+        Install it directly from GitHub, e.g.::
+
+            pip install git+https://github.com/taketwo/glasbey.git
+
+        Do not ``pip install glasbey`` — the package of that name on PyPI is a different,
+        incompatible library and will cause this function to fail at runtime.
+
     Args:
         n_ids: Number of ids, corresponding to entries in the palette.
         base_palette_name: Name of the base palette.

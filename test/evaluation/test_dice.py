@@ -60,8 +60,8 @@ class TestDice(unittest.TestCase):
     def test_symmetric_best_dice_score_numpy(self):
         self._test_symmetric_best_dice_score('numpy')
 
-    def test_symmetric_best_dice_score_nifty(self):
-        self._test_symmetric_best_dice_score('nifty')
+    def test_symmetric_best_dice_score_bic(self):
+        self._test_symmetric_best_dice_score('bic')
 
     def test_compare_implementations(self):
         from elf.evaluation import symmetric_best_dice_score
@@ -72,7 +72,7 @@ class TestDice(unittest.TestCase):
             seg = self._get_seg(shape, True)
             gt = self._get_seg(shape, True)
             score1 = symmetric_best_dice_score(seg, gt, impl='numpy')
-            score2 = symmetric_best_dice_score(seg, gt, impl='numpy')
+            score2 = symmetric_best_dice_score(seg, gt, impl='bic')
             self.assertAlmostEqual(score1, score2)
 
 

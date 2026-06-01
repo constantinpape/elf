@@ -34,24 +34,24 @@ def copy_dataset(
 
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking_out = get_blocking(ds_out, block_shape, roi_out, n_threads)
-    out_shape = tuple(re - rb for rb, re in zip(blocking_out.roiBegin, blocking_out.roiEnd))
+    out_shape = tuple(re - rb for rb, re in zip(blocking_out.roi_begin, blocking_out.roi_end))
 
-    block_shape = tuple(blocking_out.blockShape)
-    blocking_in = get_blocking(ds_in, block_shape, roi_in)
-    in_shape = tuple(re - rb for rb, re in zip(blocking_in.roiBegin, blocking_in.roiEnd))
+    block_shape = tuple(blocking_out.block_shape)
+    blocking_in = get_blocking(ds_in, block_shape, roi_in, n_threads)
+    in_shape = tuple(re - rb for rb, re in zip(blocking_in.roi_begin, blocking_in.roi_end))
 
     if in_shape != out_shape:
         raise ValueError(f"Invalid roi shapes {in_shape}, {out_shape}")
 
-    n_blocks = blocking_out.numberOfBlocks
-    if blocking_in.numberOfBlocks != n_blocks:
-        raise ValueError(f"Invalid number of blocks {blocking_in.numberOfBlocks}, {n_blocks}")
+    n_blocks = blocking_out.number_of_blocks
+    if blocking_in.number_of_blocks != n_blocks:
+        raise ValueError(f"Invalid number of blocks {blocking_in.number_of_blocks}, {n_blocks}")
 
     def _copy_block(block_id):
-        block_in = blocking_in.getBlock(block_id)
+        block_in = blocking_in.get_block(block_id)
         bb_in = tuple(slice(beg, end) for beg, end in zip(block_in.begin, block_in.end))
 
-        block_out = blocking_out.getBlock(block_id)
+        block_out = blocking_out.get_block(block_id)
         bb_out = tuple(slice(beg, end) for beg, end in zip(block_out.begin, block_out.end))
 
         ds_out[bb_out] = ds_in[bb_in]

@@ -1,10 +1,34 @@
 import unittest
 import numpy as np
-from elf.transformation.affine import affine_matrix_3d
+from elf.transformation.affine import affine_matrix_2d, affine_matrix_3d
 
 
 class TestConverter(unittest.TestCase):
     N = 10
+
+    def test_parameters_to_matrix(self):
+        from elf.transformation.converter import matrix_to_parameters, parameters_to_matrix
+
+        for _ in range(self.N):
+            # 2d matrix: 6 parameters, 3x3 matrix
+            mat_2d = affine_matrix_2d(scale=2 * np.random.rand(2),
+                                      rotation=360 * np.random.rand() - 180,
+                                      translation=16 * np.random.rand(2))
+            params_2d = matrix_to_parameters(mat_2d)
+            self.assertEqual(len(params_2d), 6)
+            res_2d = parameters_to_matrix(params_2d)
+            self.assertEqual(res_2d.shape, (3, 3))
+            self.assertTrue(np.allclose(mat_2d, res_2d))
+
+            # 3d matrix: 12 parameters, 4x4 matrix
+            mat_3d = affine_matrix_3d(scale=2 * np.random.rand(3),
+                                      rotation=180 * np.random.rand(3),
+                                      translation=16 * np.random.rand(3))
+            params_3d = matrix_to_parameters(mat_3d)
+            self.assertEqual(len(params_3d), 12)
+            res_3d = parameters_to_matrix(params_3d)
+            self.assertEqual(res_3d.shape, (4, 4))
+            self.assertTrue(np.allclose(mat_3d, res_3d))
 
     def test_bdv_to_native(self):
         from elf.transformation.converter import (bdv_to_native,

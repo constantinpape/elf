@@ -2,7 +2,7 @@
 # simple grid image views implemented on top of napari
 # simplified version of elf.htm
 #
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -12,6 +12,14 @@ try:
 except ImportError:
     napari = None
     link_layers = None
+
+
+def _resolve_is_rgb(is_rgb, name):
+    """@private
+    """
+    if isinstance(is_rgb, dict):
+        return is_rgb.get(name, False)
+    return is_rgb
 
 
 def get_position(grid_shape, image_shape, i, spacing):
@@ -51,7 +59,6 @@ def set_camera(viewer, grid_shape, image_shape, spacing):
     viewer.camera.zoom /= max_len
 
 
-# TODO make is_rgb support a dict
 def simple_grid_view(
     image_data: Dict[str, List[np.ndarray]],
     label_data: Optional[Dict[str, List[np.ndarray]]] = None,
@@ -59,8 +66,8 @@ def simple_grid_view(
     grid_shape: Optional[Tuple[int, int]] = None,
     spacing: int = 16,
     show: bool = True,
-    is_rgb: bool = False,
-) -> napari.Viewer:
+    is_rgb: Union[bool, Dict[str, bool]] = False,
+) -> "napari.Viewer":
     """Show images in napari using a simple grid view.
 
     Args:
@@ -70,16 +77,20 @@ def simple_grid_view(
         grid_shape: The shape of the grid. If None, it will be derived from the number of images.
         spacing: The spacing between images in the grid.
         show: Whether to start the napari viewer.
-        is_rgb: Whether the image data is rgb.
+        is_rgb: Whether the image data is rgb. Either a single boolean applied to all image sources,
+            or a dictionary mapping image source names to booleans. Sources missing from the
+            dictionary are treated as non-rgb.
 
     Returns:
         The napari viewer.
     """
     assert napari is not None and link_layers is not None, "Requires napari"
 
-    n_images = len(next(iter(image_data.values())))
-    image_shape = next(iter(image_data.values()))[0].shape
-    if is_rgb:
+    first_name = next(iter(image_data.keys()))
+    n_images = len(image_data[first_name])
+    # Derive the spatial image shape from the first source, stripping the channel axis if it is rgb.
+    image_shape = image_data[first_name][0].shape
+    if _resolve_is_rgb(is_rgb, first_name):
         assert image_shape[-1] == 3
         image_shape = image_shape[:-1]
 
@@ -95,14 +106,15 @@ def simple_grid_view(
     viewer = napari.Viewer()
     for name, images in image_data.items():
         assert len(images) == n_images
-        if is_rgb:
-            assert all([im.shape[:-1] == image_shape for im in images])
+        this_is_rgb = _resolve_is_rgb(is_rgb, name)
+        if this_is_rgb:
+            assert all([im.shape[-1] == 3 and im.shape[:-1] == image_shape for im in images])
         else:
             assert all([im.shape == image_shape for im in images])
         this_settings = {} if settings is None else settings.get(name, {})
         add_grid_sources(name, images, grid_shape, this_settings,
                          add_source=viewer.add_image, spacing=spacing,
-                         is_rgb=is_rgb)
+                         is_rgb=this_is_rgb)
 
     if label_data is not None:
         for name, labels in label_data.items():

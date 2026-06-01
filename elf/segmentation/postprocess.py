@@ -1,11 +1,10 @@
 from typing import Optional
 
+import bioimage_cpp as bic
 import numpy as np
-import nifty
-import vigra
 
 
-def graph_watershed(graph: nifty.graph.UndirectedGraph, edge_weigths: np.ndarray, seed_nodes: np.ndarray) -> np.ndarray:
+def graph_watershed(graph, edge_weigths: np.ndarray, seed_nodes: np.ndarray) -> np.ndarray:
     """Compute graph watershed.
 
     Args:
@@ -16,14 +15,14 @@ def graph_watershed(graph: nifty.graph.UndirectedGraph, edge_weigths: np.ndarray
     Returns:
         The node labeling results of the graph watershed.
     """
-    assert len(edge_weigths) == graph.numberOfEdges
-    assert len(seed_nodes) == graph.numberOfNodes
-    node_labels = nifty.graph.edgeWeightedWatershedsSegmentation(graph, seed_nodes, edge_weigths)
+    assert len(edge_weigths) == graph.number_of_edges
+    assert len(seed_nodes) == graph.number_of_nodes
+    node_labels = bic.graph.edge_weighted_watershed(graph, edge_weigths, seed_nodes)
     return node_labels
 
 
 def graph_size_filter(
-    graph: nifty.graph.UndirectedGraph,
+    graph,
     edge_weigths: np.ndarray,
     node_sizes: np.ndarray,
     min_size: int,
@@ -43,7 +42,7 @@ def graph_size_filter(
     Returns:
         The size filtered node labeling.
     """
-    n_nodes = graph.numberOfNodes
+    n_nodes = graph.number_of_nodes
 
     if node_labels is None:
         seeds = np.zeros(n_nodes, dtype="uint64")
@@ -55,10 +54,10 @@ def graph_size_filter(
         n_labels = int(node_labels.max() + 1)
         assert n_labels == len(node_sizes)
         discard_labels = np.where(node_sizes < min_size)[0]
-        seeds = node_labels.copy()
-        seeds[discard_labels] = 0
+        seeds = node_labels.astype("uint64", copy=True)
+        seeds[np.isin(seeds, discard_labels)] = 0
 
     if relabel:
-        vigra.analysis.relabelConsecutive(seeds, start_label=1, keep_zeros=True, out=seeds)
+        seeds, _, _ = bic.segmentation.relabel_sequential(seeds, offset=1)
 
     return graph_watershed(graph, edge_weigths, seeds)

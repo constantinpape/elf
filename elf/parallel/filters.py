@@ -5,15 +5,21 @@ from functools import partial
 from tqdm import tqdm
 from typing import Optional, Tuple
 
+import bioimage_cpp as bic
 import numpy as np
 from numpy.typing import ArrayLike
-try:
-    import fastfilters as ff
-except ImportError:
-    import vigra.filters as ff
 
 from .common import get_blocking
 from ..util import sigma_to_halo
+
+
+_FILTER_FUNCTIONS = {
+    "gaussianSmoothing": bic.filters.gaussian_smoothing,
+    "gaussianGradientMagnitude": bic.filters.gaussian_gradient_magnitude,
+    "hessianOfGaussianEigenvalues": bic.filters.hessian_of_gaussian_eigenvalues,
+    "laplacianOfGaussian": bic.filters.laplacian_of_gaussian,
+    "structureTensorEigenvalues": bic.filters.structure_tensor_eigenvalues,
+}
 
 
 # helper function to choose a channel from filter output
@@ -88,10 +94,10 @@ def apply_filter(
         raise ValueError("Invalid mask shape, got %s, expected %s (= shape of first operand)" % (str(mask.shape),
                                                                                                  str(data.shape)))
 
-    filter_function = getattr(ff, filter_name)
+    filter_function = _FILTER_FUNCTIONS[filter_name]
     if filter_name == "structureTensorEigenvalues":
         assert outer_scale is not None, "Need outer_scale for structureTensorEigenvalues"
-        filter_function = partial(filter_function, outerScale=outer_scale)
+        filter_function = partial(filter_function, outer_sigma=outer_scale)
 
     ndim = data.ndim
     blocking = get_blocking(data, block_shape, roi, n_threads)
@@ -126,11 +132,11 @@ def apply_filter(
     def _apply_filter(block_id):
         # get the block with halo and the slicings corresponding to
         # the block with halo, the block without halo and the
-        # block without halo in loocal coordinates
-        block = blocking.getBlockWithHalo(blockIndex=block_id, halo=halo)
-        inner_slice = block_to_bb(block.innerBlock)
-        outer_slice = block_to_bb(block.outerBlock)
-        inner_local_slice = block_to_bb(block.innerBlockLocal)
+        # block without halo in local coordinates
+        block = blocking.get_block_with_halo(block_id, halo)
+        inner_slice = block_to_bb(block.inner_block)
+        outer_slice = block_to_bb(block.outer_block)
+        inner_local_slice = block_to_bb(block.inner_block_local)
 
         if mask is not None:
             m = mask[inner_slice]
@@ -140,7 +146,7 @@ def apply_filter(
         block_data = data[outer_slice]
         block_response = filter_function(block_data, sigma)[inner_local_slice]
 
-        # vigra / fastfilters are channel last, but we are channel first
+        # bioimage_cpp filters return channel last, but we are channel first
         if block_response.ndim > ndim:
             inner_slice = (slice(None),) + inner_slice
             block_response = np.rollaxis(block_response, -1)
@@ -151,7 +157,7 @@ def apply_filter(
             block_response[m] = block_data[m]
         out[inner_slice] = block_response
 
-    n_blocks = blocking.numberOfBlocks
+    n_blocks = blocking.number_of_blocks
     with futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(tp.map(_apply_filter, range(n_blocks)), total=n_blocks, disable=not verbose))
 
@@ -162,7 +168,7 @@ def _generate_filter(filter_name):
     # cast filter name to snake case for all elf names
     elf_name = re.sub(r'(?<!^)(?=[A-Z])', '_', filter_name).lower()
     doc_str =\
-        """Comppute %s response block-wise and in parallel.
+        """Compute %s response block-wise and in parallel.
 
         Args:
             data: Input data, numpy array or similar like h5py or zarr dataset.
@@ -202,7 +208,7 @@ def _generate_structure_tensor(filter_name):
     # cast filter name to snake case for all elf names
     elf_name = re.sub(r'(?<!^)(?=[A-Z])', '_', filter_name).lower()
     doc_str =\
-        """Comppute %s response block-wise and in parallel.
+        """Compute %s response block-wise and in parallel.
 
         Args:
             data: Input data, numpy array or similar like h5py or zarr dataset.
@@ -246,7 +252,7 @@ def _generate_hessian(filter_name):
     # cast filter name to snake case for all elf names
     elf_name = re.sub(r'(?<!^)(?=[A-Z])', '_', filter_name).lower()
     doc_str =\
-        """Comppute %s response block-wise and in parallel.
+        """Compute %s response block-wise and in parallel.
 
         Args:
             data: Input data, numpy array or similar like h5py or zarr dataset.

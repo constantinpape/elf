@@ -1,6 +1,6 @@
 import unittest
+import bioimage_cpp as bic
 import numpy as np
-import vigra
 
 
 class TestWatershed(unittest.TestCase):
@@ -104,7 +104,9 @@ class TestWatershed(unittest.TestCase):
         shape = (256, 256)
         inp = np.random.rand(*shape).astype("float32")
 
-        initial_seeds = vigra.analysis.labelImageWithBackground((np.random.rand(*shape) > 0.9).astype("uint8"))
+        initial_seeds = bic.segmentation.label(
+            (np.random.rand(*shape) > 0.9).astype("uint8"), background=0, connectivity=2,
+        )
         seg, max_id = distance_transform_watershed(inp, threshold=0.4, sigma_seeds=2.0, min_size=0, seeds=initial_seeds)
         self.assertEqual(inp.shape, seg.shape)
         self.assertTrue(np.allclose(initial_seeds[initial_seeds > 0], seg[initial_seeds > 0]))
@@ -168,6 +170,51 @@ class TestWatershed(unittest.TestCase):
         # check the mask
         self.assertNotIn(0, ws[mask])
         self.assertTrue(np.allclose(ws[np.logical_not(mask)], 0))
+
+    def test_from_affinities_to_boundary_prob_map(self):
+        from elf.segmentation.watershed import from_affinities_to_boundary_prob_map
+        shape = (16, 32, 32)
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
+        affs = np.random.rand(len(offsets), *shape).astype("float32")
+        bmap = from_affinities_to_boundary_prob_map(affs, offsets)
+        self.assertEqual(bmap.shape, shape)
+        self.assertTrue((bmap >= 0).all())
+        # values are the per-pixel max over (1 - affinity), bounded by 1
+        self.assertTrue((bmap <= 1.0001).all())
+
+    def test_from_affinities_to_boundary_prob_map_subset(self):
+        from elf.segmentation.watershed import from_affinities_to_boundary_prob_map
+        shape = (8, 16, 16)
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1], [-3, 0, 0]]
+        affs = np.random.rand(len(offsets), *shape).astype("float32")
+        # Only use the first three channels.
+        bmap = from_affinities_to_boundary_prob_map(affs, offsets, used_offsets=[0, 1, 2])
+        self.assertEqual(bmap.shape, shape)
+
+    def test_watershed_on_dt_from_affinities(self):
+        from elf.segmentation.watershed import WatershedOnDistanceTransformFromAffinities
+        shape = (8, 64, 64)
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
+        affs = np.random.rand(len(offsets), *shape).astype("float32")
+        ws_func = WatershedOnDistanceTransformFromAffinities(
+            offsets=offsets, threshold=0.5, sigma_seeds=2.0,
+        )
+        seg = ws_func(affs)
+        self.assertEqual(seg.shape, shape)
+        self.assertGreater(int(seg.max()), 0)
+
+    def test_watershed_on_dt_from_affinities_stacked(self):
+        from elf.segmentation.watershed import WatershedOnDistanceTransformFromAffinities
+        shape = (4, 64, 64)
+        offsets = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
+        affs = np.random.rand(len(offsets), *shape).astype("float32")
+        ws_func = WatershedOnDistanceTransformFromAffinities(
+            offsets=offsets, threshold=0.5, sigma_seeds=2.0,
+            stacked_2d=True, n_threads=2, return_hmap=True,
+        )
+        seg, hmap = ws_func(affs)
+        self.assertEqual(seg.shape, shape)
+        self.assertEqual(hmap.shape, shape)
 
 
 if __name__ == "__main__":

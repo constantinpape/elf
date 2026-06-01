@@ -70,7 +70,7 @@ def parse_simple_htm(
 
     assert channel_names
     image_data = {name: _load_channel_simple(files, name) for name in channel_names}
-    label_data = None if label_names is None else {name: _load_channel_simple(files, name) for name in label_names}
+    label_data = None if not label_names else {name: _load_channel_simple(files, name) for name in label_names}
     return image_data, label_data
 
 

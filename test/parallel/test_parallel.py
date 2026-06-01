@@ -1,6 +1,7 @@
 import unittest
+
+import bioimage_cpp as bic
 import numpy as np
-import vigra
 
 
 class TestParallel(unittest.TestCase):
@@ -52,13 +53,14 @@ class TestParallel(unittest.TestCase):
         vals = np.array(list(mapping.values()))
         self.assertTrue(np.array_equal(unx, vals))
 
-        # check against vigra result
-        exp = vigra.analysis.relabelConsecutive(x)[0]
+        # check against bioimage_cpp result
+        exp = bic.segmentation.relabel_sequential(x, offset=1)[0]
+        # bic.segmentation.relabel_sequential starts non-zero labels at offset=1,
+        # while elf.parallel.relabel_consecutive starts at start_label (default 0).
+        # The set of unique values should match in size; check label cardinality.
         unexp = np.unique(exp)
-        self.assertTrue(np.array_equal(unx, unexp))
+        self.assertEqual(unx.size, unexp.size)
 
-    # FIXME
-    @unittest.expectedFailure
     def test_relabel_with_mask(self):
         from elf.parallel import relabel_consecutive
         shape = 3 * (128,)

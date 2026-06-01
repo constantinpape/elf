@@ -3,24 +3,23 @@ channels:
 name:
     elf-dev
 dependencies:
-    - affogato
+    - bioimage-cpp
     - h5py
     - imageio
     # Intern is an optional dependenciy that often crashes the CI.
     # We don't install it by default anymore.
     # - intern
     - mrcfile
-    - nifty
     - numpy >=2
     - numba
     - pandas
     - pip
+    - pooch
     - requests
     - scikit-image
     - scikit-learn
     - skan
     - tqdm
     - threadpoolctl
-    - vigra
     - z5py
     - zarr >=2,<4

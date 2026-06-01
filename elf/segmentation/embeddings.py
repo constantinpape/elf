@@ -3,7 +3,6 @@ from threadpoolctl import threadpool_limits
 from typing import List, Optional
 
 import numpy as np
-import vigra
 try:
     import hdbscan
 except ImportError:
@@ -13,7 +12,8 @@ from scipy.ndimage import shift
 from sklearn.cluster import MeanShift
 from sklearn.decomposition import PCA
 
-from .features import (compute_grid_graph,
+from .features import (_region_features,
+                       compute_grid_graph,
                        compute_grid_graph_affinity_features,
                        compute_grid_graph_image_features)
 from .multicut import compute_edge_costs
@@ -73,16 +73,16 @@ def edge_probabilities_from_embeddings(
     Returns:
         The edge probabilties.
     """
-    n_nodes = rag.numberOfNodes
+    n_nodes = rag.number_of_nodes
     embed_dim = embeddings.shape[0]
 
     segmentation = segmentation.astype("uint32")
     mean_embeddings = np.zeros((n_nodes, embed_dim), dtype="float32")
     for cid in range(embed_dim):
-        mean_embed = vigra.analysis.extractRegionFeatures(embeddings[cid], segmentation, features=["mean"])["mean"]
+        mean_embed = _region_features(embeddings[cid], segmentation, ["mean"])["mean"]
         mean_embeddings[:, cid] = mean_embed
 
-    uv_ids = rag.uvIds()
+    uv_ids = rag.uv_ids()
     embed_u = mean_embeddings[uv_ids[:, 0]]
     embed_v = mean_embeddings[uv_ids[:, 1]]
     edge_probabilities = 1. - _embeddings_to_probabilities(embed_u, embed_v, delta, embedding_axis=1)
@@ -310,14 +310,17 @@ def _get_lr_offsets(offsets):
 
 def _apply_mask(mask, g, weights, lr_edges, lr_weights):
     assert np.dtype(mask.dtype) == np.dtype("bool")
-    node_ids = g.projectNodeIdsToPixels()
-    assert node_ids.shape == mask.shape == tuple(g.shape), f"{node_ids.shape}, {mask.shape}, {g.shape}"
+    # bic.graph.GridGraph2D/3D uses row-major node ids (np.arange(prod(shape)).reshape(shape)),
+    # so we rebuild that without a per-graph projection method.
+    shape = tuple(g.shape)
+    node_ids = np.arange(np.prod(shape), dtype="uint64").reshape(shape)
+    assert node_ids.shape == mask.shape == shape, f"{node_ids.shape}, {mask.shape}, {shape}"
     masked_ids = node_ids[~mask]
 
     # local edges:
     # - set edges that connect masked nodes to max attractive
     # - set edges that connect masked and non-masked nodes to max repulsive
-    local_edge_state = np.isin(g.uvIds(), masked_ids).sum(axis=1)
+    local_edge_state = np.isin(g.uv_ids(), masked_ids).sum(axis=1)
     local_masked_edges = local_edge_state == 2
     local_transition_edges = local_edge_state == 1
     weights[local_masked_edges] = 0.0
@@ -346,22 +349,20 @@ def _process_weights(g, edges, weights, weight_function, beta,
 
     def apply_weight_function():
         nonlocal weights
-        edge_ids = g.projectEdgeIdsToPixels()
+        edge_ids = g.project_edge_ids_to_pixels()
         invalid_edges = edge_ids == -1
         edge_ids[invalid_edges] = 0
         weights = weights[edge_ids]
         weights[invalid_edges] = 0
         for chan_id, weightc in enumerate(weights):
             weights[chan_id] = weight_function(weightc)
-        edges, weights = compute_grid_graph_affinity_features(
-            g, weights
-        )
-        assert len(weights) == g.numberOfEdges
+        edges, weights = compute_grid_graph_affinity_features(g, weights)
+        assert len(weights) == g.number_of_edges
         return edges, weights
 
     def apply_weight_function_lr():
         nonlocal weights
-        edge_ids = g.projectEdgeIdsToPixelsWithOffsets(offsets)
+        edge_ids, _ = g.project_edge_ids_to_pixels_with_offsets(np.asarray(offsets))
         invalid_edges = edge_ids == -1
         edge_ids[invalid_edges] = 0
         weights = weights[edge_ids]
@@ -370,7 +371,7 @@ def _process_weights(g, edges, weights, weight_function, beta,
             weights[chan_id] = weight_function(weightc)
         edges, weights = compute_grid_graph_affinity_features(
             g, weights, offsets=offsets,
-            strides=strides, randomize_strides=randomize_strides
+            strides=strides, randomize_strides=randomize_strides,
         )
         return edges, weights
 
@@ -456,7 +457,7 @@ def segment_embeddings_mws(
     )
     if bias > 0:
         mutex_costs += bias
-    uvs = g.uvIds()
+    uvs = g.uv_ids()
     seg = mutex_watershed_clustering(uvs, mutex_uvs, costs, mutex_costs).reshape(embeddings.shape[1:])
     if mask is not None:
         seg = _ensure_mask_is_zero(seg, mask)

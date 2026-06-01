@@ -1,7 +1,7 @@
 from typing import Optional
 
 import numpy as np
-import nifty.ground_truth as ngt
+import bioimage_cpp as bic
 
 # implementations based on:
 # https://github.com/kreshuklab/sparse-object-embeddings/blob/master/pytorch3dunet/clustering/sbd.py
@@ -67,28 +67,32 @@ def _best_dice_numpy(gt, seg):
     return np.mean(best_dices)
 
 
-def _best_dice_nifty(gt, seg, average_scores=True):
-    gt_labels, gt_counts = np.unique(gt, return_counts=True)
-    seg_labels, seg_counts = np.unique(seg, return_counts=True)
-    seg_counts = {seg_id: cnt for seg_id, cnt in zip(seg_labels, seg_counts)}
+def _best_dice_bic(gt, seg, average_scores=True):
+    overlaps = bic.utils.segmentation_overlap(gt, seg)
 
-    if gt_labels[0] == 0:
-        gt_labels, gt_counts = gt_labels[1:], gt_counts[1:]
+    gt_counts_table = overlaps.counts_a_table()
+    seg_counts_table = overlaps.counts_b_table()
+    gt_counts = {int(lab): int(cnt) for lab, cnt in zip(gt_counts_table["label"], gt_counts_table["count"])}
+    seg_counts = {int(lab): int(cnt) for lab, cnt in zip(seg_counts_table["label"], seg_counts_table["count"])}
+
+    gt_labels = [lab for lab in gt_counts if lab != 0]
     if len(gt_labels) == 0:
         return 0.0
 
     eps = 1e-7
-    overlaps = ngt.overlap(gt, seg)
     dice_scores = []
-    for gt_id, gt_count in zip(gt_labels, gt_counts):
-        ovlp_ids, ovlp_counts = overlaps.overlapArrays(gt_id, sorted=True)
+    for gt_id in gt_labels:
+        gt_count = gt_counts[gt_id]
+        ovlps = overlaps.overlaps_for_label_a(gt_id)
+        ovlp_ids = ovlps["label"]
+        ovlp_counts = ovlps["count"]
         zero_mask = ovlp_ids == 0
-        if zero_mask.sum() > 0:
+        if zero_mask.any():
             ovlp_ids, ovlp_counts = ovlp_ids[~zero_mask], ovlp_counts[~zero_mask]
         if len(ovlp_ids) == 0:
             dice_scores.append(0.)
             continue
-        scores = [float(2 * count) / float(gt_count + seg_counts[seg_id] + eps)
+        scores = [float(2 * count) / float(gt_count + seg_counts[int(seg_id)] + eps)
                   for seg_id, count in zip(ovlp_ids, ovlp_counts)]
         dice_scores.append(np.max(scores))
 
@@ -101,7 +105,7 @@ def _best_dice_nifty(gt, seg, average_scores=True):
 def symmetric_best_dice_score(
     segmentation: np.ndarray,
     groundtruth: np.ndarray,
-    impl: str = "nifty",
+    impl: str = "bic",
 ) -> float:
     """Compute the best symmetric dice score between the objects in the groundtruth and segmentation.
 
@@ -110,13 +114,13 @@ def symmetric_best_dice_score(
     Args:
         segmentation: Candidate segmentation to evaluate.
         groundtruth: Groundtruth segmentation.
-        impl: Implementation used to compute the best dice score. The available implementations are 'nifty' and 'numpy'.
+        impl: Implementation used to compute the best dice score. The available implementations are 'bic' and 'numpy'.
 
     Returns:
         The best symmetric dice score.
     """
-    assert impl in ("nifty", "numpy")
-    best_dice = _best_dice_nifty if impl == "nifty" else _best_dice_numpy
+    assert impl in ("bic", "numpy")
+    best_dice = _best_dice_bic if impl == "bic" else _best_dice_numpy
     score1 = best_dice(segmentation, groundtruth)
     score2 = best_dice(groundtruth, segmentation)
     return min(score1, score2)

@@ -3,7 +3,7 @@ import warnings
 from typing import Optional, Tuple
 
 import numpy as np
-import vigra
+from bioimage_cpp.segmentation import label as cc_label
 from tqdm import tqdm
 
 from elf.parallel import label
@@ -86,7 +86,7 @@ def mesh_to_segmentation(
     seg[coords] = 0
 
     if block_shape is None:
-        seg_out = vigra.analysis.labelVolumeWithBackground(seg) == 2
+        seg_out = cc_label(seg, background=0, connectivity=1) == 2
     else:
         seg_out = np.zeros_like(seg)
         seg_out = label(seg, seg_out, with_background=True, block_shape=block_shape) == 2
