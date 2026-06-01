@@ -5,13 +5,18 @@ on:
     paths:
       - "elf/**/*.py"   # Trigger on any changes in python files.
     branches:
-      - master        # Run the workflow only on pushes to the main branch
+      - main          # Run the workflow only on pushes to the default branch
       - bump-version
   workflow_dispatch:
 
 # security: restrict permissions for CI jobs.
 permissions:
   contents: read
+
+# Allow only one concurrent deployment, without cancelling in-progress runs.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -21,6 +26,9 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
 
     - name: Set up Micromamba
       uses: mamba-org/setup-micromamba@v2
@@ -66,5 +74,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GiHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
