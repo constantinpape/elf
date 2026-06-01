@@ -37,7 +37,7 @@ extras["conda_all"] = conda_all
 
 
 setup(
-    name="elf",
+    name="python-elf",
     packages=find_packages(exclude=["test"]),
     version=__version__,
     author="Constantin Pape",
