@@ -12,6 +12,11 @@ try:
 except ImportError:
     h5py = None
 
+try:
+    import z5py
+except ImportError:
+    z5py = None
+
 
 def _remove_path(path):
     try:
@@ -71,10 +76,12 @@ class TestResize(unittest.TestCase):
     def test_resize_3d_order1(self):
         self._test_resize((2.0, 1.5, 0.5), (48, 48, 48), (16, 16, 16), order=1)
 
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_resize_2d_z5(self):
         self._test_resize((2.0, 2.0), (128, 128), (32, 32), order=0, out_file="tmp.n5")
         self._test_resize((2.0, 2.0), (128, 128), (32, 32), order=1, out_file="tmp.n5")
 
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_resize_3d_z5(self):
         self._test_resize((2.0, 1.5, 0.5), (48, 48, 48), (16, 16, 16), order=1, out_file="tmp.n5")
 

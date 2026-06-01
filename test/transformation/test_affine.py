@@ -12,6 +12,11 @@ try:
 except ImportError:
     h5py = None
 
+try:
+    import z5py
+except ImportError:
+    z5py = None
+
 
 def _remove_path(path):
     try:
@@ -78,6 +83,7 @@ class TestAffine(unittest.TestCase):
         for order in (0, 1):
             self._test_2d(mat, order=order, out_file=out_file)
 
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_affine_subvolume_2d_z5(self):
         self._test_affine_subvolume_2d_chunked("tmp.n5")
 
@@ -117,6 +123,7 @@ class TestAffine(unittest.TestCase):
     def test_presmoothing(self):
         self._test_presmoothing()
 
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_presmoothing_z5(self):
         self._test_presmoothing(out_file="tmp.n5")
 
@@ -163,6 +170,7 @@ class TestAffine(unittest.TestCase):
         for order in (0, 1):
             self._test_3d(mat, order=order, out_file=out_file)
 
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_affine_subvolume_3d_z5(self):
         self._test_affine_subvolume_3d_chunked("tmp.n5")
 
@@ -218,6 +226,7 @@ class TestAffine(unittest.TestCase):
                 self.assertTrue(np.allclose(mem, chunked), f"order={order}")
         f.close()
 
+    @unittest.skipUnless(z5py, "Need z5py")
     def test_chunked_matches_memory_z5(self):
         self._test_chunked_matches_memory("tmp.n5")
 

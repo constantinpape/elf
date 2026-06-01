@@ -6,19 +6,19 @@ __version__ = runpy.run_path("elf/__version__.py")["__version__"]
 requires = [
     "bioimage-cpp",
     "numpy>=2.0",
+    "h5py",
     "imageio",
     "pooch",
     "requests",
     "scikit-image",
     "scikit-learn",
     "skan",
+    "zarr",
 ]
 
 
 # optional dependencies for setuptools
 extras = {
-    "hdf5": "h5py",
-    "zarr": "zarr",
     "n5": "pyn5",
     "cloud": "intern"
 }
@@ -30,14 +30,11 @@ conda_only = ["z5py"]
 
 # collect all dependencies for conda
 conda_exclude = [
-    "zarr",  # we don't need zarr dependencies in conda, because we use z5py
     "pyn5"  # pyn5 is not available on conda (and not needed due to z5py)
 ]
 conda_all = conda_only + [v for v in extras.values() if v not in conda_exclude]
 extras["conda_all"] = conda_all
 
-# NOTE in case we want to support different conda flavors at some point, we
-# can add keys to 'extras', e.g. 'conda_no_hdf5' without h5py
 
 setup(
     name="elf",
