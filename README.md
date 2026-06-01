@@ -4,6 +4,10 @@
 
 # elf
 
+**Important:** We have recently switched to using [bioimage-cpp](https://github.com/computational-cell-analytics/bioimage-cpp) as new library to implement computationally expensive functionality that was previously used from affogato, nifty, and vigra.
+This enables installing elf via pip, but may lead to some bugs and incompatibilities.
+If you encounter some problem let us know in an issue; you can also install `elf < 0.9` to restore the previous version.
+
 This repository implements common functionality for biomedical image analysis:
 - **evaluation**: evaluation of partitions via rand index and variation of information
 - **io**: common interface for different libraries / formats 
@@ -25,15 +29,17 @@ It is used by several down-stream dependencies:
 - [ilastik](https://github.com/ilastik/ilastik)
 - [mobie-python](https://github.com/mobie/mobie-utils-python)
 - [plantseg](https://github.com/hci-unihd/plant-seg)
+- [torch_em](https://github.com/constantinpape/torch-em)
+- [micro_sam](https://github.com/computational-cell-analytics/micro-sam)
 
 ## Installation
 
-Install the package from source and in development mode via
+Install the package from pip:
+```bash
+pip install python-elf
 ```
-pip install -e .
-```
-or via conda
-```
+or from conda:
+```bash
 conda install -c conda-forge python-elf
 ```
 
