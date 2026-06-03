@@ -73,3 +73,48 @@ class RoiWrapper(WrapperBase):
         index, _ = normalize_index(index, self.shape)
         index = self.map_index_to_volume(index)
         self._volume[index] = item
+
+
+class PadWrapper(WrapperBase):
+    """Wrapper to pad the input.
+
+    This only supports right-padding.
+
+    Args:
+        volume: The data to pad.
+        pad_shape: The shape for padding the data.
+    """
+    def __init__(self, volume: ArrayLike, pad_width: Tuple[int, ...], mode: str = "constant"):
+        assert volume.ndim == len(pad_width)
+        super().__init__(volume)
+        self._pad_width = pad_width
+        self._shape = volume.shape
+        self._mode = mode
+
+    @property
+    def shape(self):
+        return tuple(sh + pw for sh, pw in zip(self._shape, self._pad_width))
+
+    def __getitem__(self, index):
+        index, to_squeeze = normalize_index(index, self.shape)
+
+        local_pad, local_index = [], []
+        for idx, sh in zip(index, self._shape):
+            overhang_start = max(0, idx.start - sh)
+            overhang_stop = max(0, idx.stop - sh)
+            if overhang_start > 0:
+                raise NotImplementedError
+            elif overhang_stop > 0:
+                local_pad.append(overhang_stop)
+                local_index.append(slice(idx.start, sh))
+            else:
+                local_pad.append(0)
+                local_index.append(idx)
+
+        local_index = tuple(local_index)
+        out = self._volume[local_index]
+        if any(lpad > 0 for lpad in local_pad):
+            pad_width = tuple((0, lpad) for lpad in local_pad)
+            out = np.pad(out, pad_width, mode=self._mode)
+
+        return squeeze_singletons(out, to_squeeze)
