@@ -2,4 +2,4 @@
 """
 
 from .base import SimpleTransformationWrapper, SimpleTransformationWrapperWithHalo, TransformationWrapper
-from .generic import NormalizeWrapper, ThresholdWrapper, RoiWrapper
+from .generic import NormalizeWrapper, ThresholdWrapper, RoiWrapper, PadWrapper
