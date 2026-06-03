@@ -1,5 +1,6 @@
 [![Build Status](https://github.com/constantinpape/elf/workflows/build/badge.svg)](https://github.com/constantinpape/elf/actions)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/python-elf/badges/version.svg)](https://anaconda.org/conda-forge/python-elf)
+[![PyPI](https://img.shields.io/pypi/v/python-elf)](https://pypi.org/project/python-elf/)
 [![Documentation - Documentation](https://img.shields.io/badge/Documentation-Documentation-2ea44f)](https://constantinpape.github.io/elf/elf.html)
 
 # elf
