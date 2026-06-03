@@ -3,25 +3,31 @@
 This library implements segmentation and other image analysis functionality in python.
 The functionality is implemented in `elf` and its submodules.
 
-## Current task
+## Library structure
 
-The library relies heavily on implementations from `nifty`, `vigra`, and `affogato`, which are C++ bindings with python libraries.
-However, these libraries are difficult to install (e.g. not available on PyPI), limiting accessibility.
+All functionality lives in the `elf` package. Each submodule is self-contained and exposes its public API via its `__init__.py`. The `test` folder mirrors this layout, with one subfolder per submodule.
 
-We have developed a new library `bioimage-cpp` to bundle the needed functionality and to make it more easily available.
-Now, we want to migrate `elf` to use `bioimage-cpp`to eliminate `nifty`, `vigra`, and `affogato` dependencies.
-In addition, we also want to use more efficient implementation from `bioimage-cpp` over `scipy`, `skimage` where available.
-Please refer to `bioimage-cpp`'s migration guide for how to migrate the functionality:
-https://raw.githubusercontent.com/computational-cell-analytics/bioimage-cpp/refs/heads/main/MIGRATION_GUIDE.md
+Top-level utilities:
+- `elf/util.py`: General-purpose helpers used across submodules.
+- `elf/__version__.py`: Single source of truth for the package version.
 
-We will go through the sub-modules one by one to migrate functionality. For each sub-module please follow this strategy:
-- First check for sufficient test coverage and add further tests to increase it.
-- Then check for general issues or missing functionality (indicated by TODOs etc.) in the sub-module and fix them.
-- Then check for functionality to migrate.
-    - If you cannot find a matching function in `bioimage-cpp` let me know and it will be implemented there.
-- Then do the migration, run tests to ensure its success.
+Submodules:
+- `elf/io`: Unified interface for reading/writing large microscopy data. `files.py` is the main entry point (`open_file`); the `*_wrapper.py` files adapt specific backends (zarr, n5, mrc, knossos, nifti, intern, image stacks, etc.).
+- `elf/wrapper`: Lazy array wrappers that apply transformations on-the-fly (affine, resize, caching). `base.py` defines the wrapper base class; `generic.py` provides a generic apply-function wrapper.
+- `elf/parallel`: Blockwise/parallel implementations of array operations (label, relabel, watershed, distance transform, filters, size filter, unique, stats, copy). Use these for data too large to fit in memory.
+- `elf/segmentation`: Core segmentation algorithms — (lifted) multicut, mutex watershed, GASP, clustering, watershed, plus blockwise variants (`blockwise_*_impl.py`), feature computation (`features.py`), embeddings, learning, stitching, postprocessing, and high-level pipelines in `workflows.py`.
+- `elf/evaluation`: Segmentation metrics — rand index, variation of information, dice, cremi score, and matching-based scores.
+- `elf/transformation`: Coordinate/image transformations, including affine transforms, resizing, NGFF transforms, and elastix/transformix wrappers.
+- `elf/tracking`: Graph-based tracking (motile), with MaMuT import/export and shared utilities.
+- `elf/mesh`: Mesh generation from segmentations, mesh I/O, and mesh-to-segmentation conversion.
+- `elf/skeleton`: Skeletonization (`skeletonize.py`, `thinning.py`) and skeleton I/O.
+- `elf/label_multiset`: Paintera-style label multiset data structure — creation, serialization, and the core data structure.
+- `elf/htm`: High-throughput microscopy helpers — parsing and visualization.
+- `elf/ilastik`: Interop with ilastik (e.g. carving).
+- `elf/visualisation`: Visualization helpers (edges, grids, metrics, object/size views).
+- `elf/color`: Color palettes for visualization.
 
-We will go through each of these steps with planning mode.
+Note the British spelling in `elf/visualisation`. Heavy numerical routines are increasingly backed by [bioimage-cpp](https://github.com/computational-cell-analytics/bioimage-cpp) (replacing the older affogato/nifty/vigra dependencies); some functions degrade gracefully or raise if an optional backend is missing.
 
 ## Coding standards
 
