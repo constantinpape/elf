@@ -65,6 +65,15 @@ class RoiWrapper(WrapperBase):
     def shape(self):
         return tuple(self._roi[ax].stop - self._roi[ax].start for ax in self._kept_axes)
 
+    @property
+    def ndim(self):
+        return len(self._kept_axes)
+
+    @property
+    def chunks(self):
+        chunks = super().chunks
+        return None if chunks is None else tuple(chunks[ax] for ax in self._kept_axes)
+
     def map_index_to_volume(self, index):
         full_index = list(self._roi)  # Default to the roi slice for every axis.
         for ind, ax in zip(index, self._kept_axes):

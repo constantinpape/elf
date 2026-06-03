@@ -49,6 +49,8 @@ class TestGenericWrapper(unittest.TestCase):
             wrapped = RoiWrapper(x, bb, squeeze=True)
             exp = x[bb]
             self.assertEqual(wrapped.shape, np.shape(exp))
+            self.assertEqual(wrapped.ndim, len(wrapped.shape))
+            self.assertEqual(wrapped.ndim, np.ndim(exp))
             # A fully-reduced (scalar) wrapper must be indexed with `()`, just like numpy.
             res = wrapped[()] if wrapped.shape == () else wrapped[:]
             self.assertEqual(np.shape(res), np.shape(exp))
@@ -65,9 +67,32 @@ class TestGenericWrapper(unittest.TestCase):
         wrapped[:] = val
         self.assertTrue(np.array_equal(y[2, 10:40, :], val))
 
-        # squeeze=False (default) keeps the singleton axes.
+        # ndim and chunks reflect the reduced view. numpy arrays expose no chunks, so wrap a
+        # small chunked stand-in to check that the squeezed axes' chunks are dropped.
+        class _Chunked:
+            def __init__(self, arr, chunks):
+                self._arr, self.chunks = arr, chunks
+
+            shape = property(lambda self: self._arr.shape)
+            ndim = property(lambda self: self._arr.ndim)
+            dtype = property(lambda self: self._arr.dtype)
+
+            def __getitem__(self, index):
+                return self._arr[index]
+
+        chunked = _Chunked(x, (8, 64, 64))
+        wrapped = RoiWrapper(chunked, np.s_[2, 10:40, :], squeeze=True)
+        self.assertEqual(wrapped.ndim, 2)
+        self.assertEqual(wrapped.chunks, (64, 64))
+        self.assertEqual(len(wrapped.chunks), wrapped.ndim)
+
+        # squeeze=False (default) keeps the singleton axes, ndim, and full chunks.
         wrapped = RoiWrapper(x, np.s_[0], squeeze=False)
         self.assertEqual(wrapped.shape, (1,) + self.shape[1:])
+        self.assertEqual(wrapped.ndim, x.ndim)
+        wrapped = RoiWrapper(chunked, np.s_[0], squeeze=False)
+        self.assertEqual(wrapped.ndim, x.ndim)
+        self.assertEqual(wrapped.chunks, (8, 64, 64))
 
 
 if __name__ == '__main__':
