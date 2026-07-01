@@ -55,14 +55,4 @@ Example scripts for many of `elf`'s features can be found in [example](https://g
 - `view_container`: Visualize the content of any file supported by `elf.io` with napari.
 """  # noqa
 
-import warnings
 from .__version__ import __version__  # noqa
-
-warnings.warn(
-    "elf has switched from the affogato, vigra, and nifty librares to "
-    "https://github.com/computational-cell-analytics/bioimage-cpp as new backed for custom functionality "
-    "implemented in C++, e.g. mutex watershed, multicut etc. This may lead to some changes in behavior and "
-    "interface. If you run into issues with the new version consider installing a version < 0.9. "
-    "Please also consider raising an issue on github so that we are aware of issues with the migration.",
-    UserWarning, stacklevel=2
-)
