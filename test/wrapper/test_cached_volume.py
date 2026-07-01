@@ -25,7 +25,7 @@ class TestCachedVolume(unittest.TestCase):
         from elf.wrapper.cached_volume import CachedVolume, FIFOCache
         shape = (256,) * 3
         data = np.random.rand(*shape)
-        f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'))
+        f = z5py.File(os.path.join(self.tmp_dir, 'data.n5'), "a")
         ds = f.create_dataset('data', data=data,
                               compression='gzip', chunks=(16, 128, 128),
                               n_threads=8)
