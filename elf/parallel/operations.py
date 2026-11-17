@@ -70,7 +70,6 @@ def isin(
     blocking = get_blocking(x, block_shape, roi, n_threads)
     n_blocks = blocking.number_of_blocks
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _isin(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -90,7 +89,8 @@ def isin(
             xx[m] = np.isin(xx[m], y)
         out[bb] = xx
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(tp.map(_isin, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
@@ -158,7 +158,6 @@ def apply_operation(
     blocking = get_blocking(x, block_shape, roi, n_threads)
     n_blocks = blocking.number_of_blocks
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _apply_scalar(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -204,7 +203,8 @@ def apply_operation(
         out[bb] = xx
 
     _apply = _apply_scalar if scalar_operand else _apply_array
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
@@ -260,7 +260,6 @@ def apply_operation_single(
     blocking = get_blocking(out, block_shape, roi, n_threads)
     n_blocks = blocking.number_of_blocks
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _apply(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -283,7 +282,8 @@ def apply_operation_single(
             xx[m] = 0
         out[bb] = xx
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(tp.map(_apply, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out

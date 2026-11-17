@@ -41,7 +41,6 @@ def mean(
     blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.number_of_blocks
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _mean(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -60,7 +59,8 @@ def mean(
 
         return np.mean(d), d.size
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         results = list(tqdm(tp.map(_mean, range(n_blocks)), total=n_blocks, disable=not verbose))
     results = [res for res in results if res is not None]
 
@@ -97,7 +97,6 @@ def mean_and_std(
     blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.number_of_blocks
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _mean_and_std(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -116,7 +115,8 @@ def mean_and_std(
 
         return np.mean(d), np.var(d), d.size
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         if verbose:
             results = list(tqdm(tp.map(_mean_and_std, range(n_blocks)), total=n_blocks))
         else:
@@ -187,7 +187,6 @@ def min_and_max(
     blocking = get_blocking(data, block_shape, roi, n_threads)
     n_blocks = blocking.number_of_blocks
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _min_and_max(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -206,7 +205,8 @@ def min_and_max(
 
         return np.min(d), np.max(d)
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         if verbose:
             results = list(tqdm(tp.map(_min_and_max, range(n_blocks)), total=n_blocks))
         else:

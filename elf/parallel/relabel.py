@@ -66,7 +66,6 @@ def relabel_consecutive(
         raise ValueError("Expect data and out of same shape, got %s and %s" % (str(data.shape),
                                                                                str(out.shape)))
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def _relabel(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -91,7 +90,8 @@ def relabel_consecutive(
             o[m] = take_dict(mapping_block, v)
         out[bb] = o
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(tp.map(_relabel, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out, max_id, mapping
