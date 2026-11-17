@@ -67,7 +67,8 @@ def segmentation_filter(
 
         out[bb] = seg
 
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(tp.map(apply_filter, range(n_blocks)), total=n_blocks, disable=not verbose))
 
     return out
@@ -125,7 +126,6 @@ def size_filter(
         else:
             mapping[0] = 0
 
-        @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
         def _relabel(seg, block_mask):
             if block_mask is None or block_mask.sum() == block_mask.size:
                 ids_in_block = np.unique(seg)
@@ -142,7 +142,6 @@ def size_filter(
     else:
         _relabel = None
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def filter_function(block_seg, block_mask):
         bg_mask = np.isin(block_seg, filter_ids)
         if block_mask is not None:

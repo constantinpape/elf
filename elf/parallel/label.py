@@ -21,7 +21,6 @@ def cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose):
     n_blocks = blocking.number_of_blocks
 
     # Compute the connected component for one block.
-    @threadpool_limits.wrap(limits=1)  # Restrict the numpy threadpool to 1 to avoid oversubscription.
     def _cc_block(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -48,7 +47,8 @@ def cc_blocks(data, out, mask, blocking, with_background, n_threads, verbose):
         return int(d.max())
 
     # Compute connected components for all blocks in parallel.
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         block_max_labels = list(tqdm(
            tp.map(_cc_block, range(n_blocks)), total=n_blocks, desc="Label all sub-blocks", disable=not verbose
         ))
@@ -62,7 +62,6 @@ def merge_blocks(data, out, mask, offsets, blocking, max_id, with_background, n_
     n_blocks = blocking.number_of_blocks
     ndim = out.ndim
 
-    @threadpool_limits.wrap(limits=1)  # Restrict the numpy threadpool to 1 to avoid oversubscription.
     def _merge_block_faces(block_id):
         block = blocking.get_block(block_id)
         offset_block = offsets[block_id]
@@ -132,7 +131,8 @@ def merge_blocks(data, out, mask, offsets, blocking, max_id, with_background, n_
             return None
 
     # Compute the merge ids across all block faces.
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         merge_labels = list(tqdm(
             tp.map(_merge_block_faces, range(n_blocks)), total=n_blocks,
             desc="Merge labels across block faces", disable=not verbose
@@ -164,7 +164,6 @@ def write_mapping(out, mask, offsets, mapping, with_background, blocking, n_thre
     n_blocks = blocking.number_of_blocks
 
     # Compute the connected component for one block.
-    @threadpool_limits.wrap(limits=1)  # Restrict the numpy threadpool to 1 to avoid oversubscription.
     def _write_block(block_id):
         block = blocking.get_block(block_id)
         bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
@@ -194,7 +193,8 @@ def write_mapping(out, mask, offsets, mapping, with_background, blocking, n_thre
         out[bb] = d
 
     # Compute connected components for all blocks in parallel.
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(
             tp.map(_write_block, range(n_blocks)), total=n_blocks, desc="Write blocks", disable=not verbose
         ))

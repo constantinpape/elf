@@ -48,7 +48,6 @@ def find_local_maxima(
     ndim = data.ndim
     halo = [min_distance + 8] * ndim
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def local_maxima_block(block_id):
         block = blocking.get_block_with_halo(block_id, list(halo))
         outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outer_block.begin, block.outer_block.end))
@@ -72,7 +71,8 @@ def find_local_maxima(
         return local_maxima
 
     n_blocks = blocking.number_of_blocks
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         results = list(tqdm(
             tp.map(local_maxima_block, range(n_blocks)), total=n_blocks,
             desc="Compute local maxima", disable=not verbose

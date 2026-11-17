@@ -46,7 +46,6 @@ def map_points_to_objects(
     n_threads = multiprocessing.cpu_count() if n_threads is None else n_threads
     blocking = get_blocking(segmentation, block_shape, roi, n_threads)
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def map_block(block_id):
         if halo is None:
             block = blocking.get_block(block_id)
@@ -94,7 +93,8 @@ def map_points_to_objects(
         return point_ids, object_ids, object_distances
 
     n_blocks = blocking.number_of_blocks
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         results = list(tqdm(
             tp.map(map_block, range(n_blocks)), total=n_blocks,
             desc="Map points to objects", disable=not verbose
@@ -188,7 +188,6 @@ def distance_transform(
         else:
             assert indices.shape == (data.ndim,) + data.shape
 
-    @threadpool_limits.wrap(limits=1)  # restrict the numpy threadpool to 1 to avoid oversubscription
     def dist_block(block_id):
         block = blocking.get_block_with_halo(block_id, list(halo))
         outer_bb = tuple(slice(beg, end) for beg, end in zip(block.outer_block.begin, block.outer_block.end))
@@ -223,7 +222,8 @@ def distance_transform(
             indices[inner_bb] = ind
 
     n_blocks = blocking.number_of_blocks
-    with futures.ThreadPoolExecutor(n_threads) as tp:
+    # Restrict the numpy threadpool to 1 for all blocks at once to avoid oversubscription.
+    with threadpool_limits(limits=1), futures.ThreadPoolExecutor(n_threads) as tp:
         list(tqdm(
             tp.map(dist_block, range(n_blocks)), total=n_blocks,
             desc="Compute distance transform", disable=not verbose

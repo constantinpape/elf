@@ -52,4 +52,6 @@ def smooth_mesh(
         The vertices after smoothing.
         The normals after smoothing.
     """
-    return bic.utils.smooth_mesh(verts, normals, faces, iterations)
+    # bioimage-cpp 0.10 moved 'smooth_mesh' from 'utils' to 'mesh'.
+    mesh_impl = bic.mesh if hasattr(bic, "mesh") else bic.utils
+    return mesh_impl.smooth_mesh(verts, normals, faces, iterations)
